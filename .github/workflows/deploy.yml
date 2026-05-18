@@ -1,0 +1,39 @@
+name: Deploy to Hostinger VPS
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy application via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }} # Ou use key: ${{ secrets.VPS_SSH_KEY }} se preferir chave pública
+          port: 22
+          script: |
+            # Navega até a pasta do projeto (ajuste o caminho de acordo com sua VPS)
+            cd /var/www/brainlingo || exit
+            
+            # Puxa o código mais recente do GitHub
+            git pull origin main
+            
+            # --- BUILD FRONTEND ---
+            cd frontend
+            npm install
+            npm run build
+            # Copia os arquivos gerados (dist) para a pasta pública do Nginx/Apache (ajuste o caminho)
+            # cp -r dist/* /var/www/html/brainlingo/
+            
+            # --- BUILD BACKEND ---
+            cd ../backend
+            npm install
+            npm run build
+            
+            # --- RESTART BOT (PM2) ---
+            # Supondo que você use PM2 para gerenciar o Node na VPS
+            # pm2 restart brainlingo-bot || pm2 start dist/index.js --name "brainlingo-bot"
