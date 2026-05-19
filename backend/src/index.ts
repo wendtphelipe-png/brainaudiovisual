@@ -54,6 +54,14 @@ app.get('/admin', (req: any, res: any) => {
     `);
 });
 
+// Rota de Diagnóstico: Mostra os logs do PM2 direto no navegador
+app.get('/logs', (req: any, res: any) => {
+    const { exec } = require('child_process');
+    exec('pm2 logs brainlingo-bot --lines 100 --nostream', (err: any, stdout: any, stderr: any) => {
+        res.type('text/plain').send(`=== PM2 LOGS ===\n\nSTDOUT:\n${stdout}\n\nSTDERR:\n${stderr}`);
+    });
+});
+
 // Variáveis de ambiente ou fallback para desenvolvimento
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'devkey';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'secret';
