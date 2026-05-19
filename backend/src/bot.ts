@@ -93,6 +93,15 @@ export async function startBot(meetUrl: string) {
 
     } catch (err) {
         console.error('Erro durante o fluxo de login no Meet:', err);
+        try {
+            // Tira uma foto da tela para sabermos exatamente o que o Google está mostrando
+            const path = require('path');
+            const screenshotPath = path.join(__dirname, '../../frontend/dist/debug.png');
+            await page.screenshot({ path: screenshotPath, fullPage: true });
+            console.log(`Screenshot salva em: ${screenshotPath}`);
+        } catch (e) {
+            console.error('Falha ao salvar screenshot', e);
+        }
         await browser.close();
         return; // Aborta se falhou ao entrar
     }
