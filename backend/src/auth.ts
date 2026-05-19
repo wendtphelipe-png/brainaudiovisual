@@ -67,7 +67,7 @@ async function getNewToken(oAuth2Client: any) {
         console.log('======================================================\n');
 
         // Cria a rota para receber o código do Google
-        app.get('/oauth2callback', async (req, res) => {
+        app.get('/oauth2callback', async (req: any, res: any) => {
             const code = req.query.code as string;
             
             if (!code) {

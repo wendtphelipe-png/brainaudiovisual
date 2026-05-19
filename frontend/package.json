@@ -14,7 +14,7 @@
     "react-dom": "^19.2.6",
     "livekit-client": "^2.5.0",
     "@livekit/components-react": "^2.6.0",
-    "lucide-react": "^0.450.0"
+    "lucide-react": "latest"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

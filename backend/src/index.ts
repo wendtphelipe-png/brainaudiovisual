@@ -12,7 +12,7 @@ const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'devkey';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'secret';
 
 // Rota para iniciar o robô numa reunião específica
-app.post('/api/start-bot', async (req, res) => {
+app.post('/api/start-bot', async (req: any, res: any) => {
     const { meetUrl } = req.body;
     
     if (!meetUrl || !meetUrl.includes('meet.google.com')) {
@@ -29,7 +29,7 @@ app.post('/api/start-bot', async (req, res) => {
 });
 
 // Rota para o frontend gerar o token para o aluno que acessou via QR Code
-app.post('/api/get-student-token', (req, res) => {
+app.post('/api/get-student-token', async (req: any, res: any) => {
     const { roomName, studentId } = req.body;
     
     if (!roomName) {
@@ -43,7 +43,7 @@ app.post('/api/get-student-token', (req, res) => {
     
     at.addGrant({ roomJoin: true, room: roomName, canPublish: false, canSubscribe: true });
     
-    res.json({ token: at.toJwt() });
+    res.json({ token: await at.toJwt() });
 });
 
 const PORT = process.env.PORT || 3000;

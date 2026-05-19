@@ -11,13 +11,13 @@ const LIVEKIT_ROOM = process.env.LIVEKIT_ROOM || 'evento-01';
 /**
  * Gera um token de acesso para o robô se conectar ao LiveKit e publicar áudio
  */
-function generateLiveKitToken(): string {
+async function generateLiveKitToken(): Promise<string> {
     const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
         identity: 'bot-tradutor',
         name: 'Bot Tradutor',
     });
     at.addGrant({ roomJoin: true, room: LIVEKIT_ROOM, canPublish: true, canSubscribe: false });
-    return at.toJwt();
+    return await at.toJwt();
 }
 
 /**
@@ -41,21 +41,22 @@ export async function startBot(meetUrl: string) {
 
     // 1. Script para interceptar todo o áudio da página ANTES que qualquer elemento toque
     await page.addInitScript(() => {
-        window['__botAudioContext'] = new (window.AudioContext || (window as any).webkitAudioContext)();
-        window['__botAudioDest'] = window['__botAudioContext'].createMediaStreamDestination();
+        const win = window as any;
+        win.__botAudioContext = new (win.AudioContext || win.webkitAudioContext)();
+        win.__botAudioDest = win.__botAudioContext.createMediaStreamDestination();
         
         const originalPlay = HTMLMediaElement.prototype.play;
         HTMLMediaElement.prototype.play = function() {
             try {
                 // Conecta a fonte de áudio do elemento ao nosso destino misturador
-                const source = window['__botAudioContext'].createMediaElementSource(this);
-                source.connect(window['__botAudioDest']);
+                const source = win.__botAudioContext.createMediaElementSource(this);
+                source.connect(win.__botAudioDest);
                 // Também conecta ao destino original para não quebrar o fluxo interno
-                source.connect(window['__botAudioContext'].destination);
+                source.connect(win.__botAudioContext.destination);
             } catch(e) {
                 // Ignora erros caso a fonte já tenha sido conectada
             }
-            return originalPlay.apply(this, arguments);
+            return originalPlay.apply(this, arguments as any);
         };
     });
 
@@ -93,7 +94,7 @@ export async function startBot(meetUrl: string) {
 
     // 3. Injeção do LiveKit para capturar e transmitir o áudio interceptado
     console.log('Injetando LiveKit Client no navegador...');
-    const livekitToken = generateLiveKitToken();
+    const livekitToken = await generateLiveKitToken();
     
     // Adiciona o script do LiveKit via CDN na página
     await page.addScriptTag({ url: 'https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js' });
@@ -108,7 +109,8 @@ export async function startBot(meetUrl: string) {
             console.log('Conectado ao LiveKit a partir do navegador!');
 
             // Pega a stream mista que interceptamos no InitScript
-            const mixedStream = window['__botAudioDest'].stream;
+            const win = window as any;
+            const mixedStream = win.__botAudioDest.stream;
             const audioTrack = mixedStream.getAudioTracks()[0];
 
             if (audioTrack) {
