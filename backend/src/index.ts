@@ -93,7 +93,7 @@ app.post('/api/get-student-token', async (req: any, res: any) => {
     res.json({ token: await at.toJwt() });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`LiveTranslate Backend rodando na porta ${PORT}`);
     console.log(`- POST /api/start-bot { "meetUrl": "..." }`);
