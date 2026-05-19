@@ -41,7 +41,8 @@ export async function startBot(meetUrl: string) {
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
         viewport: { width: 1280, height: 720 },
         locale: 'pt-BR',
-        timezoneId: 'America/Sao_Paulo'
+        timezoneId: 'America/Sao_Paulo',
+        permissions: ['camera', 'microphone']
     });
     const page = await context.newPage();
 
