@@ -36,7 +36,10 @@ export async function startBot(meetUrl: string) {
         ]
     });
 
-    const context = await browser.newContext();
+    const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        viewport: { width: 1280, height: 720 }
+    });
     const page = await context.newPage();
 
     // 1. Script para interceptar todo o áudio da página ANTES que qualquer elemento toque
@@ -90,6 +93,8 @@ export async function startBot(meetUrl: string) {
 
     } catch (err) {
         console.error('Erro durante o fluxo de login no Meet:', err);
+        await browser.close();
+        return; // Aborta se falhou ao entrar
     }
 
     // 3. Injeção do LiveKit para capturar e transmitir o áudio interceptado
