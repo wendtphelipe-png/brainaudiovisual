@@ -24,21 +24,32 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlToken = params.get('token');
-    const urlRoom = params.get('room');
-    if (urlToken) setToken(urlToken);
-    if (urlRoom) setRoomName(urlRoom);
+    const urlRoom = params.get('room') || 'evento-01';
+    
+    setRoomName(urlRoom);
+
+    if (urlToken) {
+      setToken(urlToken);
+    } else {
+      // Se não tem token na URL, pede pro backend gerar um na hora!
+      fetch('/api/get-student-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomName: urlRoom })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.token) setToken(data.token);
+      })
+      .catch(console.error);
+    }
   }, []);
 
   if (token === '') {
     return (
       <div className="flex flex-col items-center justify-center h-screen p-6 bg-background text-center">
-        <div className="bg-surface p-8 rounded-3xl shadow-2xl border border-slate-700 max-w-sm w-full">
-          <AlertCircle className="w-16 h-16 text-rose-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Acesso Inválido</h1>
-          <p className="text-slate-400 text-sm">
-            Nenhum token de acesso foi encontrado. Escaneie o QR Code oficial do evento para entrar.
-          </p>
-        </div>
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary" />
+        <p className="mt-4 text-slate-400">Gerando ingresso de áudio...</p>
       </div>
     );
   }
