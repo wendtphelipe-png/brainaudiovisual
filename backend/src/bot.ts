@@ -28,7 +28,7 @@ export async function startBot(meetUrl: string) {
     
     // Inicia o Chromium. Flags importantes para mídia e automação.
     const browser = await chromium.launch({
-        headless: false, // DEIXE FALSE PARA TESTE LOCAL. Em produção será true.
+        headless: true, // DEVE SER TRUE NA VPS POIS NÃO TEM MONITOR
         args: [
             '--use-fake-ui-for-media-stream', // Pula os popups de permissão de microfone/câmera
             '--use-fake-device-for-media-stream', // Simula um microfone silencioso
