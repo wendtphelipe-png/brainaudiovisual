@@ -10,7 +10,7 @@ import { Play, Square, Volume2, VolumeX, Activity, AlertCircle } from 'lucide-re
 import '@livekit/components-styles';
 
 // URLs devem vir do .env
-const serverUrl = 'ws://localhost:7880';
+const serverUrl = import.meta.env.VITE_LIVEKIT_URL || 'ws://localhost:7880';
 // Em produção, o token deve ser gerado pelo seu backend para cada aluno.
 // Para testarmos, vamos colocar uma variável simulada ou você deve injetar.
 const devToken = ''; // DEIXAR VAZIO E MOSTRAR ERRO SE NÃO TIVER

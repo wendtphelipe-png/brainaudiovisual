@@ -24,13 +24,17 @@ jobs:
             
             # --- BUILD FRONTEND ---
             cd frontend
+            echo "VITE_LIVEKIT_URL=${{ secrets.LIVEKIT_URL }}" > .env
             npm install
             npm run build
-            # Copia os arquivos gerados (dist) para a pasta pública do Nginx/Apache (ajuste o caminho)
             # cp -r dist/* /var/www/html/brainlingo/
             
             # --- BUILD BACKEND ---
             cd ../backend
+            echo "LIVEKIT_URL=${{ secrets.LIVEKIT_URL }}" > .env
+            echo "LIVEKIT_API_KEY=${{ secrets.LIVEKIT_API_KEY }}" >> .env
+            echo "LIVEKIT_API_SECRET=${{ secrets.LIVEKIT_API_SECRET }}" >> .env
+            
             npm install
             npm run build
             
