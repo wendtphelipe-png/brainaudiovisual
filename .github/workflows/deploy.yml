@@ -39,5 +39,5 @@ jobs:
             npm run build
             
             # --- RESTART BOT (PM2) ---
-            # Supondo que você use PM2 para gerenciar o Node na VPS
-            # pm2 restart brainlingo-bot || pm2 start dist/index.js --name "brainlingo-bot"
+            # Inicia o PM2 se não estiver rodando, ou reinicia se já estiver
+            pm2 restart brainlingo-bot || pm2 start dist/index.js --name "brainlingo-bot"
