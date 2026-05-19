@@ -1,9 +1,7 @@
-import { chromium } from 'playwright-extra';
-import stealth from 'puppeteer-extra-plugin-stealth';
+import { firefox } from 'playwright';
 import { AccessToken } from 'livekit-server-sdk';
 
-// Adiciona o plugin Stealth para burlar o firewall do Google
-chromium.use(stealth());
+
 
 // Configurações do LiveKit (usaremos localhost para testes locais se não houver cloud ainda)
 // Estas variáveis devem vir do .env em produção
@@ -30,17 +28,13 @@ async function generateLiveKitToken(): Promise<string> {
 export async function startBot(meetUrl: string) {
     console.log('Iniciando navegador headless...');
     
-    // Inicia o Chromium. Flags importantes para mídia e automação.
-    const browser = await chromium.launch({
+    // Inicia o Firefox.
+    const browser = await firefox.launch({
         headless: true, // DEVE SER TRUE NA VPS POIS NÃO TEM MONITOR
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--use-fake-ui-for-media-stream', // Pula os popups de permissão de microfone/câmera
-            '--use-fake-device-for-media-stream', // Simula um microfone silencioso
-            '--disable-blink-features=AutomationControlled', // Evita que o Google detecte facilmente que é um bot
-        ]
+        firefoxUserPrefs: {
+            'media.navigator.permission.disabled': true,
+            'media.navigator.streams.fake': true
+        }
     });
 
     const context = await browser.newContext({
