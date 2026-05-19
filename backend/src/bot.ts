@@ -1,5 +1,9 @@
-import { firefox } from 'playwright';
+import { chromium } from 'playwright-extra';
+import stealth from 'puppeteer-extra-plugin-stealth';
 import { AccessToken } from 'livekit-server-sdk';
+
+// Adiciona o plugin Stealth para burlar o firewall do Google
+chromium.use(stealth());
 
 
 
@@ -28,21 +32,27 @@ async function generateLiveKitToken(): Promise<string> {
 export async function startBot(meetUrl: string) {
     console.log('Iniciando navegador headless...');
     
-    // Inicia o Firefox.
-    const browser = await firefox.launch({
-        headless: true, // DEVE SER TRUE NA VPS POIS NÃO TEM MONITOR
-        firefoxUserPrefs: {
-            'media.navigator.permission.disabled': true,
-            'media.navigator.streams.fake': true
-        }
+    // Inicia o Chromium com stealth máximo
+    const browser = await chromium.launch({
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--use-fake-ui-for-media-stream',
+            '--use-fake-device-for-media-stream',
+            '--disable-blink-features=AutomationControlled'
+        ],
+        ignoreDefaultArgs: ['--enable-automation']
     });
 
     const context = await browser.newContext({
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         viewport: { width: 1280, height: 720 },
         locale: 'pt-BR',
         timezoneId: 'America/Sao_Paulo',
-        permissions: ['camera', 'microphone']
+        permissions: ['camera', 'microphone'],
+        colorScheme: 'dark'
     });
     const page = await context.newPage();
 
