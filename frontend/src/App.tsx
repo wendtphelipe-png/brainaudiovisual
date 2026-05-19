@@ -6,7 +6,8 @@ import {
   useTracks
 } from '@livekit/components-react';
 import { ConnectionState, Track } from 'livekit-client';
-import { Play, Square, Volume2, VolumeX, Activity, AlertCircle } from 'lucide-react';
+import { Volume2, VolumeX, Activity, AlertCircle } from 'lucide-react';
+// @ts-ignore
 import '@livekit/components-styles';
 
 // URLs devem vir do .env
