@@ -1,5 +1,9 @@
-import { chromium, Page } from 'playwright';
+import { chromium } from 'playwright-extra';
+import stealth from 'puppeteer-extra-plugin-stealth';
 import { AccessToken } from 'livekit-server-sdk';
+
+// Adiciona o plugin Stealth para burlar o firewall do Google
+chromium.use(stealth());
 
 // Configurações do LiveKit (usaremos localhost para testes locais se não houver cloud ainda)
 // Estas variáveis devem vir do .env em produção
@@ -30,6 +34,9 @@ export async function startBot(meetUrl: string) {
     const browser = await chromium.launch({
         headless: true, // DEVE SER TRUE NA VPS POIS NÃO TEM MONITOR
         args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
             '--use-fake-ui-for-media-stream', // Pula os popups de permissão de microfone/câmera
             '--use-fake-device-for-media-stream', // Simula um microfone silencioso
             '--disable-blink-features=AutomationControlled', // Evita que o Google detecte facilmente que é um bot
@@ -37,8 +44,10 @@ export async function startBot(meetUrl: string) {
     });
 
     const context = await browser.newContext({
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        viewport: { width: 1280, height: 720 }
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        viewport: { width: 1280, height: 720 },
+        locale: 'pt-BR',
+        timezoneId: 'America/Sao_Paulo'
     });
     const page = await context.newPage();
 
