@@ -17,24 +17,30 @@ const LIVEKIT_ROOM = process.env.LIVEKIT_ROOM || 'evento-01';
 /**
  * Gera um token de acesso para o robô se conectar ao LiveKit e publicar áudio
  */
-async function generateLiveKitToken(): Promise<string> {
+async function generateLiveKitToken(instanceId: string, roomName: string): Promise<string> {
     const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-        identity: 'bot-tradutor',
-        name: 'Bot Tradutor',
+        identity: `bot-tradutor-${instanceId}`,
+        name: `Bot Tradutor (${instanceId})`,
     });
-    at.addGrant({ roomJoin: true, room: LIVEKIT_ROOM, canPublish: true, canSubscribe: false });
+    at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: false });
     return await at.toJwt();
+}
+
+export interface BotInstance {
+    id: string;
+    meetUrl: string;
+    close: () => Promise<void>;
 }
 
 /**
  * Inicia o robô headless, entra no Meet e injeta o conector do LiveKit
  */
-export async function startBot(meetUrl: string) {
-    console.log('Iniciando navegador headless...');
+export async function startBot(meetUrl: string, instanceId: string, roomName: string = LIVEKIT_ROOM): Promise<BotInstance> {
+    console.log(`[Bot ${instanceId}] Iniciando navegador headless...`);
     
     // Inicia o Chromium com stealth máximo
     const browser = await chromium.launch({
-        headless: true,
+        headless: true, // Alterado para true em produção/background por padrão
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -77,89 +83,118 @@ export async function startBot(meetUrl: string) {
         };
     });
 
-    console.log(`Navegando para o Google Meet: ${meetUrl}`);
-    await page.goto(meetUrl);
+    return new Promise<BotInstance>(async (resolve, reject) => {
+        let isResolved = false;
 
-    // 2. Fluxo de entrada como convidado
-    try {
-        console.log('Tentando fechar popups e inserir nome...');
-        
-        // Espera o campo de nome carregar
-        const nameInputSelector = 'input[type="text"], input[placeholder*="nome"]';
-        await page.waitForSelector(nameInputSelector, { timeout: 15000 }).catch(() => {});
-        
-        // Se achou o campo, digita o nome e pede para entrar
-        if (await page.$(nameInputSelector)) {
-            await page.fill(nameInputSelector, 'Tradutor (Áudio)');
+        const cleanup = async () => {
+            console.log(`[Bot ${instanceId}] Encerrando recursos e fechando navegador...`);
+            try {
+                await context.close();
+                await browser.close();
+            } catch (e) {
+                console.error(`[Bot ${instanceId}] Erro ao fechar navegador:`, e);
+            }
+        };
+
+        // Expor funções para que a página notifique o Node.js
+        await page.exposeFunction('onBotReady', () => {
+            console.log(`[Bot ${instanceId}] Conectado ao LiveKit e publicando áudio com sucesso!`);
+            isResolved = true;
+            resolve({
+                id: instanceId,
+                meetUrl,
+                close: cleanup
+            });
+        });
+
+        await page.exposeFunction('onBotError', (errMsg: string) => {
+            console.error(`[Bot ${instanceId}] Erro no contexto do navegador:`, errMsg);
+            if (!isResolved) {
+                isResolved = true;
+                cleanup().catch(console.error);
+                reject(new Error(errMsg));
+            }
+        });
+
+        try {
+            console.log(`[Bot ${instanceId}] Navegando para o Google Meet: ${meetUrl}`);
+            await page.goto(meetUrl);
+
+            // 2. Fluxo de entrada como convidado
+            console.log(`[Bot ${instanceId}] Tentando fechar popups e inserir nome...`);
             
-            // Clica no botão "Pedir para participar" ou "Participar"
-            // O seletor exato depende do idioma do Google, usamos um XPath genérico
-            const joinButton = await page.$('xpath=//span[contains(text(), "Pedir")]/.. | //span[contains(text(), "Participar")]/.. | //span[contains(text(), "Join")]/..');
-            if (joinButton) {
-                await joinButton.click();
-                console.log('Pedido para entrar enviado. Aguardando o anfitrião aceitar...');
+            // Espera o campo de nome carregar
+            const nameInputSelector = 'input[type="text"], input[placeholder*="nome"]';
+            await page.waitForSelector(nameInputSelector, { timeout: 20000 }).catch(() => {});
+            
+            // Se achou o campo, digita o nome e pede para entrar
+            if (await page.$(nameInputSelector)) {
+                await page.fill(nameInputSelector, 'Tradutor (Áudio)');
+                
+                // Clica no botão "Pedir para participar" ou "Participar"
+                const joinButton = await page.$('xpath=//span[contains(text(), "Pedir")]/.. | //span[contains(text(), "Participar")]/.. | //span[contains(text(), "Join")]/..');
+                if (joinButton) {
+                    await joinButton.click();
+                    console.log(`[Bot ${instanceId}] Pedido para entrar enviado. Aguardando aceitação...`);
+                }
+            }
+            
+            // Aguarda até que os controles da reunião apareçam (sinal de que fomos aceitos)
+            await page.waitForSelector('button[aria-label*="Sair"], button[aria-label*="Leave"]', { timeout: 60000 });
+            console.log(`[Bot ${instanceId}] ✅ Entrou na reunião com sucesso!`);
+
+            // 3. Injeção do LiveKit para capturar e transmitir o áudio interceptado
+            console.log(`[Bot ${instanceId}] Injetando LiveKit Client no navegador...`);
+            const livekitToken = await generateLiveKitToken(instanceId, roomName);
+            
+            // Adiciona o script do LiveKit via CDN na página
+            await page.addScriptTag({ url: 'https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js' });
+
+            // Roda o script dentro do contexto do navegador
+            await page.evaluate(async ({ url, token }) => {
+                try {
+                    const LivekitClient = (window as any).LivekitClient;
+                    const room = new LivekitClient.Room();
+                    
+                    await room.connect(url, token);
+                    console.log('Conectado ao LiveKit a partir do navegador!');
+
+                    // Pega a stream mista que interceptamos no InitScript
+                    const win = window as any;
+                    const mixedStream = win.__botAudioDest.stream;
+                    const audioTrack = mixedStream.getAudioTracks()[0];
+
+                    if (audioTrack) {
+                        // Publica a faixa de áudio na sala do LiveKit
+                        const localAudioTrack = new LivekitClient.LocalAudioTrack(audioTrack);
+                        await room.localParticipant.publishTrack(localAudioTrack);
+                        console.log('Faixa de áudio do Google Meet publicada no LiveKit!');
+                        (window as any).onBotReady();
+                    } else {
+                        throw new Error('Nenhuma faixa de áudio encontrada na stream interceptada.');
+                    }
+                } catch (e: any) {
+                    console.error('Erro na injeção do LiveKit:', e);
+                    (window as any).onBotError(e.message || String(e));
+                }
+            }, { url: LIVEKIT_URL, token: livekitToken });
+
+        } catch (err: any) {
+            console.error(`[Bot ${instanceId}] Falha durante inicialização:`, err);
+            try {
+                const path = require('path');
+                const screenshotPath = path.join(__dirname, '../../frontend/dist/debug.png');
+                await page.screenshot({ path: screenshotPath, fullPage: true });
+                console.log(`Screenshot de depuração salva em: ${screenshotPath}`);
+            } catch (e) {
+                // ignorar
+            }
+            if (!isResolved) {
+                isResolved = true;
+                await cleanup();
+                reject(err);
             }
         }
-        
-        // Aguarda até que os controles da reunião apareçam (sinal de que fomos aceitos)
-        await page.waitForSelector('button[aria-label*="Sair"], button[aria-label*="Leave"]', { timeout: 60000 });
-        console.log('✅ Bot entrou na reunião com sucesso!');
-
-    } catch (err) {
-        console.error('Erro durante o fluxo de login no Meet:', err);
-        try {
-            // Tira uma foto da tela para sabermos exatamente o que o Google está mostrando
-            const path = require('path');
-            const screenshotPath = path.join(__dirname, '../../frontend/dist/debug.png');
-            await page.screenshot({ path: screenshotPath, fullPage: true });
-            console.log(`Screenshot salva em: ${screenshotPath}`);
-        } catch (e) {
-            console.error('Falha ao salvar screenshot', e);
-        }
-        await browser.close();
-        return; // Aborta se falhou ao entrar
-    }
-
-    // 3. Injeção do LiveKit para capturar e transmitir o áudio interceptado
-    console.log('Injetando LiveKit Client no navegador...');
-    const livekitToken = await generateLiveKitToken();
-    
-    // Adiciona o script do LiveKit via CDN na página
-    await page.addScriptTag({ url: 'https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js' });
-
-    // Roda o script dentro do contexto do navegador
-    await page.evaluate(async ({ url, token }) => {
-        try {
-            const LivekitClient = (window as any).LivekitClient;
-            const room = new LivekitClient.Room();
-            
-            await room.connect(url, token);
-            console.log('Conectado ao LiveKit a partir do navegador!');
-
-            // Pega a stream mista que interceptamos no InitScript
-            const win = window as any;
-            const mixedStream = win.__botAudioDest.stream;
-            const audioTrack = mixedStream.getAudioTracks()[0];
-
-            if (audioTrack) {
-                // Publica a faixa de áudio na sala do LiveKit
-                const localAudioTrack = new LivekitClient.LocalAudioTrack(audioTrack);
-                await room.localParticipant.publishTrack(localAudioTrack);
-                console.log('Faixa de áudio do Google Meet publicada no LiveKit!');
-            } else {
-                console.error('Nenhuma faixa de áudio encontrada na stream interceptada.');
-            }
-        } catch (e) {
-            console.error('Erro na injeção do LiveKit:', e);
-        }
-    }, { url: LIVEKIT_URL, token: livekitToken });
-
-    console.log('Bot rodando de forma silenciosa e transmitindo áudio. Pressione Ctrl+C para encerrar.');
-    // Mantém o bot rodando
+    });
 }
 
-// Para testar rapidamente rodando o arquivo
-if (require.main === module) {
-    const meetLink = process.argv[2] || 'https://meet.google.com/abc-defg-hij';
-    startBot(meetLink);
-}
