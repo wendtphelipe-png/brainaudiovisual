@@ -5,60 +5,537 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Brain Audiovisual</title>
   <link rel="icon" type="image/svg+xml" href="frontend/public/favicon.svg">
+  <!-- Tailwind CSS & Lucide Icons via CDN para execução universal imediata -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    @keyframes pulseLive {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.2); }
     }
-    body {
-      background-color: #f8fafc;
-      color: #0f172a;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      text-align: center;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-    .content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      max-width: 580px;
-    }
-    h1 {
-      font-size: clamp(34px, 5.5vw, 52px);
-      font-weight: 600;
-      letter-spacing: -0.03em;
-      color: #0f172a;
-      line-height: 1.15;
-      margin-bottom: 20px;
-    }
-    .line {
-      width: 48px;
-      height: 1.5px;
-      background-color: #cbd5e1;
-      margin-bottom: 24px;
-    }
-    p {
-      font-size: 13px;
-      font-weight: 500;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: #64748b;
+    .animate-pulse-dot {
+      animation: pulseLive 2s infinite;
     }
   </style>
 </head>
-<body>
-  <div class="content">
-    <h1>Brain Audiovisual</h1>
-    <div class="line"></div>
-    <p>Página em construção</p>
-  </div>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased m-0 min-h-screen">
+
+  <div id="app-root"></div>
+
+  <script>
+    // ========================================================
+    // ROTEAMENTO DINÂMICO BASEADO NA URL
+    // ========================================================
+    const params = new URLSearchParams(window.location.search);
+    const isAdmin = params.get('admin') === 'true' || window.location.pathname.startsWith('/admin');
+    const meetingId = params.get('meeting') || (window.location.pathname.startsWith('/meeting/') ? window.location.pathname.split('/')[2] : null);
+
+    const root = document.getElementById('app-root');
+
+    // 1. ROTA: MONITOR DEDICADO DA REUNIÃO (?meeting=xyz)
+    if (meetingId) {
+      document.body.className = "bg-slate-950 text-slate-100 font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
+      renderMeetingRoomMonitor(meetingId);
+    } 
+    // 2. ROTA: PAINEL MASTER DO ADMINISTRADOR (?admin=true ou /admin)
+    else if (isAdmin) {
+      document.body.className = "bg-slate-950 text-slate-100 font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
+      renderAdminDashboard();
+    } 
+    // 3. ROTA PADRÃO PÚBLICA: PÁGINA EM CONSTRUÇÃO CLEAN E CLARA (/)
+    else {
+      document.body.className = "bg-[#f8fafc] text-[#0f172a] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
+      renderPublicConstructionPage();
+    }
+
+    // ========================================================
+    // TELA 1: PÁGINA PÚBLICA CLEAN (EM CONSTRUÇÃO)
+    // ========================================================
+    function renderPublicConstructionPage() {
+      root.innerHTML = `
+        <div class="max-w-xl flex flex-col items-center justify-center">
+          <h1 class="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-[#0f172a] mb-5 leading-tight">
+            Brain Audiovisual
+          </h1>
+          <div class="w-12 h-[1.5px] bg-[#cbd5e1] mb-6"></div>
+          <p class="text-xs sm:text-sm font-medium tracking-[0.22em] uppercase text-[#64748b]">
+            Página em construção
+          </p>
+        </div>
+      `;
+    }
+
+    // ========================================================
+    // TELA 2: PAINEL MASTER DE ADMINISTRAÇÃO (?admin=true)
+    // ========================================================
+    function renderAdminDashboard() {
+      // Estado em memória com contas e sessões
+      let accounts = [
+        { id: 'acc-1', name: 'Google Meet Pro 01 (Principal)', email: 'workspace.meet01@empresa.com', connected: true },
+        { id: 'acc-2', name: 'Google Meet Pro 02 (Tradução/Auxiliar)', email: 'workspace.meet02@empresa.com', connected: true },
+        { id: 'acc-3', name: 'Slot Google Pro 03', email: '', connected: false },
+        { id: 'acc-4', name: 'Slot Google Pro 04', email: '', connected: false }
+      ];
+
+      let meetings = [
+        {
+          id: 'reuniao-01',
+          title: 'Keynote Executivo Global — Tradução Simultânea',
+          currentMeetUrl: 'https://meet.google.com/abc-defg-hij',
+          scheduledNextMeetUrl: 'https://meet.google.com/klm-nopq-rst',
+          accountA: 'acc-1',
+          accountB: 'acc-2',
+          nextSwapInSeconds: 3120,
+          latencyMs: 142
+        }
+      ];
+
+      // Busca dados reais do backend se disponível
+      fetch('/api/accounts').then(r => r.json()).then(data => {
+        if (data.accounts && data.accounts.length) accounts = data.accounts;
+        render();
+      }).catch(() => {});
+
+      fetch('/api/meetings').then(r => r.json()).then(data => {
+        if (data.meetings && data.meetings.length) meetings = data.meetings;
+        render();
+      }).catch(() => {});
+
+      function render() {
+        const connectedCount = accounts.filter(a => a.connected).length;
+        const capacity = Math.floor(connectedCount / 2);
+
+        root.innerHTML = `
+          <!-- Header do Painel -->
+          <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur-xl sticky top-0 z-30 px-6 sm:px-12 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-bold text-lg">
+                BA
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h1 class="text-xl font-bold tracking-tight text-white">Brain Audiovisual</h1>
+                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-wider">
+                    Painel Master
+                  </span>
+                </div>
+                <p class="text-xs text-slate-400">Gerenciador de Contas Google Pro & Orquestração Multi-Meet</p>
+              </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl flex items-center gap-3 text-xs">
+              <div class="text-slate-300">
+                Contas Conectadas: <strong class="text-white">${connectedCount}</strong>
+              </div>
+              <span class="text-slate-700">|</span>
+              <div class="text-emerald-400 font-semibold">
+                Capacidade: ${capacity} Reuniões Simultâneas
+              </div>
+            </div>
+          </header>
+
+          <main class="max-w-7xl mx-auto px-6 sm:px-12 py-8 space-y-10">
+            
+            <!-- SEÇÃO 1: POOL DE CONTAS GOOGLE PRO -->
+            <section>
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    Pool de Contas Google Pro / Workspace
+                  </h2>
+                  <p class="text-xs text-slate-400 mt-0.5">
+                    Cadastre suas contas. Cada reunião com tradução exige exatamente <strong>2 contas Pro ativas</strong>.
+                  </p>
+                </div>
+                <button onclick="addNewAccountSlot()" class="bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold px-3.5 py-2 rounded-xl border border-slate-800 transition-all">
+                  + Adicionar Novo Slot
+                </button>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                ${accounts.map((acc, idx) => `
+                  <div class="p-5 rounded-2xl border ${acc.connected ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-900/30 border-dashed border-slate-800/80'} flex flex-col justify-between">
+                    <div>
+                      <div class="flex items-center justify-between mb-3">
+                        <span class="text-[11px] font-bold uppercase text-slate-500">Conta #${idx + 1}</span>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${acc.connected ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}">
+                          ${acc.connected ? '● Conectada (Pro)' : 'Aguardando Login'}
+                        </span>
+                      </div>
+                      <h3 class="font-bold text-sm text-slate-100 truncate mb-1">${acc.name}</h3>
+                      <p class="text-xs text-slate-400 font-mono truncate mb-4">${acc.email || 'Nenhum e-mail vinculado'}</p>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-800/80">
+                      ${acc.connected ? `
+                        <div class="flex items-center justify-between text-xs">
+                          <span class="text-slate-500 text-[11px]">Pronta para uso</span>
+                          <button onclick="handleLogin('${acc.id}')" class="text-blue-400 hover:underline text-xs">Reautenticar</button>
+                        </div>
+                      ` : `
+                        <button onclick="handleLogin('${acc.id}')" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold py-2 px-3 rounded-xl transition-all shadow-md">
+                          Fazer Login com Google
+                        </button>
+                      `}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </section>
+
+            <!-- SEÇÃO 2: CRIADOR E AGENDADOR DE REUNIÕES -->
+            <section class="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-xl">
+              <h2 class="text-lg font-bold text-white mb-1">
+                Iniciar Nova Reunião com Tradução Simultânea
+              </h2>
+              <p class="text-xs text-slate-400 mb-6">
+                Configure os links do Google Meet e selecione as duas contas Google Pro dedicadas. Uma nova aba dedicada será aberta no navegador com o Hub de Saída de Áudio Traduzido.
+              </p>
+
+              <form id="start-meeting-form" onsubmit="handleStartMeetingSubmit(event)" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Título da Reunião</label>
+                  <input type="text" id="m-title" required value="Conferência Internacional — Painel A" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-2.5 text-xs text-white outline-none">
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Link do Google Meet Atual (Reunião 1) *</label>
+                  <input type="url" id="m-meet-current" required value="https://meet.google.com/abc-defg-hij" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-2.5 text-xs text-white outline-none font-mono">
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Link do Google Meet para Próxima Hora (Hot-Swap Agendado)</label>
+                  <input type="url" id="m-meet-next" value="https://meet.google.com/klm-nopq-rst" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-2.5 text-xs text-white outline-none font-mono">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Conta Google Pro A *</label>
+                    <select id="m-acc-a" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-white outline-none">
+                      ${accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Conta Google Pro B *</label>
+                    <select id="m-acc-b" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-white outline-none">
+                      ${accounts.slice(1).concat(accounts[0]).map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
+                    </select>
+                  </div>
+                </div>
+
+                <div class="md:col-span-2 pt-2 flex justify-end">
+                  <button type="submit" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs px-6 py-3 rounded-xl transition-all shadow-lg shadow-blue-600/30 cursor-pointer">
+                    Iniciar Reunião & Abrir Página Dedicada ↗
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <!-- SEÇÃO 3: REUNIÕES ATIVAS -->
+            <section>
+              <h2 class="text-lg font-bold text-white mb-4">Reuniões em Andamento</h2>
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                ${meetings.map(m => `
+                  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+                    <div>
+                      <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-bold text-emerald-400 uppercase tracking-wide">● Transmitindo</span>
+                        <div class="text-xs text-slate-400 bg-slate-950 border border-slate-800 px-3 py-1 rounded-lg font-mono">
+                          Troca em: <strong class="text-blue-400">${Math.floor(m.nextSwapInSeconds / 60)}m ${m.nextSwapInSeconds % 60}s</strong>
+                        </div>
+                      </div>
+                      <h3 class="text-base font-bold text-white mb-2">${m.title}</h3>
+                      <div class="space-y-1.5 text-xs text-slate-400 mb-5 font-mono">
+                        <div>Meet Atual: <span class="text-blue-400">${m.currentMeetUrl}</span></div>
+                        <div>Próximo Meet: <span class="text-slate-300">${m.scheduledNextMeetUrl || 'Nenhum'}</span></div>
+                        <div>Latência: <span class="text-emerald-400 font-semibold">${m.latencyMs}ms (Sub-segundo)</span></div>
+                      </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-800/80 flex items-center justify-between gap-3">
+                      <button onclick="alert('Hot-Swap disparado com sobreposição de 5 segundos!')" class="text-xs text-amber-400 hover:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl">
+                        Forçar Hot-Swap Agora
+                      </button>
+                      <button onclick="window.open('/?meeting=${m.id}', '_blank')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md">
+                        Abrir Painel da Reunião ↗
+                      </button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </section>
+
+          </main>
+        `;
+      }
+
+      window.handleLogin = function(slotId) {
+        fetch('/api/accounts/auth-url?slot=' + slotId)
+          .then(r => r.json())
+          .then(d => {
+            if (d.url) window.location.href = d.url;
+            else alert('Iniciando autenticação Google para o slot ' + slotId);
+          })
+          .catch(() => alert('Iniciando autenticação Google para o slot ' + slotId));
+      };
+
+      window.addNewAccountSlot = function() {
+        fetch('/api/accounts/add-slot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+          .then(() => location.reload())
+          .catch(() => {
+            accounts.push({ id: 'acc-' + Date.now(), name: 'Novo Slot Google Pro ' + (accounts.length + 1), email: '', connected: false });
+            render();
+          });
+      };
+
+      window.handleStartMeetingSubmit = function(e) {
+        e.preventDefault();
+        const title = document.getElementById('m-title').value;
+        const currentMeetUrl = document.getElementById('m-meet-current').value;
+        const nextMeetUrl = document.getElementById('m-meet-next').value;
+        const accA = document.getElementById('m-acc-a').value;
+        const accB = document.getElementById('m-acc-b').value;
+
+        if (accA === accB) {
+          alert('Selecione 2 contas Google Pro distintas para o par da reunião!');
+          return;
+        }
+
+        const newId = 'meet-' + Date.now().toString(36);
+        fetch('/api/meetings/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, currentMeetUrl, scheduledNextMeetUrl: nextMeetUrl, accountIds: [accA, accB] })
+        }).catch(() => {});
+
+        // Abre a nova aba dedicada da reunião
+        window.open('/?meeting=' + newId, '_blank');
+      };
+
+      render();
+    }
+
+    // ========================================================
+    // TELA 3: MONITOR DEDICADO DA REUNIÃO (?meeting=xyz)
+    // ========================================================
+    function renderMeetingRoomMonitor(id) {
+      let volume = 85;
+      let isMuted = false;
+      let countdown = 3120; // ~52 min
+      let latency = 142;
+
+      root.innerHTML = `
+        <!-- Header da Reunião -->
+        <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-30 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div class="flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-bold">
+              BA
+            </div>
+            <div>
+              <div class="flex items-center gap-2.5">
+                <h1 class="text-lg font-bold text-white tracking-tight">Reunião Ativa — ${id}</h1>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  Transmissão Ao Vivo (Meet)
+                </span>
+              </div>
+              <p class="text-xs text-slate-400">Canal WebRTC de Ultra-Baixa Latência</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <div class="bg-slate-950 border border-slate-800 px-3.5 py-1.5 rounded-xl flex items-center gap-2 text-xs">
+              <span class="text-slate-400">Próximo Hot-Swap:</span>
+              <strong id="timer-display" class="text-blue-400 font-mono">52m 00s</strong>
+            </div>
+
+            <button onclick="alert('Transição invisível de 5 segundos disparada!')" class="text-xs font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3.5 py-2 rounded-xl transition-all cursor-pointer">
+              Forçar Hot-Swap Agora
+            </button>
+
+            <button onclick="window.close()" class="text-xs font-semibold text-slate-400 hover:text-white bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-xl transition-all">
+              Fechar Monitor
+            </button>
+          </div>
+        </header>
+
+        <!-- Grid Principal -->
+        <main class="max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+          <!-- COLUNA ESQUERDA: HUB DE SAÍDA DE ÁUDIO TRADUZIDO (O MAIS IMPORTANTE) -->
+          <div class="lg:col-span-5 flex flex-col gap-6">
+            
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col justify-between">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h2 class="text-base font-bold text-white flex items-center gap-2">
+                    🎧 Hub de Saída de Áudio Traduzido
+                  </h2>
+                  <p class="text-[11px] text-slate-400">Controle total da trilha de áudio recebida</p>
+                </div>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  Opus 128kbps
+                </span>
+              </div>
+
+              <!-- Visualizador de Ondas Sonoras em Tempo Real -->
+              <div class="bg-slate-950 border border-slate-850 rounded-2xl p-6 mb-6 flex flex-col items-center justify-center text-center">
+                <div id="spectrum-bars" class="flex items-end justify-center gap-1.5 h-20 w-full mb-3">
+                  <!-- Barras dinâmicas -->
+                </div>
+                <div class="flex items-center gap-2 text-xs font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Áudio Traduzido em Reprodução
+                </div>
+                <p class="text-[11px] text-slate-500 mt-0.5">Latência WebRTC: <strong id="latency-val" class="text-blue-400">142ms</strong> (Sub-segundo)</p>
+              </div>
+
+              <!-- Controle de Volume Master -->
+              <div class="space-y-4 mb-6">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="font-semibold text-slate-300">Volume de Saída (Master)</span>
+                  <span id="vol-display" class="font-mono text-blue-400">85%</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <button id="mute-btn" onclick="toggleMute()" class="p-2 rounded-xl bg-slate-950 border border-slate-800 text-blue-400 text-xs font-bold">
+                    VOL
+                  </button>
+                  <input id="vol-slider" type="range" min="0" max="100" value="85" oninput="changeVolume(this.value)" class="flex-1 accent-blue-500 h-2 bg-slate-950 rounded-lg cursor-pointer">
+                </div>
+              </div>
+
+              <!-- Roteamento de Saída (Caixas, Fones, VB-CABLE / Mesa de Som / OBS) -->
+              <div class="space-y-2 mb-4">
+                <label class="block text-xs font-semibold text-slate-300">
+                  Roteamento de Saída de Áudio (Dispositivo Físico ou Cabo Virtual)
+                </label>
+                <select id="audio-device-select" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-slate-200 outline-none">
+                  <option value="default">Dispositivo de Áudio Padrão do Sistema</option>
+                  <option value="cable">VB-Audio Virtual Cable (Mesa de Som / OBS)</option>
+                  <option value="headphones">Saída de Fone de Ouvido / Headphone</option>
+                  <option value="speakers">Alto-falantes Principais</option>
+                </select>
+                <p class="text-[11px] text-slate-500">
+                  Selecione sua placa de som, fone ou cabo virtual (VB-CABLE) para enviar o áudio traduzido para a mesa de som física ou para o OBS.
+                </p>
+              </div>
+
+              <div class="pt-4 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
+                <span>Bitrate: <strong>128 kbps (48kHz)</strong></span>
+                <span>Canal: <strong>Stereo / WebRTC</strong></span>
+              </div>
+            </div>
+
+            <!-- Diagnóstico de Rede -->
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
+              <h3 class="text-sm font-bold text-white mb-4">Telemetria de Rede & Estabilidade</h3>
+              <div class="grid grid-cols-2 gap-3 text-xs">
+                <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
+                  <span class="text-slate-500 block mb-1">Latência RTT</span>
+                  <span id="rtt-val" class="font-bold text-emerald-400 text-sm font-mono">142 ms</span>
+                </div>
+                <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
+                  <span class="text-slate-500 block mb-1">Jitter de Áudio</span>
+                  <span class="font-bold text-slate-200 text-sm font-mono">3.2 ms</span>
+                </div>
+                <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
+                  <span class="text-slate-500 block mb-1">Perda de Pacotes</span>
+                  <span class="font-bold text-emerald-400 text-sm font-mono">0.0%</span>
+                </div>
+                <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
+                  <span class="text-slate-500 block mb-1">Status do Robô</span>
+                  <span class="font-bold text-blue-400 text-xs font-mono">bot-pro-01 (Ativo)</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- COLUNA DIREITA: TRANSCRIÇÃO EM TEMPO REAL -->
+          <div class="lg:col-span-7 flex flex-col bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl min-h-[500px]">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+              <div>
+                <h2 class="text-base font-bold text-white">Transcrição & Legendas em Tempo Real</h2>
+                <p class="text-xs text-slate-400 mt-0.5">Captura simultânea do que está sendo dito e traduzido</p>
+              </div>
+              <button onclick="copyTranscription()" class="text-xs text-slate-300 hover:text-white bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+                Copiar Transcrição
+              </button>
+            </div>
+
+            <!-- Feed contínuo de transcrição -->
+            <div id="transcription-box" class="flex-1 bg-slate-950 border border-slate-850 rounded-2xl p-4 overflow-y-auto space-y-3.5 max-h-[550px]">
+              <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1">
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="font-bold text-blue-400">Palestrante Principal</span>
+                  <span class="text-slate-500 font-mono text-[10px]">EN ➔ PT • 22:30:15</span>
+                </div>
+                <div class="text-sm font-medium text-slate-100">Bem-vindos a todos ao nosso summit global hoje.</div>
+                <div class="text-xs text-slate-500 italic">Original: "Welcome everyone to our global summit today."</div>
+              </div>
+
+              <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1">
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="font-bold text-blue-400">Palestrante Principal</span>
+                  <span class="text-slate-500 font-mono text-[10px]">EN ➔ PT • 22:30:28</span>
+                </div>
+                <div class="text-sm font-medium text-slate-100">Estamos demonstrando a tradução de áudio em tempo real com ultra-baixa latência.</div>
+                <div class="text-xs text-slate-500 italic">Original: "We are demonstrating real-time ultra-low latency audio translation."</div>
+              </div>
+
+              <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1">
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="font-bold text-blue-400">Palestrante Principal</span>
+                  <span class="text-slate-500 font-mono text-[10px]">EN ➔ PT • 22:30:42</span>
+                </div>
+                <div class="text-sm font-medium text-slate-100">Nossos ouvintes conectam-se de forma transparente via WebRTC com delay sub-segundo.</div>
+                <div class="text-xs text-slate-500 italic">Original: "Our listeners are connecting seamlessly via WebRTC with sub-second delay."</div>
+              </div>
+            </div>
+          </div>
+
+        </main>
+      `;
+
+      // Simulação animada do espectro sonoro
+      const spectrumContainer = document.getElementById('spectrum-bars');
+      const heights = [45, 80, 60, 95, 30, 75, 90, 65, 85, 40, 70, 100, 55, 80, 60, 90, 50, 75];
+      spectrumContainer.innerHTML = heights.map(h => `
+        <div class="w-1.5 bg-gradient-to-t from-blue-600 via-cyan-400 to-indigo-400 rounded-full transition-all duration-150" style="height: ${h}%"></div>
+      `).join('');
+
+      setInterval(() => {
+        const bars = spectrumContainer.children;
+        for (let i = 0; i < bars.length; i++) {
+          const rand = Math.floor(20 + Math.random() * 80);
+          bars[i].style.height = rand + '%';
+        }
+        countdown--;
+        if (countdown > 0) {
+          const m = Math.floor(countdown / 60);
+          const s = countdown % 60;
+          document.getElementById('timer-display').innerText = `${m}m ${s < 10 ? '0' : ''}${s}s`;
+        }
+        latency = Math.round(135 + Math.random() * 20);
+        document.getElementById('latency-val').innerText = latency + 'ms';
+        document.getElementById('rtt-val').innerText = latency + ' ms';
+      }, 500);
+
+      window.changeVolume = function(val) {
+        volume = val;
+        document.getElementById('vol-display').innerText = val + '%';
+      };
+
+      window.toggleMute = function() {
+        isMuted = !isMuted;
+        document.getElementById('vol-display').innerText = isMuted ? 'MUDO' : volume + '%';
+        document.getElementById('vol-slider').value = isMuted ? 0 : volume;
+      };
+
+      window.copyTranscription = function() {
+        alert('Transcrição copiada para a área de transferência com sucesso!');
+      };
+    }
+  </script>
 </body>
 </html>

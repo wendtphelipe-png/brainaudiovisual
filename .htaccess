@@ -20,6 +20,10 @@ ServerSignature Off
   RewriteCond %{REQUEST_METHOD} !POST
   RewriteCond %{THE_REQUEST} \s[^?]*//
   RewriteRule ^(.*)$ /$1 [R=301,L,NE]
+
+  # 4. URLs amigáveis para o Painel Admin e Salas de Reunião
+  RewriteRule ^admin/?$ /?admin=true [L,QSA]
+  RewriteRule ^meeting/([^/]+)/?$ /?meeting=$1 [L,QSA]
 </IfModule>
 
 # 4. Permitir leitura de arquivos públicos do site
