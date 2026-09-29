@@ -736,8 +736,8 @@ export default function AdminMasterDashboard() {
                 <div className="p-4 bg-slate-50 border border-blue-200/70 rounded-2xl">
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-bold text-blue-900">📡 Conta Transmissora (Gera os Meets) *</label>
-                    <a href="https://meet.google.com/new" target="_blank" rel="noreferrer" className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline flex items-center gap-1">
-                      <span>Criar Novo Meet ↗</span>
+                    <a href="https://meet.google.com" target="_blank" rel="noreferrer" className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline flex items-center gap-1">
+                      <span>Abrir Meet no Google ↗</span>
                     </a>
                   </div>
                   <p className="text-[11px] text-slate-500 mb-2">Esta conta cria e hospeda todas as salas de reuniões que serão transmitidas.</p>
