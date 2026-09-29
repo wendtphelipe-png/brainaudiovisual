@@ -6,25 +6,25 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-configuration:
-    name: Verificar Secrets de Implantação
+  deploy:
+    name: Deploy to Hostinger VPS
     runs-on: ubuntu-24.04
     steps:
-      - name: Checar se Secrets da VPS estão configuradas
+      - name: Verificar se Secrets da VPS estão configuradas
+        id: check-secrets
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
-          if [ -z "${{ secrets.VPS_HOST }}" ]; then
-            echo "::notice title=Deploy Ignorado::As credenciais de VPS (VPS_HOST, VPS_USERNAME, VPS_PASSWORD) ainda não foram cadastradas em Settings > Secrets do novo repositório. O deploy automático via SSH será executado assim que forem configuradas."
+          if [ -z "$VPS_HOST" ]; then
+            echo "has_host=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deploy Ignorado::As credenciais de VPS (VPS_HOST, VPS_USERNAME, VPS_PASSWORD) ainda não foram cadastradas em Settings > Secrets deste repositório. O deploy automático via SSH foi ignorado com sucesso."
           else
-            echo "Credenciais de VPS detectadas. Prosseguindo para o deploy..."
+            echo "has_host=true" >> "$GITHUB_OUTPUT"
+            echo "Credenciais de VPS encontradas. Prosseguindo com deploy SSH..."
           fi
 
-  deploy:
-    name: Executar Deploy via SSH
-    needs: check-configuration
-    if: ${{ secrets.VPS_HOST != '' }}
-    runs-on: ubuntu-24.04
-    steps:
       - name: Deploy application via SSH
+        if: steps.check-secrets.outputs.has_host == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
