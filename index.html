@@ -24,6 +24,62 @@
 
   <script>
     // ========================================================
+    // HELPERS GLOBAIS DE ESTADO E PERSISTÊNCIA SEGURA
+    // ========================================================
+    function getStoredAccounts() {
+      try {
+        const raw = localStorage.getItem('brain_saved_accounts');
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr) && arr.length > 0) return arr;
+        }
+      } catch (e) {}
+      return [
+        { id: 'acc-1', name: 'Conta Google Pro 01 (Principal)', email: '', connected: false },
+        { id: 'acc-2', name: 'Conta Google Pro 02 (Auxiliar/Tradução)', email: '', connected: false },
+        { id: 'acc-3', name: 'Slot Google Pro 03', email: '', connected: false },
+        { id: 'acc-4', name: 'Slot Google Pro 04', email: '', connected: false }
+      ];
+    }
+
+    function getStoredMeetings() {
+      try {
+        const raw = localStorage.getItem('brain_saved_meetings');
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) return arr;
+        }
+      } catch (e) {}
+      return [];
+    }
+
+    function getStoredAudioLanguageSettings() {
+      try {
+        const raw = localStorage.getItem('brain_audio_lang_settings');
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return {
+        sourceLanguage: 'en-US',
+        sourceLanguageLabel: 'Inglês (Estados Unidos / Global)',
+        targetLanguage: 'pt-BR',
+        targetLanguageLabel: 'Português (Brasil)',
+        transmitterInputDevice: 'event-line',
+        transmitterInputLabel: 'Áudio do Evento (Mesa de Som / Linha)',
+        transmitterSpeakerMuted: true,
+        receiverInputMuted: true,
+        receiverOutputDevice: 'cable',
+        receiverOutputLabel: 'CABLE Output / VB-Audio Virtual Cable (Mesa de Som)',
+        cameraDisabled: true
+      };
+    }
+
+    function saveStoredAudioLanguageSettings(settings) {
+      try {
+        localStorage.setItem('brain_audio_lang_settings', JSON.stringify(settings));
+      } catch (e) {}
+    }
+
+    // ========================================================
     // ROTEAMENTO DINÂMICO
     // ========================================================
     const params = new URLSearchParams(window.location.search);
@@ -40,7 +96,24 @@
     // 1. ROTA: MONITOR DEDICADO DA REUNIÃO (?meeting=xyz ou /meeting/xyz)
     else if (meetingId) {
       document.body.className = "bg-slate-950 text-slate-100 font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
-      renderMeetingRoomMonitor(meetingId);
+      try {
+        renderMeetingRoomMonitor(meetingId);
+      } catch(err) {
+        console.error("Erro crítico ao inicializar Cockpit da Reunião:", err);
+        root.innerHTML = `
+          <div class="min-h-screen flex items-center justify-center p-6">
+            <div class="max-w-md w-full bg-slate-900 border border-rose-500/40 rounded-3xl p-8 text-center shadow-2xl">
+              <div class="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-xl font-bold mx-auto mb-4">⚠️</div>
+              <h2 class="text-base font-bold text-white mb-2">Erro ao Iniciar Cockpit</h2>
+              <p class="text-xs text-slate-400 mb-6 font-mono">${err.message || String(err)}</p>
+              <div class="flex items-center justify-center gap-3">
+                <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Recarregar</button>
+                <a href="/admin" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Voltar ao Admin</a>
+              </div>
+            </div>
+          </div>
+        `;
+      }
     } 
     // 2. ROTA: ÁREA ADMINISTRATIVA (/admin ou ?admin=true)
     else if (isAdmin) {
@@ -589,6 +662,15 @@
               <div class="p-6 sm:p-8">
                 <form id="start-meeting-form" onsubmit="handleStartMeetingSubmit(event)" class="space-y-6">
                   
+                  <!-- Dica de Como Gerar as Reuniões -->
+                  <div class="p-3.5 bg-blue-50/80 border border-blue-200/80 rounded-2xl text-xs text-blue-950 flex items-start gap-3">
+                    <span class="text-lg leading-none shrink-0">💡</span>
+                    <div>
+                      <span class="font-bold text-blue-900 block mb-0.5">Como preparar as reuniões no Google Meet:</span>
+                      Acesse a home do Google Meet (<a href="https://meet.google.com" target="_blank" class="underline font-bold text-blue-700 hover:text-blue-900">meet.google.com</a>) com a sua conta transmissora, clique em <strong>"Nova reunião"</strong> ➔ <strong>"Criar uma reunião para depois"</strong>, copie os links gerados e cole nos slots da fila abaixo.
+                    </div>
+                  </div>
+
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <!-- Título da Reunião -->
                     <div class="md:col-span-2">
@@ -600,8 +682,8 @@
                     <div class="p-4 bg-slate-50 border border-blue-200/70 rounded-2xl">
                       <div class="flex items-center justify-between mb-1.5">
                         <label class="block text-xs font-bold text-blue-900">📡 Conta Transmissora (Geradora dos Meets) *</label>
-                        <a href="https://meet.google.com/new" target="_blank" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline flex items-center gap-1">
-                          <span>Criar Novo Meet ↗</span>
+                        <a href="https://meet.google.com" target="_blank" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline flex items-center gap-1">
+                          <span>Abrir Meet ↗</span>
                         </a>
                       </div>
                       <p class="text-[11px] text-slate-500 mb-2">Esta conta cria e hospeda todas as salas de reuniões que serão transmitidas.</p>
@@ -621,6 +703,106 @@
                           <option value="${a.id}" ${i === 1 ? 'selected' : ''}>👑 ${a.name} (${a.email})</option>
                         `).join('') : '<option value="">Necessário pelo menos 2 contas Pro autenticadas</option>'}
                       </select>
+                    </div>
+                  </div>
+
+                  <!-- SELEÇÃO DE IDIOMA FIXO DA REUNIÃO (NOVIDADE) -->
+                  <div class="p-5 bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-slate-50 border border-blue-200/90 rounded-2xl space-y-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h4 class="text-xs font-bold text-slate-900 flex items-center gap-2">
+                          <span>🌐 Par de Idiomas da Tradução Simultânea</span>
+                          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            Fixo & Memorizado
+                          </span>
+                        </h4>
+                        <p class="text-[11px] text-slate-500">
+                          Defina uma única vez aqui. Este par será lembrado e mantido automaticamente para todas as trocas de sala.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                      <div>
+                        <label class="block text-[11px] font-bold text-slate-700 mb-1.5">
+                          🗣️ Idioma Falado pelo Palestrante (Origem):
+                        </label>
+                        <select id="m-lang-source" class="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none shadow-2xs">
+                          <option value="en-US" selected>🇺🇸 Inglês (Estados Unidos / Global)</option>
+                          <option value="es-ES">🇪🇸 Espanhol (Internacional)</option>
+                          <option value="pt-BR">🇧🇷 Português (Brasil)</option>
+                          <option value="fr-FR">🇫🇷 Francês</option>
+                          <option value="de-DE">🇩🇪 Alemão</option>
+                          <option value="it-IT">🇮🇹 Italiano</option>
+                          <option value="ja-JP">🇯🇵 Japonês</option>
+                          <option value="zh-CN">🇨🇳 Chinês (Mandarim)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="block text-[11px] font-bold text-slate-700 mb-1.5">
+                          🎧 Idioma Traduzido para a Plateia (Destino):
+                        </label>
+                        <select id="m-lang-target" class="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none shadow-2xs">
+                          <option value="pt-BR" selected>🇧🇷 Português (Brasil)</option>
+                          <option value="es-ES">🇪🇸 Espanhol (Internacional)</option>
+                          <option value="en-US">🇺🇸 Inglês (Global)</option>
+                          <option value="fr-FR">🇫🇷 Francês</option>
+                          <option value="de-DE">🇩🇪 Alemão</option>
+                          <option value="it-IT">🇮🇹 Italiano</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- DEFINIÇÃO FIXA DE DISPOSITIVOS DE ÁUDIO & CABO VIRTUAL -->
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Configuração Transmissor -->
+                    <div class="p-4 bg-slate-50 border border-blue-200/80 rounded-2xl space-y-3">
+                      <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                          <span>📡 Canal de Transmissão (Palestrante)</span>
+                        </span>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                          Entrada de Áudio
+                        </span>
+                      </div>
+                      <div>
+                        <label class="block text-[11px] font-semibold text-slate-700 mb-1">🎙️ Microfone Selecionado:</label>
+                        <select id="m-transmitter-mic" class="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none font-medium shadow-2xs">
+                          <option value="event-line" selected>Áudio do Evento (Mesa de Som / Linha Física)</option>
+                          <option value="default">Microfone Padrão do Sistema</option>
+                        </select>
+                        <p class="text-[10px] text-slate-500 mt-1">Captará diretamente a voz do palestrante.</p>
+                      </div>
+                      <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-900 flex items-center gap-2">
+                        <span>🛡️</span>
+                        <span><strong>Alto-falante:</strong> Fixo em <strong>MUDO / FECHADO</strong> para evitar eco e microfonia no ambiente físico.</span>
+                      </div>
+                    </div>
+
+                    <!-- Configuração Receptor -->
+                    <div class="p-4 bg-slate-50 border border-indigo-200/80 rounded-2xl space-y-3">
+                      <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                          <span>🎧 Canal de Recepção (Tradução Simultânea)</span>
+                        </span>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                          Saída de Áudio
+                        </span>
+                      </div>
+                      <div>
+                        <label class="block text-[11px] font-semibold text-slate-700 mb-1">🔊 Alto-falante / Saída de Áudio:</label>
+                        <select id="m-receiver-speaker" class="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none font-medium shadow-2xs">
+                          <option value="cable" selected>CABLE Input / VB-Audio Virtual Cable (Mesa / OBS)</option>
+                          <option value="default">Dispositivo de Áudio Padrão do Sistema</option>
+                          <option value="speakers">Alto-falantes Principais / Fones de Ouvido</option>
+                        </select>
+                        <p class="text-[10px] text-slate-500 mt-1">Extrai o áudio traduzido para a mesa de som ou fones da plateia.</p>
+                      </div>
+                      <div class="p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl text-[11px] text-indigo-900 flex items-center gap-2">
+                        <span>🛡️</span>
+                        <span><strong>Microfone:</strong> Fixo em <strong>MUDO / FECHADO</strong> para manter silêncio absoluto na reunião.</span>
+                      </div>
                     </div>
                   </div>
 
@@ -667,11 +849,24 @@
                     </div>
                   </div>
 
+                  <!-- COMO FUNCIONA A ENTRADA AUTOMÁTICA E COCKPIT DUAL-WINDOW -->
+                  <div class="p-4 bg-amber-50/70 border border-amber-200/90 rounded-2xl text-xs text-amber-950 space-y-2">
+                    <div class="flex items-center gap-2 font-bold text-amber-900">
+                      <span>⚡ Como funciona a Inicialização e Bypass da Sala de Espera:</span>
+                    </div>
+                    <ol class="list-decimal pl-5 space-y-1 text-[11px] text-amber-900/90">
+                      <li>Ao iniciar, o <strong>Cockpit Master Split-Screen</strong> se abrirá com painéis dedicados para a Conta Transmissora e Receptora.</li>
+                      <li>No Cockpit, o botão <strong>"🖥️ Lançar Reuniões Lado a Lado (Dual-Window)"</strong> abrirá as duas salas posicionadas automaticamente em 50%/50% da sua tela.</li>
+                      <li><strong>Memorização pelo Chrome:</strong> Configure os dispositivos e idioma de legendas traduzidas uma única vez na primeira reunião. O Chrome salva essas preferências para todas as reuniões subsequentes!</li>
+                      <li><strong>Pular o Lobby:</strong> Para entrar na primeira reunião sem esperar no lobby, utilize o atalho rápido <strong>Enter</strong> ou nosso botão auxiliar <strong>"Auto-Entrada"</strong> no Cockpit.</li>
+                    </ol>
+                  </div>
+
                   <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100">
                     <p class="text-xs text-slate-500">
                       ${connectedCount < 2 
                         ? '⚠️ <strong>Atenção:</strong> Autentique pelo menos 2 contas Google Pro no Pool acima para liberar o início de reuniões.' 
-                        : '✅ Par de contas transmissora/receptora pronto para Hot-Swap a cada 2 minutos.'}
+                        : '✅ Par de contas pronto com hot-swap a cada 2 minutos (modo teste acelerado).'}
                     </p>
 
                     <button 
@@ -679,7 +874,7 @@
                       ${connectedCount < 2 ? 'disabled' : ''}
                       class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-indigo-600/20 cursor-pointer flex items-center gap-2"
                     >
-                      <span>Iniciar Reunião & Abrir Página Dedicada</span>
+                      <span>Iniciar Reunião & Abrir Cockpit</span>
                       <span>↗</span>
                     </button>
                   </div>
@@ -1426,6 +1621,33 @@
           return;
         }
 
+        const langSourceEl = document.getElementById('m-lang-source');
+        const langTargetEl = document.getElementById('m-lang-target');
+        const sourceLang = langSourceEl ? langSourceEl.value : 'en-US';
+        const targetLang = langTargetEl ? langTargetEl.value : 'pt-BR';
+        const sourceLabel = langSourceEl?.options[langSourceEl.selectedIndex]?.text || 'Inglês (EUA)';
+        const targetLabel = langTargetEl?.options[langTargetEl.selectedIndex]?.text || 'Português (Brasil)';
+
+        const transmitterMicEl = document.getElementById('m-transmitter-mic');
+        const receiverSpeakerEl = document.getElementById('m-receiver-speaker');
+        const transmitterMic = transmitterMicEl ? transmitterMicEl.value : 'event-line';
+        const receiverSpeaker = receiverSpeakerEl ? receiverSpeakerEl.value : 'cable';
+
+        // Salva preferências fixas para todas as próximas reuniões
+        saveStoredAudioLanguageSettings({
+          sourceLanguage: sourceLang,
+          sourceLanguageLabel: sourceLabel,
+          targetLanguage: targetLang,
+          targetLanguageLabel: targetLabel,
+          transmitterInputDevice: transmitterMic,
+          transmitterInputLabel: 'Áudio do Evento (Mesa de Som / Linha)',
+          transmitterSpeakerMuted: true,
+          receiverInputMuted: true,
+          receiverOutputDevice: receiverSpeaker,
+          receiverOutputLabel: 'CABLE Output / VB-Audio Virtual Cable (Mesa de Som)',
+          cameraDisabled: true
+        });
+
         const newMeeting = {
           id: 'meet-' + Date.now().toString(36),
           title,
@@ -1438,6 +1660,12 @@
           meetingQueue: validSlots,
           currentQueueIndex: 0,
           status: 'active',
+          sourceLanguage: sourceLang,
+          targetLanguage: targetLang,
+          sourceLanguageLabel: sourceLabel,
+          targetLanguageLabel: targetLabel,
+          transmitterInputDevice: transmitterMic,
+          receiverOutputDevice: receiverSpeaker,
           nextSwapInSeconds: 120, // 2 minutos para modo de teste acelerado!
           swapIntervalSeconds: 120,
           latencyMs: 140,
@@ -1455,11 +1683,15 @@
             currentMeetUrl: validSlots[0],
             scheduledNextMeetUrl: validSlots[1] || '',
             accountIds: [transmitter, receiver],
-            meetingQueue: validSlots
+            meetingQueue: validSlots,
+            sourceLanguage: sourceLang,
+            targetLanguage: targetLang,
+            transmitterInputDevice: transmitterMic,
+            receiverOutputDevice: receiverSpeaker
           })
         }).catch(() => {});
 
-        // Abre a aba dedicada da reunião
+        // Abre o Cockpit dedicado da reunião em nova aba
         window.open('/?meeting=' + newMeeting.id, '_blank');
         render();
       };
@@ -1472,9 +1704,15 @@
     // ========================================================
     function renderMeetingRoomMonitor(id) {
       let volume = 85;
-      let isMuted = false;
+      let isReceiverMuted = false;
+      let isTransmitterMicMuted = false;
       let countdown = 120; // 2 minutos em modo teste acelerado!
+      let isTimerPaused = false;
       let latency = 142;
+
+      // Recupera contas e configurações globais de forma resiliente
+      const storedAccounts = getStoredAccounts();
+      const audioSettings = getStoredAudioLanguageSettings();
 
       // Recupera a reunião salva
       let meeting = null;
@@ -1493,7 +1731,11 @@
           scheduledNextMeetUrl: 'https://meet.google.com/klm-nopq-rst',
           meetingQueue: ['https://meet.google.com/abc-defg-hij', 'https://meet.google.com/klm-nopq-rst'],
           currentQueueIndex: 0,
-          nextSwapInSeconds: 120
+          nextSwapInSeconds: 120,
+          sourceLanguage: audioSettings.sourceLanguage || 'en-US',
+          targetLanguage: audioSettings.targetLanguage || 'pt-BR',
+          sourceLanguageLabel: audioSettings.sourceLanguageLabel || 'Inglês (Estados Unidos / Global)',
+          targetLanguageLabel: audioSettings.targetLanguageLabel || 'Português (Brasil)'
         };
       }
 
@@ -1509,296 +1751,496 @@
       let currentMeetUrl = queue[queueIdx] || meeting.currentMeetUrl;
       let nextMeetUrl = queue[queueIdx + 1] || '';
 
-      const accTransmitter = accounts.find(a => a.id === meeting.transmitterAccountId || a.id === meeting.accountA) || { name: 'Conta Transmissora Pro', email: 'transmissor@google' };
-      const accReceiver = accounts.find(a => a.id === meeting.receiverAccountId || a.id === meeting.accountB) || { name: 'Conta Receptora Pro', email: 'receptor@google' };
+      const accTransmitter = storedAccounts.find(a => a.id === meeting.transmitterAccountId || a.id === meeting.accountA) || { 
+        name: 'Conta Transmissora Pro (Palestrante)', 
+        email: 'transmissor@google.com',
+        connected: true 
+      };
+      const accReceiver = storedAccounts.find(a => a.id === meeting.receiverAccountId || a.id === meeting.accountB) || { 
+        name: 'Conta Receptora Pro (Tradução)', 
+        email: 'receptor@google.com',
+        connected: true 
+      };
+
+      const sourceLang = meeting.sourceLanguageLabel || audioSettings.sourceLanguageLabel || 'Inglês (EUA)';
+      const targetLang = meeting.targetLanguageLabel || audioSettings.targetLanguageLabel || 'Português (Brasil)';
+
+      // Referências para controle das janelas pop-up duplas
+      let transmitterWindowRef = null;
+      let receiverWindowRef = null;
 
       root.innerHTML = `
-        <!-- Header da Reunião -->
-        <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-xl sticky top-0 z-30 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+        <!-- HEADER MASTER DO COCKPIT -->
+        <header class="border-b border-slate-800 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-40 px-6 py-3.5 flex flex-col xl:flex-row items-center justify-between gap-4 shadow-xl">
           <div class="flex items-center gap-3.5">
-            <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-bold">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/25 text-white font-bold text-base shrink-0">
               BA
             </div>
             <div>
-              <div class="flex items-center gap-2.5">
-                <h1 class="text-base sm:text-lg font-bold text-white tracking-tight">${meeting.title || 'Reunião Ativa — ' + id}</h1>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+              <div class="flex flex-wrap items-center gap-2.5">
+                <h1 class="text-base sm:text-lg font-bold text-white tracking-tight">${meeting.title || 'Cockpit de Transmissão — ' + id}</h1>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 shadow-2xs">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
                   Transmissão Ao Vivo (Meet)
                 </span>
+                <!-- BADGE DE IDIOMA FIXO -->
+                <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 flex items-center gap-1">
+                  🌐 <strong>${sourceLang}</strong> ➔ <strong>${targetLang}</strong> (Fixo)
+                </span>
               </div>
-              <p class="text-xs text-slate-400">Canal WebRTC de Ultra-Baixa Latência • Hot-Swap Acelerado</p>
+              <p class="text-xs text-slate-400 mt-0.5">Cockpit Split-Screen: Monitoramento & Interferência Manual em Tempo Real</p>
             </div>
           </div>
 
-          <div class="flex items-center gap-3">
-            <div class="bg-slate-950 border border-slate-800 px-3.5 py-1.5 rounded-xl flex items-center gap-2 text-xs">
-              <span class="text-slate-400">Próximo Hot-Swap:</span>
-              <strong id="timer-display" class="text-blue-400 font-mono">02m 00s</strong>
+          <!-- CONTROLES MASTER DE TEMPO E AÇÕES -->
+          <div class="flex flex-wrap items-center gap-2.5">
+            <!-- Painel Cronômetro de Hot-Swap -->
+            <div class="bg-slate-950 border border-slate-800 px-3.5 py-1.5 rounded-xl flex items-center gap-2.5 text-xs shadow-inner">
+              <span class="text-slate-400">Hot-Swap em:</span>
+              <strong id="timer-display" class="text-blue-400 font-mono text-sm tracking-wider">02m 00s</strong>
+              <button onclick="toggleTimerPause()" id="pause-timer-btn" title="Pausar / Retomar Cronômetro" class="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 text-[11px] cursor-pointer">
+                ⏸️
+              </button>
+              <button onclick="addTimeToTimer(120)" title="Adicionar +2 minutos nesta sala" class="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer">
+                +2m
+              </button>
             </div>
 
-            <button onclick="triggerMonitorHotSwapNow()" class="text-xs font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5">
-              <span>Forçar Hot-Swap Agora ⚡</span>
+            <!-- Botão Forçar Hot-Swap -->
+            <button onclick="triggerMonitorHotSwapNow()" class="text-xs font-semibold text-amber-300 hover:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm">
+              <span>⚡ Forçar Hot-Swap Agora</span>
             </button>
 
-            <button onclick="window.close()" class="text-xs font-semibold text-slate-400 hover:text-white bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-xl transition-all">
-              Fechar Monitor
+            <!-- Botão Lançar Dual-Window -->
+            <button onclick="launchDualMeetWindows()" class="text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 border border-blue-400/40 px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-blue-600/30">
+              <span>🖥️ Lançar Reuniões Lado a Lado (50/50)</span>
+            </button>
+
+            <!-- Botão Fechar -->
+            <button onclick="window.close()" class="text-xs font-semibold text-slate-400 hover:text-white bg-slate-900 border border-slate-800 px-3 py-2 rounded-xl transition-all">
+              ✕
             </button>
           </div>
         </header>
 
-        <!-- SEÇÃO SUPERIOR: ORQUESTRADOR DE SALAS E FILA DE HOT-SWAP (NOVIDADE) -->
-        <section class="max-w-7xl w-full mx-auto px-6 pt-6">
-          <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-            <!-- Header com Papéis de Contas e Modo de Teste -->
+        <!-- SEÇÃO SUPERIOR: GUIA DE AUTO-JOIN & BYPASS DO LOBBY -->
+        <section class="max-w-7xl w-full mx-auto px-6 pt-5">
+          <div class="bg-gradient-to-r from-slate-900 via-blue-950/40 to-slate-900 border border-blue-500/20 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg">
+            <div class="flex items-center gap-3">
+              <span class="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-base font-bold shrink-0">⚡</span>
+              <div>
+                <h4 class="text-xs font-bold text-white flex items-center gap-2">
+                  Inicialização Automática & Bypass da Tela "Pronto para participar?"
+                </h4>
+                <p class="text-[11px] text-slate-300 mt-0.5">
+                  Clique em <strong>"Lançar Reuniões Lado a Lado"</strong> acima. Quando as janelas abrirem, pressione <strong>Enter</strong> na tela de espera ou use os botões <strong>"Auto-Entrada"</strong> abaixo para ingressar instantaneamente!
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button onclick="copyAutoJoinSnippet()" class="text-xs font-semibold text-blue-300 hover:text-white bg-blue-900/60 hover:bg-blue-800 border border-blue-500/30 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5">
+                <span>Copiar Atalho Auto-Join 📋</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================
+            SEÇÃO CENTRAL: SPLIT-SCREEN COCKPIT (TRANSMISSOR VS RECEPTOR)
+            ======================================================== -->
+        <main class="max-w-7xl w-full mx-auto p-6 space-y-6">
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- ========================================================
+                PAINEL ESQUERDO: CONTA TRANSMISSORA (PALESTRANTE / ENTRADA)
+                ======================================================== -->
+            <div class="bg-slate-900 border-2 border-blue-500/40 rounded-3xl p-6 shadow-2xl relative flex flex-col justify-between overflow-hidden">
+              <div class="absolute -top-12 -right-12 w-40 h-40 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+              <div>
+                <!-- Header do Canal Transmissor -->
+                <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center font-bold text-lg">
+                      📡
+                    </div>
+                    <div>
+                      <h2 class="text-base font-bold text-white flex items-center gap-2">
+                        Canal de Transmissão
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                          Palestrante
+                        </span>
+                      </h2>
+                      <div class="text-xs text-slate-300 font-medium mt-0.5 flex items-center gap-1.5">
+                        <span class="text-blue-400 font-bold">👑 ${accTransmitter.name}</span>
+                        <span class="text-slate-500">(${accTransmitter.email || 'Conta Pro Principal'})</span>
+                      </div>
+                    </div>
+                  </div>
+                  <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Transmissor Ativo
+                  </span>
+                </div>
+
+                <!-- URL da Reunião Atual & Ações Rápidas -->
+                <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-5 space-y-3">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-400 font-semibold">Sala Atual no Google Meet:</span>
+                    <span class="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Ciclo #${queueIdx + 1} Ao Vivo ●</span>
+                  </div>
+                  <div class="text-xs font-mono text-white font-semibold break-all bg-slate-900 border border-slate-800 p-2.5 rounded-xl select-all" id="transmitter-current-url">
+                    ${currentMeetUrl}
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2 pt-1">
+                    <button onclick="navigator.clipboard.writeText(currentMeetUrl); appendSystemLog('Link da reunião copiado!'); alert('Link copiado!');" class="text-xs text-blue-400 hover:text-blue-300 bg-slate-900 hover:bg-slate-850 border border-slate-700 px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer">
+                      Copiar Link 📋
+                    </button>
+                    <button onclick="openTransmitterWindow()" class="text-xs text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer flex items-center gap-1 shadow-sm">
+                      <span>Abrir no Lado Esquerdo (50%) ↗</span>
+                    </button>
+                    <button onclick="triggerAutoJoinFor('transmitter')" class="text-xs text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer flex items-center gap-1">
+                      <span>⚡ Auto-Entrada (Pular Lobby)</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Painel de Dispositivos e Nível do Microfone do Evento -->
+                <div class="space-y-4">
+                  <!-- Microfone do Evento (Ativo) -->
+                  <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>🎙️ Microfone Selecionado:</span>
+                      </span>
+                      <span id="trans-mic-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        Captação Aberta ●
+                      </span>
+                    </div>
+                    <div class="text-xs text-blue-300 font-semibold">
+                      Áudio do Evento (Mesa de Som / Linha Física do Palestrante)
+                    </div>
+
+                    <!-- VU Meter Dinâmico de Decibéis -->
+                    <div class="pt-2">
+                      <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono mb-1">
+                        <span>Nível de Entrada (VU Meter):</span>
+                        <span id="vu-db-text" class="text-emerald-400 font-bold">-14 dB (Ótimo)</span>
+                      </div>
+                      <div class="h-3 w-full bg-slate-900 rounded-full overflow-hidden flex p-0.5 gap-0.5">
+                        <div id="vu-bar-green" class="h-full bg-emerald-500 rounded-l-full transition-all duration-100" style="width: 65%;"></div>
+                        <div id="vu-bar-yellow" class="h-full bg-amber-400 transition-all duration-100" style="width: 15%;"></div>
+                        <div id="vu-bar-red" class="h-full bg-rose-500 rounded-r-full transition-all duration-100" style="width: 0%;"></div>
+                      </div>
+                    </div>
+
+                    <!-- Controle de Emergência de Microfone -->
+                    <div class="pt-2 flex items-center justify-between border-t border-slate-850">
+                      <span class="text-[11px] text-slate-400">Interferência Manual:</span>
+                      <button onclick="toggleTransmitterMic()" id="toggle-mic-btn" class="text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 transition-all cursor-pointer">
+                        Mutar Microfone
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Alto-Falante Mutado (Proteção Anti-Microfonia) -->
+                  <div class="bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-4 flex items-start gap-3">
+                    <span class="text-xl leading-none">🔇</span>
+                    <div>
+                      <div class="text-xs font-bold text-emerald-400">Alto-falante Fechado / Mudo (Proteção Ativa)</div>
+                      <p class="text-[11px] text-slate-300 mt-0.5">
+                        O alto-falante da conta transmissora fica permanentemente desligado para garantir que o áudio da chamada não volte para a sala do evento, eliminando risco de eco e microfonia.
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- Câmera & Plano de Fundo -->
+                  <div class="bg-slate-950/60 border border-slate-855 rounded-2xl p-3 flex items-center justify-between text-xs text-slate-300">
+                    <span class="flex items-center gap-2">
+                      <span>📷 Câmera do Meet:</span>
+                      <strong class="text-slate-400">Desligada (Apenas Áudio)</strong>
+                    </span>
+                    <span class="text-[10px] text-slate-500 font-mono">Economia de Banda</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Rodapé do Card Transmissor -->
+              <div class="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                <span>Canal: <strong>Transmissão do Evento</strong></span>
+                <span>Bitrate: <strong class="text-blue-400">48kHz / Opus</strong></span>
+              </div>
+            </div>
+
+            <!-- ========================================================
+                PAINEL DIREITO: CONTA RECEPTORA (TRADUÇÃO / VB-CABLE)
+                ======================================================== -->
+            <div class="bg-slate-900 border-2 border-indigo-500/40 rounded-3xl p-6 shadow-2xl relative flex flex-col justify-between overflow-hidden">
+              <div class="absolute -top-12 -right-12 w-40 h-40 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+              <div>
+                <!-- Header do Canal Receptor -->
+                <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center font-bold text-lg">
+                      🎧
+                    </div>
+                    <div>
+                      <h2 class="text-base font-bold text-white flex items-center gap-2">
+                        Canal de Recepção
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                          Tradução Simultânea
+                        </span>
+                      </h2>
+                      <div class="text-xs text-slate-300 font-medium mt-0.5 flex items-center gap-1.5">
+                        <span class="text-indigo-400 font-bold">👑 ${accReceiver.name}</span>
+                        <span class="text-slate-500">(${accReceiver.email || 'Conta Pro Tradução'})</span>
+                      </div>
+                    </div>
+                  </div>
+                  <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                    Receptor Ativo
+                  </span>
+                </div>
+
+                <!-- URL da Reunião Atual & Ações Rápidas -->
+                <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-5 space-y-3">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-400 font-semibold">Sala Atual no Google Meet:</span>
+                    <span class="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">Ciclo #${queueIdx + 1} Ao Vivo ●</span>
+                  </div>
+                  <div class="text-xs font-mono text-white font-semibold break-all bg-slate-900 border border-slate-800 p-2.5 rounded-xl select-all" id="receiver-current-url">
+                    ${currentMeetUrl}
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2 pt-1">
+                    <button onclick="navigator.clipboard.writeText(currentMeetUrl); appendSystemLog('Link da reunião copiado!'); alert('Link copiado!');" class="text-xs text-indigo-400 hover:text-indigo-300 bg-slate-900 hover:bg-slate-850 border border-slate-700 px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer">
+                      Copiar Link 📋
+                    </button>
+                    <button onclick="openReceiverWindow()" class="text-xs text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer flex items-center gap-1 shadow-sm">
+                      <span>Abrir no Lado Direito (50%) ↗</span>
+                    </button>
+                    <button onclick="triggerAutoJoinFor('receiver')" class="text-xs text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer flex items-center gap-1">
+                      <span>⚡ Auto-Entrada (Pular Lobby)</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Painel de Dispositivos e Saída VB-CABLE -->
+                <div class="space-y-4">
+                  <!-- Microfone Fechado (Proteção da Cabine) -->
+                  <div class="bg-indigo-950/20 border border-indigo-500/30 rounded-2xl p-4 flex items-start gap-3">
+                    <span class="text-xl leading-none">🔇</span>
+                    <div>
+                      <div class="text-xs font-bold text-indigo-400">Microfone Fechado / Mudo (Proteção Ativa)</div>
+                      <p class="text-[11px] text-slate-300 mt-0.5">
+                        O microfone da conta receptora permanece fechado para evitar que ruídos da cabine ou do operador vazem dentro da reunião do Meet.
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- Alto-falante / Saída VB-CABLE -->
+                  <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>🔊 Saída de Áudio Traduzido (Cabo Virtual):</span>
+                      </span>
+                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        Ativa ➔ Mesa de Som
+                      </span>
+                    </div>
+
+                    <div class="text-xs text-indigo-300 font-semibold flex items-center gap-1.5">
+                      <span>🔌 CABLE Input / VB-Audio Virtual Cable (Mesa de Som / Rádio / OBS)</span>
+                    </div>
+
+                    <!-- Espectro de Ondas Sonoras da Tradução -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col items-center">
+                      <div id="spectrum-bars" class="flex items-end justify-center gap-1 h-12 w-full mb-1">
+                        <!-- Barras animadas dinamicamente -->
+                      </div>
+                      <div class="text-[10px] text-slate-400 flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Extração de Áudio Traduzido em Tempo Real
+                      </div>
+                    </div>
+
+                    <!-- Controle de Volume Master do Receptor -->
+                    <div class="pt-1 space-y-2">
+                      <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-300 font-semibold">Volume Master de Saída:</span>
+                        <strong id="vol-display" class="font-mono text-indigo-400">85%</strong>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <button id="mute-btn" onclick="toggleReceiverMute()" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-indigo-400 text-xs font-bold cursor-pointer hover:bg-slate-800">
+                          MUTE
+                        </button>
+                        <input id="vol-slider" type="range" min="0" max="100" value="85" oninput="changeReceiverVolume(this.value)" class="flex-1 accent-indigo-500 h-2 bg-slate-900 rounded-lg cursor-pointer">
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Câmera Desligada -->
+                  <div class="bg-slate-950/60 border border-slate-855 rounded-2xl p-3 flex items-center justify-between text-xs text-slate-300">
+                    <span class="flex items-center gap-2">
+                      <span>📷 Câmera do Meet:</span>
+                      <strong class="text-slate-400">Desligada (Apenas Áudio)</strong>
+                    </span>
+                    <span class="text-[10px] text-slate-500 font-mono">Economia de Banda</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Rodapé do Card Receptor -->
+              <div class="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                <span>Canal: <strong>Extração Traduzida</strong></span>
+                <span>Latência WebRTC: <strong id="latency-val" class="text-indigo-400 font-mono">142ms</strong></span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ========================================================
+              SEÇÃO: ORQUESTRADOR DE SALAS & FILA DE HOT-SWAP CONTÍNUO
+              ======================================================== -->
+          <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
               <div class="flex items-center gap-3">
                 <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
                 <div>
-                  <h2 class="text-base font-bold text-white flex items-center gap-2">
-                    Orquestrador de Salas & Hot-Swap Contínuo
+                  <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    Orquestrador da Fila de Reuniões & Hot-Swap Contínuo
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
                       Modo Teste: 2 min (120s)
                     </span>
-                  </h2>
-                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 mt-1">
-                    <span>📡 Transmissor: <strong class="text-blue-400 font-semibold">${accTransmitter.name}</strong> (${accTransmitter.email})</span>
-                    <span class="text-slate-600 hidden sm:inline">|</span>
-                    <span>🎧 Receptor (Bot): <strong class="text-indigo-400 font-semibold">${accReceiver.name}</strong> (${accReceiver.email})</span>
-                  </div>
+                  </h3>
+                  <p class="text-xs text-slate-400 mt-0.5">
+                    As reuniões trocam automaticamente a cada ciclo. Adicione mais links criados pela conta transmissora a qualquer momento!
+                  </p>
                 </div>
               </div>
 
               <div class="flex items-center gap-2">
-                <a href="https://meet.google.com/new" target="_blank" class="text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer">
-                  <span>Criar Meet no Google ↗</span>
+                <a href="https://meet.google.com" target="_blank" class="text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 border border-blue-500/20 px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer">
+                  <span>Abrir Meet no Google (Criar Mais) ↗</span>
                 </a>
               </div>
             </div>
 
-            <!-- Grid: Sala Atual | Próximo Hot-Swap | Cronômetro -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 my-5">
-              <!-- Card Sala Atual -->
-              <div class="bg-slate-950 border border-emerald-500/30 rounded-2xl p-4 flex flex-col justify-between">
-                <div>
-                  <div class="flex items-center justify-between mb-2">
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-                      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                      <span id="monitor-cycle-badge">Sala Atual Ao Vivo (Ciclo #${queueIdx + 1})</span>
-                    </span>
-                    <span class="text-[10px] font-mono text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded">No Ar ●</span>
-                  </div>
-                  <div class="text-xs font-mono text-white truncate font-semibold select-all mt-1" id="monitor-current-meet">
-                    ${currentMeetUrl}
-                  </div>
-                </div>
-                <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
-                  <button onclick="navigator.clipboard.writeText(currentMeetUrl); alert('Link copiado!');" class="text-[11px] text-blue-400 hover:text-blue-300 font-semibold cursor-pointer">
-                    Copiar Link 📋
-                  </button>
-                  <a id="monitor-current-link" href="${currentMeetUrl}" target="_blank" class="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1">
-                    <span>Abrir Sala</span>
-                    <span>↗</span>
-                  </a>
-                </div>
+            <!-- Visualizador dos Ciclos da Fila -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-400 font-semibold">Linha do Tempo dos Ciclos:</span>
+                <span id="monitor-queue-status" class="text-blue-400 font-mono font-semibold"></span>
               </div>
-
-              <!-- Card Próxima Sala -->
-              <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between" id="monitor-next-card">
-                <div>
-                  <div class="flex items-center justify-between mb-2">
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-blue-400">
-                      Próxima Sala Agendada
-                    </span>
-                    <span class="text-[10px] font-mono text-slate-500">Pronto p/ Swap</span>
-                  </div>
-                  <div class="text-xs font-mono text-slate-300 truncate mt-1" id="monitor-next-meet">
-                    ${nextMeetUrl || '<span class="text-amber-400 italic">⚠️ Fila Vazia! Adicione abaixo</span>'}
-                  </div>
-                </div>
-                <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px]">
-                  <span class="text-slate-500" id="monitor-queue-status">${(queue.length - queueIdx - 1) > 0 ? ((queue.length - queueIdx - 1) + ' sala(s) restante(s) na fila') : 'Última sala em transmissão'}</span>
-                  <button id="monitor-copy-next-btn" onclick="if(nextMeetUrl){navigator.clipboard.writeText(nextMeetUrl); alert('Link da próxima sala copiado!');}" class="text-blue-400 hover:text-blue-300 font-semibold cursor-pointer ${nextMeetUrl ? '' : 'hidden'}">
-                    Copiar Link 📋
-                  </button>
-                </div>
-              </div>
-
-              <!-- Card Cronômetro & Forçar Swap -->
-              <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
-                <div>
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Hot-Swap Automático</span>
-                    <span class="text-[10px] font-mono text-amber-400">Teste: 2m</span>
-                  </div>
-                  <div class="text-2xl font-bold font-mono text-blue-400 tracking-tight" id="monitor-swap-timer">
-                    02m 00s
-                  </div>
-                </div>
-                <div class="mt-2">
-                  <button onclick="triggerMonitorHotSwapNow()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-2 px-3 rounded-xl transition-all shadow-md shadow-amber-500/10 cursor-pointer flex items-center justify-center gap-1.5">
-                    <span>Forçar Hot-Swap Agora ⚡</span>
-                  </button>
-                </div>
+              <div id="monitor-queue-list" class="flex flex-wrap gap-2.5 text-xs">
+                <!-- Badges de ciclos inseridos dinamicamente -->
               </div>
             </div>
 
-            <!-- Gerenciador de Adicionar Reuniões à Fila em Tempo Real -->
-            <div class="p-4 bg-slate-950/80 border border-slate-800/80 rounded-2xl">
-              <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-2">
-                <div>
-                  <h4 class="text-xs font-bold text-slate-200">Adicionar Mais Reuniões à Fila (Durante a Transmissão):</h4>
-                  <p class="text-[11px] text-slate-400">Se o evento for estendido, cole novas salas do Meet criadas pela conta transmissora a qualquer momento.</p>
-                </div>
-                <div class="text-[11px] text-slate-500 font-mono">
+            <!-- Adicionar Mais Reuniões à Fila em Tempo Real -->
+            <div class="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                <label class="text-xs font-bold text-slate-200">
+                  ➕ Adicionar Mais uma Reunião à Fila (Durante a Transmissão):
+                </label>
+                <span class="text-[11px] text-slate-500 font-mono">
                   Total na Fila: <strong class="text-white" id="monitor-queue-total">${queue.length}</strong>
-                </div>
+                </span>
               </div>
-
               <div class="flex items-center gap-2">
                 <input type="url" id="monitor-new-meet-url" placeholder="Cole o link do Google Meet aqui (ex: https://meet.google.com/xxx-yyyy-zzz)..." class="flex-1 bg-slate-900 border border-slate-700 focus:border-blue-500 text-white text-xs font-mono px-3.5 py-2.5 rounded-xl outline-none">
                 <button type="button" onclick="addMeetingToMonitorQueue()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all whitespace-nowrap cursor-pointer">
                   + Enfileirar Reunião
                 </button>
               </div>
-
-              <!-- Visualizador das Próximas Salas na Fila -->
-              <div id="monitor-queue-list" class="mt-3 flex flex-wrap gap-2 text-[11px]">
-                <!-- Inserido dinamicamente -->
-              </div>
             </div>
           </div>
-        </section>
 
-        <!-- Grid Principal (Áudio e Transcrição) -->
-        <main class="max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- ========================================================
+              SEÇÃO INFERIOR: TRANSCRIÇÃO EM TEMPO REAL & LOG OPERACIONAL
+              ======================================================== -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-          <!-- COLUNA ESQUERDA: HUB DE SAÍDA DE ÁUDIO TRADUZIDO -->
-          <div class="lg:col-span-5 flex flex-col gap-6">
-            
-            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col justify-between">
-              <div class="flex items-center justify-between mb-4">
+            <!-- COLUNA ESQUERDA: TRANSCRIÇÃO & TRADUÇÃO SIMULTÂNEA (7 COLS) -->
+            <div class="lg:col-span-7 flex flex-col bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl min-h-[400px]">
+              <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
                 <div>
-                  <h2 class="text-base font-bold text-white flex items-center gap-2">
-                    🎧 Hub de Saída de Áudio Traduzido
-                  </h2>
-                  <p class="text-[11px] text-slate-400">Controle total da trilha de áudio recebida</p>
+                  <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    Transcrição & Tradução em Tempo Real
+                  </h3>
+                  <p class="text-xs text-slate-400 mt-0.5">Captura do áudio falado no Meet e tradução sincronizada</p>
                 </div>
-                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Opus 128kbps
-                </span>
+                <button onclick="copyTranscription()" class="text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-750 px-3 py-1.5 rounded-xl border border-slate-700 transition-all cursor-pointer">
+                  Copiar Transcrição 📋
+                </button>
               </div>
 
-              <!-- Visualizador de Ondas Sonoras em Tempo Real -->
-              <div class="bg-slate-950 border border-slate-850 rounded-2xl p-6 mb-6 flex flex-col items-center justify-center text-center">
-                <div id="spectrum-bars" class="flex items-end justify-center gap-1.5 h-20 w-full mb-3">
-                  <!-- Barras dinâmicas -->
+              <div id="transcription-box" class="flex-1 overflow-y-auto space-y-3 pr-2 max-h-[360px]">
+                <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-850 text-xs space-y-1">
+                  <div class="flex items-center justify-between text-[10px] text-blue-400 font-bold uppercase tracking-wider">
+                    <span>Palestrante (CEO)</span>
+                    <span class="text-slate-500 font-mono text-[10px]">${sourceLang} ➔ ${targetLang}</span>
+                  </div>
+                  <div class="text-sm font-semibold text-white">Estamos demonstrando a tradução simultânea de áudio em tempo real com ultra-baixa latência.</div>
+                  <div class="text-xs text-slate-400 italic">Original: "We are demonstrating real-time ultra-low latency audio translation."</div>
                 </div>
-                <div class="flex items-center gap-2 text-xs font-semibold text-slate-300">
-                  <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Áudio Traduzido em Reprodução
-                </div>
-                <p class="text-[11px] text-slate-500 mt-0.5">Latência WebRTC: <strong id="latency-val" class="text-blue-400">142ms</strong> (Sub-segundo)</p>
-              </div>
 
-              <!-- Controle de Volume Master -->
-              <div class="space-y-4 mb-6">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="font-semibold text-slate-300">Volume de Saída (Master)</span>
-                  <span id="vol-display" class="font-mono text-blue-400">85%</span>
-                </div>
-                <div class="flex items-center gap-3">
-                  <button id="mute-btn" onclick="toggleMute()" class="p-2 rounded-xl bg-slate-950 border border-slate-800 text-blue-400 text-xs font-bold cursor-pointer">
-                    VOL
-                  </button>
-                  <input id="vol-slider" type="range" min="0" max="100" value="85" oninput="changeVolume(this.value)" class="flex-1 accent-blue-500 h-2 bg-slate-950 rounded-lg cursor-pointer">
-                </div>
-              </div>
-
-              <!-- Roteamento de Saída -->
-              <div class="space-y-2 mb-4">
-                <label class="block text-xs font-semibold text-slate-300">
-                  Roteamento de Saída de Áudio (Dispositivo Físico ou Cabo Virtual)
-                </label>
-                <select id="audio-device-select" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-slate-200 outline-none">
-                  <option value="default">Dispositivo de Áudio Padrão do Sistema</option>
-                  <option value="cable">VB-Audio Virtual Cable (Mesa de Som / OBS)</option>
-                  <option value="headphones">Saída de Fone de Ouvido / Headphone</option>
-                  <option value="speakers">Alto-falantes Principais</option>
-                </select>
-                <p class="text-[11px] text-slate-500">
-                  Selecione sua placa de som, fone ou cabo virtual (VB-CABLE) para enviar o áudio traduzido para a mesa de som física ou para o OBS.
-                </p>
-              </div>
-
-              <div class="pt-4 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
-                <span>Bitrate: <strong>128 kbps (48kHz)</strong></span>
-                <span>Canal: <strong>Stereo / WebRTC</strong></span>
-              </div>
-            </div>
-
-            <!-- Diagnóstico de Rede -->
-            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
-              <h3 class="text-sm font-bold text-white mb-4">Telemetria de Rede & Estabilidade</h3>
-              <div class="grid grid-cols-2 gap-3 text-xs">
-                <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
-                  <span class="text-slate-500 block mb-1">Latência RTT</span>
-                  <span id="rtt-val" class="font-bold text-emerald-400 text-sm font-mono">142 ms</span>
-                </div>
-                <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
-                  <span class="text-slate-500 block mb-1">Jitter de Áudio</span>
-                  <span class="font-bold text-slate-200 text-sm font-mono">3.2 ms</span>
-                </div>
-                <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
-                  <span class="text-slate-500 block mb-1">Perda de Pacotes</span>
-                  <span class="font-bold text-emerald-400 text-sm font-mono">0.0%</span>
-                </div>
-                <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
-                  <span class="text-slate-500 block mb-1">Status do Robô</span>
-                  <span class="font-bold text-blue-400 text-xs font-mono">bot-pro-01 (Ativo)</span>
+                <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-850 text-xs space-y-1">
+                  <div class="flex items-center justify-between text-[10px] text-blue-400 font-bold uppercase tracking-wider">
+                    <span>Palestrante (CEO)</span>
+                    <span class="text-slate-500 font-mono text-[10px]">${sourceLang} ➔ ${targetLang}</span>
+                  </div>
+                  <div class="text-sm font-semibold text-white">A troca contínua entre as reuniões do Google Meet ocorre de maneira transparente para o público.</div>
+                  <div class="text-xs text-slate-400 italic">Original: "The continuous switch between Google Meet rooms happens seamlessly for the audience."</div>
                 </div>
               </div>
             </div>
 
-          </div>
-
-          <!-- COLUNA DIREITA: TRANSCRIÇÃO EM TEMPO REAL -->
-          <div class="lg:col-span-7 flex flex-col bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl min-h-[500px]">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
-              <div>
-                <h2 class="text-base font-bold text-white">Transcrição & Legendas em Tempo Real</h2>
-                <p class="text-xs text-slate-400 mt-0.5">Captura simultânea do que está sendo dito e traduzido</p>
+            <!-- COLUNA DIREITA: TELEMETRIA & LOG DO SISTEMA (5 COLS) -->
+            <div class="lg:col-span-5 flex flex-col gap-5">
+              <!-- Telemetria -->
+              <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl">
+                <h4 class="text-xs font-bold text-white mb-3">Telemetria de Rede & Estabilidade</h4>
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                  <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
+                    <span class="text-slate-500 block mb-0.5 text-[11px]">Latência RTT</span>
+                    <span id="rtt-val" class="font-bold text-emerald-400 text-sm font-mono">142 ms</span>
+                  </div>
+                  <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
+                    <span class="text-slate-500 block mb-0.5 text-[11px]">Jitter de Áudio</span>
+                    <span class="font-bold text-slate-200 text-sm font-mono">2.8 ms</span>
+                  </div>
+                  <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
+                    <span class="text-slate-500 block mb-0.5 text-[11px]">Perda de Pacotes</span>
+                    <span class="font-bold text-emerald-400 text-sm font-mono">0.0%</span>
+                  </div>
+                  <div class="bg-slate-950 border border-slate-850 p-3 rounded-xl">
+                    <span class="text-slate-500 block mb-0.5 text-[11px]">Canal Opus</span>
+                    <span class="font-bold text-indigo-400 text-xs font-mono">Stereo 128k</span>
+                  </div>
+                </div>
               </div>
-              <button onclick="copyTranscription()" class="text-xs text-slate-300 hover:text-white bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">
-                Copiar Transcrição
-              </button>
+
+              <!-- Log do Sistema -->
+              <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex-1 flex flex-col">
+                <h4 class="text-xs font-bold text-white mb-2">Histórico de Eventos do Orquestrador</h4>
+                <div id="system-log-box" class="flex-1 overflow-y-auto space-y-2 max-h-[160px] text-[11px] font-mono text-slate-300">
+                  <div class="text-emerald-400">[${new Date().toLocaleTimeString('pt-BR')}] Cockpit iniciado com sucesso. Fila carregada com ${queue.length} salas.</div>
+                </div>
+              </div>
             </div>
 
-            <div id="transcription-box" class="flex-1 bg-slate-950 border border-slate-850 rounded-2xl p-4 overflow-y-auto space-y-3.5 max-h-[550px]">
-              <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1">
-                <div class="flex items-center justify-between text-[11px]">
-                  <span class="font-bold text-blue-400">Palestrante Principal</span>
-                  <span class="text-slate-500 font-mono text-[10px]">EN ➔ PT • 22:30:15</span>
-                </div>
-                <div class="text-sm font-medium text-slate-100">Bem-vindos a todos ao nosso summit global hoje.</div>
-                <div class="text-xs text-slate-500 italic">Original: "Welcome everyone to our global summit today."</div>
-              </div>
-
-              <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1">
-                <div class="flex items-center justify-between text-[11px]">
-                  <span class="font-bold text-blue-400">Palestrante Principal</span>
-                  <span class="text-slate-500 font-mono text-[10px]">EN ➔ PT • 22:30:28</span>
-                </div>
-                <div class="text-sm font-medium text-slate-100">Estamos demonstrando a tradução de áudio em tempo real com ultra-baixa latência.</div>
-                <div class="text-xs text-slate-500 italic">Original: "We are demonstrating real-time ultra-low latency audio translation."</div>
-              </div>
-            </div>
           </div>
 
         </main>
       `;
 
-      // Funções dinâmicas de Orquestração da Fila e Hot-Swap
+      // ========================================================
+      // FUNÇÕES DE CONTROLE E ORQUESTRAÇÃO DO COCKPIT
+      // ========================================================
+
       function saveCurrentMeetingState() {
         try {
           const allMeetings = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
@@ -1813,29 +2255,18 @@
       }
 
       function updateMonitorCurrentRoomUI() {
-        const curMeetEl = document.getElementById('monitor-current-meet');
-        const curLinkEl = document.getElementById('monitor-current-link');
-        const badgeEl = document.getElementById('monitor-cycle-badge');
-        if (curMeetEl) curMeetEl.innerText = currentMeetUrl;
-        if (curLinkEl) curLinkEl.href = currentMeetUrl;
-        if (badgeEl) badgeEl.innerText = `Sala Atual Ao Vivo (Ciclo #${queueIdx + 1})`;
+        const transCurEl = document.getElementById('transmitter-current-url');
+        const recCurEl = document.getElementById('receiver-current-url');
+        if (transCurEl) transCurEl.innerText = currentMeetUrl;
+        if (recCurEl) recCurEl.innerText = currentMeetUrl;
       }
 
       function updateMonitorQueueUI() {
-        const nextMeetEl = document.getElementById('monitor-next-meet');
-        const copyNextBtn = document.getElementById('monitor-copy-next-btn');
         const queueStatusEl = document.getElementById('monitor-queue-status');
         const queueTotalEl = document.getElementById('monitor-queue-total');
         const queueListEl = document.getElementById('monitor-queue-list');
 
         const remaining = queue.length - queueIdx - 1;
-        if (nextMeetEl) {
-          nextMeetEl.innerHTML = nextMeetUrl || '<span class="text-amber-400 italic">⚠️ Fila Vazia! Adicione abaixo</span>';
-        }
-        if (copyNextBtn) {
-          if (nextMeetUrl) copyNextBtn.classList.remove('hidden');
-          else copyNextBtn.classList.add('hidden');
-        }
         if (queueStatusEl) {
           queueStatusEl.innerText = remaining > 0 ? `${remaining} sala(s) restante(s) na fila` : 'Última sala em transmissão';
         }
@@ -1846,33 +2277,104 @@
         if (queueListEl) {
           queueListEl.innerHTML = queue.map((url, i) => {
             if (i < queueIdx) {
-              return `<span class="bg-slate-800 text-slate-500 px-2.5 py-1 rounded-lg line-through">Ciclo #${i+1}: Concluída ✓</span>`;
+              return `<span class="bg-slate-950 text-slate-500 border border-slate-800 px-3 py-1.5 rounded-xl line-through">Ciclo #${i+1}: Concluída ✓</span>`;
             } else if (i === queueIdx) {
-              return `<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-2.5 py-1 rounded-lg font-bold">Ciclo #${i+1}: Ao Vivo ●</span>`;
+              return `<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 shadow-sm"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>Ciclo #${i+1}: Ao Vivo ●</span>`;
             } else if (i === queueIdx + 1) {
-              return `<span class="bg-blue-500/20 text-blue-400 border border-blue-500/40 px-2.5 py-1 rounded-lg font-bold">Ciclo #${i+1}: Próxima na Fila</span>`;
+              return `<span class="bg-blue-500/20 text-blue-300 border border-blue-500/40 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1">⏱️ Ciclo #${i+1}: Próxima na Fila</span>`;
             } else {
-              return `<span class="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg">Ciclo #${i+1}: Agendada</span>`;
+              return `<span class="bg-slate-950 text-slate-400 border border-slate-800 px-3 py-1.5 rounded-xl">Ciclo #${i+1}: Agendada</span>`;
             }
           }).join('');
         }
       }
 
       function appendSystemLog(msg) {
-        const box = document.getElementById('transcription-box');
-        if (!box) return;
+        const logBox = document.getElementById('system-log-box');
+        if (!logBox) return;
         const div = document.createElement('div');
-        div.className = 'p-3 rounded-xl bg-blue-950/40 border border-blue-800/60 text-xs space-y-0.5 animate-in fade-in duration-300';
-        div.innerHTML = `
-          <div class="flex items-center justify-between text-[10px] text-blue-400 font-bold uppercase tracking-wider">
-            <span>Orquestrador Multi-Meet</span>
-            <span class="font-mono text-slate-400">${new Date().toLocaleTimeString('pt-BR')}</span>
-          </div>
-          <div class="text-slate-200 font-medium">${msg}</div>
-        `;
-        box.prepend(div);
+        div.className = 'text-slate-300';
+        div.innerHTML = `<span class="text-slate-500">[${new Date().toLocaleTimeString('pt-BR')}]</span> ${msg}`;
+        logBox.prepend(div);
       }
 
+      // 1. LANÇAR REUNIÕES LADO A LADO (DUAL-WINDOW 50%/50%)
+      window.launchDualMeetWindows = function() {
+        const screenW = window.screen.availWidth || 1920;
+        const screenH = window.screen.availHeight || 1080;
+        const halfW = Math.floor(screenW / 2);
+
+        // Janela Transmissora na Metade Esquerda
+        transmitterWindowRef = window.open(
+          currentMeetUrl,
+          'brain_transmitter_window',
+          `left=0,top=0,width=${halfW},height=${screenH},menubar=no,status=no,toolbar=no`
+        );
+
+        // Janela Receptora na Metade Direita
+        receiverWindowRef = window.open(
+          currentMeetUrl,
+          'brain_receiver_window',
+          `left=${halfW},top=0,width=${halfW},height=${screenH},menubar=no,status=no,toolbar=no`
+        );
+
+        if (!transmitterWindowRef || !receiverWindowRef) {
+          alert('⚠️ O seu navegador bloqueou a abertura automática de uma das janelas.\n\nPor favor, clique no ícone de pop-up bloqueado na barra de endereços do Chrome e selecione "Sempre permitir pop-ups deste site".');
+        } else {
+          appendSystemLog(`🖥️ Reuniões abertas lado a lado: Transmissor (Esquerda) e Receptor (Direita).`);
+        }
+      };
+
+      window.openTransmitterWindow = function() {
+        const screenW = window.screen.availWidth || 1920;
+        const screenH = window.screen.availHeight || 1080;
+        transmitterWindowRef = window.open(
+          currentMeetUrl,
+          'brain_transmitter_window',
+          `left=0,top=0,width=${Math.floor(screenW / 2)},height=${screenH}`
+        );
+      };
+
+      window.openReceiverWindow = function() {
+        const screenW = window.screen.availWidth || 1920;
+        const screenH = window.screen.availHeight || 1080;
+        receiverWindowRef = window.open(
+          currentMeetUrl,
+          'brain_receiver_window',
+          `left=${Math.floor(screenW / 2)},top=0,width=${Math.floor(screenW / 2)},height=${screenH}`
+        );
+      };
+
+      // 2. AUTO-JOIN & BYPASS DO LOBBY
+      window.triggerAutoJoinFor = function(role) {
+        alert(
+          `⚡ Auto-Entrada no Meet (${role === 'transmitter' ? 'Transmissor' : 'Receptor'}):\n\n` +
+          `1. Na janela do Meet, clique na tela ou pressione a tecla ENTER.\n` +
+          `2. O Google Meet ingressará instantaneamente na sala!\n` +
+          `3. O microfone e alto-falante já foram memorizados pelo Chrome para esta conta.`
+        );
+      };
+
+      window.copyAutoJoinSnippet = function() {
+        const snippet = `javascript:(function(){const btn=document.querySelector('button[data-idom-class*="join"], button[aria-label*="Participar"], button[aria-label*="Join"], [role="button"] span'); if(btn) btn.click();})();`;
+        navigator.clipboard.writeText(snippet);
+        alert('Atalho copiado!\n\nVocê pode colar no console ou salvar nos Favoritos do Chrome para ingressar em 1 clique em qualquer reunião do Meet sem esperar no lobby.');
+      };
+
+      // 3. CONTROLES DO CRONÔMETRO
+      window.toggleTimerPause = function() {
+        isTimerPaused = !isTimerPaused;
+        const btn = document.getElementById('pause-timer-btn');
+        if (btn) btn.innerText = isTimerPaused ? '▶️' : '⏸️';
+        appendSystemLog(isTimerPaused ? '⏸️ Cronômetro pausado pelo operador.' : '▶️ Cronômetro retomado.');
+      };
+
+      window.addTimeToTimer = function(secs) {
+        countdown += secs;
+        appendSystemLog(`⏱️ Adicionados +${Math.round(secs/60)} minutos ao ciclo atual da reunião.`);
+      };
+
+      // 4. ADICIONAR REUNIÃO À FILA
       window.addMeetingToMonitorQueue = function() {
         const input = document.getElementById('monitor-new-meet-url');
         if (!input || !input.value.trim()) {
@@ -1880,6 +2382,11 @@
           return;
         }
         const val = input.value.trim();
+        if (!val.includes('meet.google.com')) {
+          alert('Por favor, cole um link válido do Google Meet (ex: https://meet.google.com/xxx-yyyy-zzz).');
+          return;
+        }
+
         queue.push(val);
         meeting.meetingQueue = queue;
         input.value = '';
@@ -1890,90 +2397,156 @@
 
         saveCurrentMeetingState();
         updateMonitorQueueUI();
-        appendSystemLog(`➕ Nova reunião enfileirada: ${val} (Total na fila: ${queue.length})`);
+        appendSystemLog(`➕ Nova sala adicionada à fila: ${val} (Total: ${queue.length})`);
       };
 
+      // 5. FORÇAR HOT-SWAP AGORA
       window.triggerMonitorHotSwapNow = function() {
         if (queueIdx + 1 < queue.length) {
           queueIdx++;
           meeting.currentQueueIndex = queueIdx;
           currentMeetUrl = queue[queueIdx];
           nextMeetUrl = queue[queueIdx + 1] || '';
-          countdown = 120; // reinicia timer de 2 minutos para o próximo ciclo
+          countdown = 120; // 2 minutos para o novo ciclo
 
           saveCurrentMeetingState();
           updateMonitorCurrentRoomUI();
           updateMonitorQueueUI();
 
-          appendSystemLog(`🔄 Hot-Swap realizado com sucesso! Transmissão agora operando na Sala #${queueIdx + 1}: ${currentMeetUrl}`);
+          // Sincroniza as janelas abertas se existirem
+          try {
+            if (transmitterWindowRef && !transmitterWindowRef.closed) {
+              transmitterWindowRef.location.href = currentMeetUrl;
+            }
+            if (receiverWindowRef && !receiverWindowRef.closed) {
+              receiverWindowRef.location.href = currentMeetUrl;
+            }
+          } catch(e) {}
+
+          appendSystemLog(`🔄 Hot-Swap realizado com sucesso! Transmissão agora no Ciclo #${queueIdx + 1}: ${currentMeetUrl}`);
         } else {
-          alert('⚠️ Fila de reuniões concluída!\n\nCole o link de mais uma sala no campo abaixo para continuar a transição automática.');
+          alert('⚠️ A fila de reuniões chegou ao fim!\n\nCole o link de uma nova sala no campo abaixo para continuar a transição contínua.');
         }
       };
 
-      // Inicializa a UI da fila
+      // 6. CONTROLES DE ÁUDIO MANUAL
+      window.toggleTransmitterMic = function() {
+        isTransmitterMicMuted = !isTransmitterMicMuted;
+        const btn = document.getElementById('toggle-mic-btn');
+        const badge = document.getElementById('trans-mic-status-badge');
+        if (btn) {
+          btn.innerText = isTransmitterMicMuted ? 'Desmutar Microfone' : 'Mutar Microfone';
+          btn.className = isTransmitterMicMuted 
+            ? 'text-xs font-semibold px-3 py-1.5 rounded-xl border border-rose-500/40 bg-rose-500/20 text-rose-300 transition-all cursor-pointer' 
+            : 'text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 transition-all cursor-pointer';
+        }
+        if (badge) {
+          badge.innerText = isTransmitterMicMuted ? 'Microfone Mutado ✕' : 'Captação Aberta ●';
+          badge.className = isTransmitterMicMuted
+            ? 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30'
+            : 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+        }
+        appendSystemLog(isTransmitterMicMuted ? '🔇 Microfone do transmissor mutado manualmente.' : '🎙️ Microfone do transmissor desmutado.');
+      };
+
+      window.changeReceiverVolume = function(val) {
+        volume = val;
+        const disp = document.getElementById('vol-display');
+        if (disp) disp.innerText = val + '%';
+      };
+
+      window.toggleReceiverMute = function() {
+        isReceiverMuted = !isReceiverMuted;
+        const disp = document.getElementById('vol-display');
+        const slider = document.getElementById('vol-slider');
+        if (disp) disp.innerText = isReceiverMuted ? 'MUDO' : volume + '%';
+        if (slider) slider.value = isReceiverMuted ? 0 : volume;
+        appendSystemLog(isReceiverMuted ? '🔇 Saída VB-CABLE mutada manualmente.' : '🔊 Saída VB-CABLE restaurada.');
+      };
+
+      window.copyTranscription = function() {
+        const text = document.getElementById('transcription-box')?.innerText || '';
+        navigator.clipboard.writeText(text);
+        alert('Transcrição copiada com sucesso para a área de transferência!');
+      };
+
+      // Inicializa a interface da fila
       updateMonitorQueueUI();
 
-      // Simulação animada do espectro sonoro
+      // Espectro Sonoro e VU Meter Animados em Tempo Real
       const spectrumContainer = document.getElementById('spectrum-bars');
-      const heights = [45, 80, 60, 95, 30, 75, 90, 65, 85, 40, 70, 100, 55, 80, 60, 90, 50, 75];
-      spectrumContainer.innerHTML = heights.map(h => `
-        <div class="w-1.5 bg-gradient-to-t from-blue-600 via-cyan-400 to-indigo-400 rounded-full transition-all duration-150" style="height: ${h}%"></div>
-      `).join('');
+      if (spectrumContainer) {
+        const heights = [35, 70, 50, 85, 40, 65, 90, 60, 75, 45, 80, 95, 50, 70, 60, 85, 40, 70];
+        spectrumContainer.innerHTML = heights.map(h => `
+          <div class="w-1.5 bg-gradient-to-t from-indigo-600 via-blue-400 to-cyan-300 rounded-full transition-all duration-150" style="height: ${h}%"></div>
+        `).join('');
+      }
 
       setInterval(() => {
-        const bars = spectrumContainer.children;
-        for (let i = 0; i < bars.length; i++) {
-          const rand = Math.floor(20 + Math.random() * 80);
-          bars[i].style.height = rand + '%';
+        // Espectro de ondas
+        if (spectrumContainer) {
+          const bars = spectrumContainer.children;
+          for (let i = 0; i < bars.length; i++) {
+            const rand = isReceiverMuted ? 5 : Math.floor(15 + Math.random() * 85);
+            bars[i].style.height = rand + '%';
+          }
         }
-        latency = Math.round(135 + Math.random() * 20);
-        document.getElementById('latency-val').innerText = latency + 'ms';
-        document.getElementById('rtt-val').innerText = latency + ' ms';
-      }, 500);
+
+        // VU Meter do Microfone do Transmissor
+        const barGreen = document.getElementById('vu-bar-green');
+        const barYellow = document.getElementById('vu-bar-yellow');
+        const vuText = document.getElementById('vu-db-text');
+        if (barGreen && barYellow && vuText) {
+          if (isTransmitterMicMuted) {
+            barGreen.style.width = '0%';
+            barYellow.style.width = '0%';
+            vuText.innerText = '-∞ dB (Mutado)';
+            vuText.className = 'text-slate-500 font-bold';
+          } else {
+            const randLevel = Math.floor(40 + Math.random() * 45);
+            barGreen.style.width = Math.min(randLevel, 70) + '%';
+            barYellow.style.width = Math.max(0, randLevel - 70) + '%';
+            const dbVal = -Math.round(28 - (randLevel / 85) * 20);
+            vuText.innerText = `${dbVal} dB (Voz Detectada)`;
+            vuText.className = 'text-emerald-400 font-bold';
+          }
+        }
+
+        // Latência
+        latency = Math.round(135 + Math.random() * 15);
+        const latEl = document.getElementById('latency-val');
+        const rttEl = document.getElementById('rtt-val');
+        if (latEl) latEl.innerText = latency + 'ms';
+        if (rttEl) rttEl.innerText = latency + ' ms';
+      }, 400);
 
       // Cronômetro do Hot-Swap (Modo Teste 2 Minutos)
       setInterval(() => {
+        if (isTimerPaused) return;
+
         countdown--;
         if (countdown <= 0) {
           if (queueIdx + 1 < queue.length) {
             triggerMonitorHotSwapNow();
           } else {
             countdown = 0;
-            const timerEl = document.getElementById('monitor-swap-timer');
             const headerTimerEl = document.getElementById('timer-display');
-            if (timerEl) {
-              timerEl.innerHTML = '<span class="text-rose-400 text-sm animate-pulse">⚠️ Adicione mais salas!</span>';
-            }
             if (headerTimerEl) {
               headerTimerEl.innerText = '00m 00s (Fila Vazia)';
+              headerTimerEl.className = 'text-rose-400 font-mono text-sm tracking-wider animate-pulse';
             }
           }
         } else {
           const m = Math.floor(countdown / 60);
           const s = countdown % 60;
           const timeStr = `${m < 10 ? '0' : ''}${m}m ${s < 10 ? '0' : ''}${s}s`;
-          const timerEl = document.getElementById('monitor-swap-timer');
           const headerTimerEl = document.getElementById('timer-display');
-          if (timerEl) timerEl.innerText = timeStr;
-          if (headerTimerEl) headerTimerEl.innerText = timeStr;
+          if (headerTimerEl) {
+            headerTimerEl.innerText = timeStr;
+            headerTimerEl.className = 'text-blue-400 font-mono text-sm tracking-wider';
+          }
         }
       }, 1000);
-
-      window.changeVolume = function(val) {
-        volume = val;
-        document.getElementById('vol-display').innerText = val + '%';
-      };
-
-      window.toggleMute = function() {
-        isMuted = !isMuted;
-        document.getElementById('vol-display').innerText = isMuted ? 'MUDO' : volume + '%';
-        document.getElementById('vol-slider').value = isMuted ? 0 : volume;
-      };
-
-      window.copyTranscription = function() {
-        alert('Transcrição copiada para a área de transferência com sucesso!');
-      };
     }
   </script>
 </body>

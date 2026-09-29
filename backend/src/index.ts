@@ -166,7 +166,18 @@ app.get('/api/meetings/:id', (req: any, res: any) => {
 
 // Iniciar uma nova reunião vinculando 2 contas Google Pro
 app.post('/api/meetings/start', async (req: any, res: any) => {
-    const { title, currentMeetUrl, scheduledNextMeetUrl, meetingQueue, accountIds, audioRoomName } = req.body;
+    const { 
+        title, 
+        currentMeetUrl, 
+        scheduledNextMeetUrl, 
+        meetingQueue, 
+        accountIds, 
+        audioRoomName,
+        sourceLanguage,
+        targetLanguage,
+        transmitterInputDevice,
+        receiverOutputDevice
+    } = req.body;
 
     const initialUrl = (meetingQueue && meetingQueue.length > 0) ? meetingQueue[0] : currentMeetUrl;
     if (!initialUrl || !initialUrl.includes('meet.google.com')) {
@@ -184,7 +195,11 @@ app.post('/api/meetings/start', async (req: any, res: any) => {
             scheduledNextMeetUrl,
             meetingQueue: meetingQueue || [initialUrl],
             accountIds: [accountIds[0], accountIds[1]],
-            audioRoomName
+            audioRoomName,
+            sourceLanguage,
+            targetLanguage,
+            transmitterInputDevice,
+            receiverOutputDevice
         });
 
         // Dispara o robô de captura para este Meet

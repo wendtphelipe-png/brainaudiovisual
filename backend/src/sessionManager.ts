@@ -34,6 +34,10 @@ export interface MeetingSession {
     nextSwapInSeconds: number;
     totalDurationSeconds: number;
     audioRoomName: string;
+    sourceLanguage?: string;
+    targetLanguage?: string;
+    transmitterInputDevice?: string;
+    receiverOutputDevice?: string;
     telemetry: MeetingTelemetry;
     transcriptions: MeetingTranscription[];
 }
@@ -134,6 +138,10 @@ class SessionManager {
         meetingQueue?: string[];
         accountIds: [string, string];
         audioRoomName?: string;
+        sourceLanguage?: string;
+        targetLanguage?: string;
+        transmitterInputDevice?: string;
+        receiverOutputDevice?: string;
     }): MeetingSession {
         const id = `meet-${Date.now().toString(36)}`;
         const audioRoom = data.audioRoomName || id;
@@ -153,6 +161,10 @@ class SessionManager {
             nextSwapInSeconds: 120, // 2 minutos para modo de teste acelerado!
             totalDurationSeconds: 0,
             audioRoomName: audioRoom,
+            sourceLanguage: data.sourceLanguage || 'en-US',
+            targetLanguage: data.targetLanguage || 'pt-BR',
+            transmitterInputDevice: data.transmitterInputDevice || 'event-line',
+            receiverOutputDevice: data.receiverOutputDevice || 'cable',
             telemetry: {
                 latencyMs: 140,
                 jitterMs: 3.0,
