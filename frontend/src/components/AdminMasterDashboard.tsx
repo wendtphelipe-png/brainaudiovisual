@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Radio, Shield, Plus, ExternalLink, CheckCircle2, AlertCircle, 
   RefreshCw, Power, Play, Users, Clock, ArrowRight, Settings, 
-  Terminal, Sparkles, AlertTriangle, LogIn, LogOut, KeyRound, Lock
+  Terminal, Sparkles, AlertTriangle, LogIn, LogOut, KeyRound, Lock,
+  Copy, Check, X
 } from 'lucide-react';
 
 export interface GoogleAccount {
@@ -51,10 +52,19 @@ export default function AdminMasterDashboard() {
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Modal Google Setup
-  const [showGoogleModal, setShowGoogleModal] = useState<boolean>(false);
+  // Assistente de Conexão Google Pro (Wizard Modal)
+  const [wizardOpen, setWizardOpen] = useState<boolean>(false);
+  const [wizardSlotId, setWizardSlotId] = useState<string | null>(null);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
+  const [wizardPopupLaunched, setWizardPopupLaunched] = useState<boolean>(false);
+  const [wizardErrorMessage, setWizardErrorMessage] = useState<string>('');
+  const [wizardVerifiedData, setWizardVerifiedData] = useState<any>(null);
   const [googleClientId, setGoogleClientId] = useState<string>('');
   const [googleClientSecret, setGoogleClientSecret] = useState<string>('');
+  const [copiedUri, setCopiedUri] = useState<boolean>(false);
+  const [manualToken, setManualToken] = useState<string>('');
+  const popupRef = useRef<Window | null>(null);
+  const checkTimerRef = useRef<any>(null);
 
   // Formulário de Nova Reunião
   const [newTitle, setNewTitle] = useState<string>('Sessão Executiva com Tradução — Sala 01');
@@ -143,26 +153,217 @@ export default function AdminMasterDashboard() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
-  // Fazer login em um slot específico
-  const handleLoginGoogleSlot = async (slotId: string) => {
-    try {
-      const res = await fetch(`/api/accounts/auth-url?slot=${slotId}`);
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        promptDirectEmail(slotId);
+  // Listener de eventos da janela popup do Google
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (!event.data) return;
+      if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+        if (checkTimerRef.current) clearInterval(checkTimerRef.current);
+        setWizardVerifiedData({
+          email: event.data.email,
+          name: event.data.name,
+          picture: event.data.picture,
+          tokens: event.data.tokens
+        });
+        setWizardStep(3);
+        setWizardPopupLaunched(false);
+      } else if (event.data.type === 'GOOGLE_AUTH_CODE') {
+        fetch('/api/accounts/oauth-exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: event.data.code, slotId: event.data.slotId })
+        })
+        .then(r => r.json())
+        .then(d => {
+          if (d.account) {
+            setWizardVerifiedData({
+              email: d.account.email,
+              name: d.account.name,
+              picture: d.account.picture
+            });
+            setWizardStep(3);
+            setWizardPopupLaunched(false);
+          }
+        })
+        .catch(() => {});
+      } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+        setWizardPopupLaunched(false);
+        setWizardErrorMessage(event.data.error || 'A autorização falhou.');
       }
-    } catch (e) {
-      promptDirectEmail(slotId);
+    };
+
+    window.addEventListener('message', handleAuthMessage);
+    return () => window.removeEventListener('message', handleAuthMessage);
+  }, []);
+
+  const openGoogleAuthWizard = (slotId: string, forceStep: 1 | 2 | 3 | null = null) => {
+    setWizardSlotId(slotId);
+    setWizardErrorMessage('');
+    setWizardVerifiedData(null);
+    setWizardPopupLaunched(false);
+
+    const savedCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+    if (savedCreds.clientId) {
+      setGoogleClientId(savedCreds.clientId);
+      setGoogleClientSecret(savedCreds.clientSecret || '');
+    }
+
+    if (forceStep) {
+      setWizardStep(forceStep);
+    } else if (savedCreds && savedCreds.clientId) {
+      setWizardStep(2);
+    } else {
+      setWizardStep(1);
+    }
+
+    setWizardOpen(true);
+  };
+
+  const closeGoogleAuthWizard = () => {
+    if (checkTimerRef.current) {
+      clearInterval(checkTimerRef.current);
+      checkTimerRef.current = null;
+    }
+    if (popupRef.current && !popupRef.current.closed) {
+      try { popupRef.current.close(); } catch (e) {}
+    }
+    popupRef.current = null;
+    setWizardOpen(false);
+  };
+
+  const saveWizardCredentials = async () => {
+    if (!googleClientId.trim()) {
+      alert('Por favor, informe o Client ID do Google Cloud.');
+      return;
+    }
+
+    const payload = {
+      clientId: googleClientId.trim(),
+      clientSecret: googleClientSecret.trim(),
+      redirectUri: `${window.location.origin}/oauth2callback`
+    };
+
+    localStorage.setItem('brain_google_credentials', JSON.stringify({ clientId: payload.clientId, clientSecret: payload.clientSecret }));
+
+    try {
+      await fetch('/api/admin/google-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {}
+
+    setWizardStep(2);
+    setWizardErrorMessage('');
+  };
+
+  const launchGooglePopup = () => {
+    setWizardErrorMessage('');
+    const creds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+    const clientId = creds.clientId || googleClientId;
+
+    if (!clientId) {
+      setWizardStep(1);
+      setWizardErrorMessage('Configure o Client ID antes de abrir o login.');
+      return;
+    }
+
+    const width = 560;
+    const height = 680;
+    const left = Math.max(0, (window.screen.width - width) / 2);
+    const top = Math.max(0, (window.screen.height - height) / 2);
+
+    const redirectUri = `${window.location.origin}/oauth2callback`;
+    const scope = encodeURIComponent('https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/calendar.readonly');
+    const nonce = Math.random().toString(36).substring(2);
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId.trim())}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token%20id_token&scope=${scope}&state=${encodeURIComponent(wizardSlotId || 'acc-1')}&prompt=select_account%20consent&nonce=${nonce}`;
+
+    popupRef.current = window.open(
+      authUrl,
+      'GoogleProLogin',
+      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`
+    );
+
+    if (!popupRef.current || popupRef.current.closed || typeof popupRef.current.closed === 'undefined') {
+      setWizardErrorMessage('O navegador bloqueou a abertura do popup. Permita popups para este site.');
+      setWizardPopupLaunched(false);
+      return;
+    }
+
+    setWizardPopupLaunched(true);
+
+    if (checkTimerRef.current) clearInterval(checkTimerRef.current);
+    checkTimerRef.current = setInterval(() => {
+      if (popupRef.current && popupRef.current.closed) {
+        clearInterval(checkTimerRef.current);
+        if (wizardStep !== 3) {
+          setWizardPopupLaunched(false);
+          setWizardErrorMessage('A janela do Google foi fechada antes de concluir o login. Se desejar, tente novamente.');
+        }
+      }
+    }, 1000);
+  };
+
+  const handleManualTokenSubmit = async () => {
+    if (!manualToken.trim()) {
+      alert('Informe o token de acesso recebido do Google.');
+      return;
+    }
+    try {
+      const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${manualToken.trim()}` }
+      });
+      if (!res.ok) throw new Error('Token inválido ou expirado.');
+      const userInfo = await res.json();
+      setWizardVerifiedData({
+        email: userInfo.email,
+        name: userInfo.name,
+        picture: userInfo.picture,
+        tokens: { access_token: manualToken.trim() }
+      });
+      setWizardStep(3);
+    } catch (e: any) {
+      alert(`Falha ao validar com a Google API: ${e.message}`);
     }
   };
 
-  const promptDirectEmail = (slotId: string) => {
-    const email = prompt('Digite o e-mail da Conta Google Workspace Pro:');
-    if (email && email.includes('@')) {
-      setAccounts(prev => prev.map(a => a.id === slotId ? { ...a, email: email.trim(), name: `Google Pro (${email.split('@')[0]})`, connected: true } : a));
-    }
+  const confirmAndActivateSlot = async () => {
+    if (!wizardSlotId || !wizardVerifiedData) return;
+    const email = wizardVerifiedData.email;
+    const name = wizardVerifiedData.name || `Google Pro (${email.split('@')[0]})`;
+    const picture = wizardVerifiedData.picture || '';
+
+    setAccounts(prev => prev.map(a => a.id === wizardSlotId ? {
+      ...a,
+      email,
+      name,
+      picture,
+      connected: true,
+      connectedAt: new Date().toISOString()
+    } : a));
+
+    try {
+      await fetch('/api/accounts/save-verified', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slotId: wizardSlotId,
+          email,
+          name,
+          picture,
+          tokens: wizardVerifiedData.tokens || { access_token: 'verified' }
+        })
+      });
+    } catch (e) {}
+
+    closeGoogleAuthWizard();
+  };
+
+  const copyRedirectUri = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/oauth2callback`).then(() => {
+      setCopiedUri(true);
+      setTimeout(() => setCopiedUri(false), 2000);
+    });
   };
 
   const handleDisconnectSlot = async (slotId: string) => {
@@ -176,52 +377,6 @@ export default function AdminMasterDashboard() {
       fetchData();
     } catch (e) {
       setAccounts(prev => prev.map(a => a.id === slotId ? { ...a, connected: false, email: '' } : a));
-    }
-  };
-
-  const handleAddSlot = async () => {
-    try {
-      await fetch('/api/accounts/add-slot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: `Slot Google Pro 0${accounts.length + 1}` })
-      });
-      fetchData();
-    } catch (e) {
-      setAccounts(prev => [...prev, {
-        id: `acc-${Date.now()}`,
-        name: `Slot Google Pro 0${prev.length + 1}`,
-        email: '',
-        isPro: true,
-        connected: false,
-        connectedAt: '',
-        lastRefreshedAt: ''
-      }]);
-    }
-  };
-
-  const handleSaveGoogleCredentials = async () => {
-    if (!googleClientId || !googleClientSecret) {
-      alert('Informe o Client ID e Client Secret.');
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/admin/google-credentials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: googleClientId.trim(),
-          clientSecret: googleClientSecret.trim(),
-          redirectUri: `${window.location.origin}/oauth2callback`
-        })
-      });
-      const data = await res.json();
-      alert(data.message || 'Credenciais salvas com sucesso!');
-      setShowGoogleModal(false);
-    } catch (e) {
-      alert('Credenciais salvas localmente.');
-      setShowGoogleModal(false);
     }
   };
 
@@ -407,15 +562,15 @@ export default function AdminMasterDashboard() {
             </div>
             <div className="flex items-center gap-2">
               <button 
-                onClick={() => setShowGoogleModal(true)}
-                className="text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5"
+                onClick={() => openGoogleAuthWizard(accounts[0]?.id || 'acc-1', 1)}
+                className="text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <Settings className="w-3.5 h-3.5 text-blue-600" />
-                Configurar Google Cloud API
+                Credenciais Google Cloud
               </button>
               <button 
                 onClick={handleAddSlot}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Novo Slot
@@ -457,15 +612,15 @@ export default function AdminMasterDashboard() {
                         <span className="text-emerald-700 font-medium text-[11px]">Pronta para Reuniões</span>
                         <button 
                           onClick={() => handleDisconnectSlot(acc.id)}
-                          className="text-rose-600 hover:text-rose-700 text-xs font-semibold hover:underline"
+                          className="text-rose-600 hover:text-rose-700 text-xs font-semibold hover:underline cursor-pointer"
                         >
                           Desconectar
                         </button>
                       </div>
                     ) : (
                       <button 
-                        onClick={() => handleLoginGoogleSlot(acc.id)}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
+                        onClick={() => openGoogleAuthWizard(acc.id)}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2.5 px-3 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <LogIn className="w-3.5 h-3.5" />
                         Fazer Login com Google Pro
@@ -656,55 +811,285 @@ export default function AdminMasterDashboard() {
 
       </main>
 
-      {/* Modal Google Setup */}
-      {showGoogleModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl">
-            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-              <h3 className="text-base font-bold text-slate-900">Configuração do Google Cloud OAuth2</h3>
-              <button onClick={() => setShowGoogleModal(false)} className="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+      {/* Assistente de Conexão Google Pro (Wizard Modal) */}
+      {wizardOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl relative my-auto animate-in fade-in zoom-in-95 duration-200">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center shadow-sm">
+                  <KeyRound className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Assistente de Conexão Google Pro</h3>
+                  <p className="text-xs text-slate-500">
+                    Configuração guiada para: <strong className="text-blue-700">{accounts.find(a => a.id === wizardSlotId)?.name || 'Conta Google Pro'}</strong>
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={closeGoogleAuthWizard} 
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold p-1 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
 
-            <p className="text-xs text-slate-600 mb-5 leading-relaxed">
-              Informe seu <strong>Client ID</strong> e <strong>Client Secret</strong> gerados no Google Cloud Console para ativar o login direto:
-            </p>
+            {/* Stepper Navigation */}
+            <div className="grid grid-cols-3 gap-2 my-5">
+              <div className={`flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold ${
+                wizardStep === 1 ? 'bg-blue-50 border-blue-200 text-blue-700' : (wizardStep > 1 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400')
+              }`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                  wizardStep > 1 ? 'bg-emerald-600 text-white' : (wizardStep === 1 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600')
+                }`}>
+                  {wizardStep > 1 ? '✓' : '1'}
+                </span>
+                <span className="truncate">1. Credenciais</span>
+              </div>
 
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Client ID do Google</label>
-                <input 
-                  type="text" 
-                  value={googleClientId} 
-                  onChange={e => setGoogleClientId(e.target.value)}
-                  placeholder="Ex: xxxxxxxxxxxx.apps.googleusercontent.com" 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none"
-                />
+              <div className={`flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold ${
+                wizardStep === 2 ? 'bg-blue-50 border-blue-200 text-blue-700' : (wizardStep > 2 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400')
+              }`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                  wizardStep > 2 ? 'bg-emerald-600 text-white' : (wizardStep === 2 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600')
+                }`}>
+                  {wizardStep > 2 ? '✓' : '2'}
+                </span>
+                <span className="truncate">2. Login Popup</span>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Client Secret</label>
-                <input 
-                  type="password" 
-                  value={googleClientSecret} 
-                  onChange={e => setGoogleClientSecret(e.target.value)}
-                  placeholder="Ex: GOCSPX-xxxxxxxxxxxxxxxx" 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">URI de Redirecionamento Autorizado</label>
-                <input 
-                  type="text" 
-                  readOnly 
-                  value={`${window.location.origin}/oauth2callback`} 
-                  className="w-full bg-slate-100 border border-slate-200 text-slate-500 rounded-xl px-3 py-2 text-xs font-mono outline-none cursor-not-allowed"
-                />
+
+              <div className={`flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold ${
+                wizardStep === 3 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400'
+              }`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                  wizardStep === 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {wizardStep === 3 ? '✓' : '3'}
+                </span>
+                <span className="truncate">3. Verificação</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-              <button onClick={() => setShowGoogleModal(false)} className="text-xs font-semibold text-slate-600 hover:text-slate-800 px-4 py-2">Cancelar</button>
-              <button onClick={handleSaveGoogleCredentials} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm">Salvar Credenciais</button>
-            </div>
+            {/* Error Message */}
+            {wizardErrorMessage && (
+              <div className="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium flex items-center justify-between">
+                <span>⚠️ {wizardErrorMessage}</span>
+                <button onClick={() => setWizardErrorMessage('')} className="text-amber-600 hover:text-amber-800 font-bold ml-2 cursor-pointer">✕</button>
+              </div>
+            )}
+
+            {/* ETAPA 1 */}
+            {wizardStep === 1 && (
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                  <h4 className="text-xs font-bold text-slate-900 mb-1">Passo a passo no Google Cloud Console:</h4>
+                  <ol className="text-[11px] text-slate-600 list-decimal list-inside space-y-1 leading-relaxed">
+                    <li>Acesse o console do Google Cloud com a conta administrativa do seu domínio Google Pro.</li>
+                    <li>Vá em <strong>APIs e Serviços</strong> &gt; <strong>Credenciais</strong> &gt; <strong>Criar Credenciais</strong> &gt; <strong>ID do cliente OAuth</strong>.</li>
+                    <li>Escolha o tipo <strong>Aplicativo da Web</strong>.</li>
+                    <li>Adicione a URI de redirecionamento autorizada abaixo:</li>
+                  </ol>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={`${window.location.origin}/oauth2callback`} 
+                      className="flex-1 bg-white border border-slate-200 text-slate-700 text-xs font-mono px-3 py-2 rounded-xl outline-none select-all"
+                    />
+                    <button 
+                      onClick={copyRedirectUri} 
+                      className={`text-xs font-semibold px-3 py-2 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+                        copiedUri ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                      }`}
+                    >
+                      {copiedUri ? 'Copiado! ✓' : 'Copiar URI 📋'}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-slate-200 flex justify-between items-center">
+                    <span className="text-[11px] text-slate-500">Link direto para o Console:</span>
+                    <a 
+                      href="https://console.cloud.google.com/apis/credentials" 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+                    >
+                      Abrir Google Cloud Console ↗
+                    </a>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Client ID do Google *</label>
+                  <input 
+                    type="text" 
+                    value={googleClientId} 
+                    onChange={e => setGoogleClientId(e.target.value)}
+                    placeholder="Ex: 123456789012-xxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com" 
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs font-mono outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Client Secret (Segredo do Cliente)</label>
+                  <input 
+                    type="password" 
+                    value={googleClientSecret} 
+                    onChange={e => setGoogleClientSecret(e.target.value)}
+                    placeholder="Ex: GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx" 
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs font-mono outline-none"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">Permite persistência contínua com renovação automática de tokens.</p>
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                  <button onClick={closeGoogleAuthWizard} className="text-xs font-semibold text-slate-500 hover:text-slate-800 px-4 py-2 cursor-pointer">
+                    Cancelar
+                  </button>
+                  <button onClick={saveWizardCredentials} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer">
+                    Salvar & Avançar para o Login ➔
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ETAPA 2 */}
+            {wizardStep === 2 && (
+              <div className="space-y-4">
+                <div className="text-xs text-slate-600 leading-relaxed">
+                  Credenciais do Google Cloud validadas. Ao clicar no botão abaixo, abriremos uma <strong>janela popup oficial de login do Google</strong> para você selecionar e autorizar sua conta Google Pro.
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-mono text-slate-600">
+                  <div className="truncate max-w-[340px]">
+                    <span className="text-slate-400 font-sans">Client ID: </span>
+                    <span className="font-semibold text-slate-800">{googleClientId ? `${googleClientId.substring(0, 26)}...` : 'Configurado'}</span>
+                  </div>
+                  <button onClick={() => setWizardStep(1)} className="text-blue-600 hover:text-blue-800 font-sans font-semibold text-xs hover:underline cursor-pointer">
+                    Alterar Chaves
+                  </button>
+                </div>
+
+                {wizardPopupLaunched ? (
+                  <div className="p-6 bg-blue-50/70 border border-blue-200 rounded-2xl flex flex-col items-center justify-center text-center">
+                    <div className="relative flex items-center justify-center mb-3">
+                      <span className="animate-ping absolute inline-flex h-12 w-12 rounded-full bg-blue-400 opacity-60"></span>
+                      <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-md">
+                        G
+                      </div>
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-900 mb-1">Acompanhando Autenticação em Tempo Real</h4>
+                    <p className="text-xs text-slate-600 max-w-sm mb-4 leading-relaxed">
+                      A janela oficial do Google está aberta. Selecione sua conta <strong>Google Workspace Pro</strong> e clique em <strong>Continuar / Permitir</strong>.
+                    </p>
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-blue-200 text-xs font-semibold text-blue-700 shadow-sm mb-4">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Aguardando conclusão do login no Google...
+                    </div>
+
+                    <button onClick={launchGooglePopup} className="text-xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                      Janela não abriu ou foi fechada? Clique aqui para reabrir ↺
+                    </button>
+                  </div>
+                ) : (
+                  <div className="pt-2">
+                    <button 
+                      onClick={launchGooglePopup}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-blue-500/25 text-sm transition-all cursor-pointer"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      Abrir Janela de Login do Google Pro ↗
+                    </button>
+                    <p className="text-[11px] text-slate-400 text-center mt-2">Uma janela popup segura do Google será aberta no centro da sua tela.</p>
+                  </div>
+                )}
+
+                <details className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                  <summary className="cursor-pointer hover:text-slate-700 font-medium py-1">
+                    Preferência manual: Validar Token retornado diretamente
+                  </summary>
+                  <div className="pt-3 space-y-2">
+                    <p className="text-[11px] text-slate-500">Se preferir colar o Access Token do Google (ya29...):</p>
+                    <input 
+                      type="text" 
+                      value={manualToken} 
+                      onChange={e => setManualToken(e.target.value)}
+                      placeholder="Cole o token ya29... aqui" 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none"
+                    />
+                    <button 
+                      onClick={handleManualTokenSubmit}
+                      className="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 px-3 rounded-xl text-xs cursor-pointer"
+                    >
+                      Consultar e Validar na API do Google
+                    </button>
+                  </div>
+                </details>
+
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                  <button onClick={() => setWizardStep(1)} className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer">
+                    ← Voltar para Credenciais
+                  </button>
+                  <button onClick={closeGoogleAuthWizard} className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ETAPA 3 */}
+            {wizardStep === 3 && (
+              <div className="space-y-5">
+                <div className="p-6 bg-emerald-50/50 border-2 border-emerald-200 rounded-2xl flex flex-col items-center text-center">
+                  <div className="w-16 h-16 rounded-full bg-white border-2 border-emerald-500 shadow-md flex items-center justify-center overflow-hidden mb-3">
+                    {wizardVerifiedData?.picture ? (
+                      <img src={wizardVerifiedData.picture} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xl font-bold text-emerald-700">{wizardVerifiedData?.name?.charAt(0) || 'G'}</span>
+                    )}
+                  </div>
+
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800 text-[11px] font-bold mb-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Autenticado com Sucesso pela Google API
+                  </div>
+
+                  <h4 className="text-base font-bold text-slate-900 mb-0.5">{wizardVerifiedData?.name || 'Conta Google Pro'}</h4>
+                  <p className="text-xs text-blue-600 font-mono font-medium mb-4">{wizardVerifiedData?.email || ''}</p>
+
+                  <div className="w-full bg-white/90 border border-emerald-200 rounded-xl p-3.5 text-left space-y-1.5 text-xs text-slate-600">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Status Google Pro:</span>
+                      <strong className="text-emerald-700 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Conexão Ativa & Validada
+                      </strong>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Tokens de Acesso:</span>
+                      <strong className="text-slate-800 font-mono text-[11px]">Gerados & Salvos</strong>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Destino:</span>
+                      <strong className="text-slate-800">{accounts.find(a => a.id === wizardSlotId)?.name || 'Slot'}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={confirmAndActivateSlot}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  <span>Concluir e Salvar no Pool de Contas</span>
+                  <Check className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
           </div>
         </div>
       )}

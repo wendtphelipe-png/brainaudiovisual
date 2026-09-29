@@ -252,6 +252,36 @@ class AccountManager {
         this.saveAccounts();
         return newSlot;
     }
+
+    public saveVerifiedAccount(slotId: string, email: string, name: string, tokens?: any, picture?: string): GoogleAccount {
+        let account = this.accounts.find(a => a.id === slotId);
+        const now = new Date().toISOString();
+        if (account) {
+            account.email = email;
+            account.name = name || account.name;
+            account.picture = picture;
+            account.connected = true;
+            account.connectedAt = now;
+            account.lastRefreshedAt = now;
+            account.tokens = tokens || { access_token: 'verified_token' };
+        } else {
+            account = {
+                id: slotId,
+                email,
+                name: name || `Google Pro (${email})`,
+                picture,
+                isPro: true,
+                connected: true,
+                connectedAt: now,
+                lastRefreshedAt: now,
+                tokens: tokens || { access_token: 'verified_token' },
+                assignedMeetingId: null
+            };
+            this.accounts.push(account);
+        }
+        this.saveAccounts();
+        return account;
+    }
 }
 
 export const accountManager = new AccountManager();

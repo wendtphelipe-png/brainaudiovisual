@@ -21,9 +21,10 @@ ServerSignature Off
   RewriteCond %{THE_REQUEST} \s[^?]*//
   RewriteRule ^(.*)$ /$1 [R=301,L,NE]
 
-  # 4. URLs amigáveis para o Painel Admin e Salas de Reunião
+  # 4. URLs amigáveis para o Painel Admin, Salas de Reunião e Callback OAuth2
   RewriteRule ^admin/?$ /?admin=true [L,QSA]
   RewriteRule ^meeting/([^/]+)/?$ /?meeting=$1 [L,QSA]
+  RewriteRule ^oauth2callback/?$ /?oauth2callback=true [L,QSA]
 </IfModule>
 
 # 4. Permitir leitura de arquivos públicos do site

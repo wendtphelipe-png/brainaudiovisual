@@ -27,13 +27,18 @@
     // ROTEAMENTO DINÂMICO
     // ========================================================
     const params = new URLSearchParams(window.location.search);
+    const isOAuthCallback = params.get('oauth2callback') === 'true' || window.location.pathname.startsWith('/oauth2callback');
     const isAdmin = params.get('admin') === 'true' || window.location.pathname.startsWith('/admin');
     const meetingId = params.get('meeting') || (window.location.pathname.startsWith('/meeting/') ? window.location.pathname.split('/')[2] : null);
 
     const root = document.getElementById('app-root');
 
+    // 0. ROTA: CALLBACK DE AUTENTICAÇÃO DO GOOGLE EM POPUP (/oauth2callback ou ?oauth2callback=true)
+    if (isOAuthCallback) {
+      renderOAuthCallbackPopup();
+    }
     // 1. ROTA: MONITOR DEDICADO DA REUNIÃO (?meeting=xyz ou /meeting/xyz)
-    if (meetingId) {
+    else if (meetingId) {
       document.body.className = "bg-slate-950 text-slate-100 font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
       renderMeetingRoomMonitor(meetingId);
     } 
@@ -46,6 +51,102 @@
     else {
       document.body.className = "bg-[#f8fafc] text-[#0f172a] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
       renderPublicConstructionPage();
+    }
+
+    // ========================================================
+    // TELA 0: CALLBACK DA JANELA POPUP DO GOOGLE OAUTH
+    // ========================================================
+    function renderOAuthCallbackPopup() {
+      document.body.className = "bg-slate-900 text-white font-sans antialiased m-0 flex items-center justify-center min-h-screen p-6 text-center";
+      
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.startsWith('#') ? window.location.hash.substring(1) : window.location.hash);
+      
+      const error = searchParams.get('error') || hashParams.get('error');
+      const code = searchParams.get('code');
+      const accessToken = hashParams.get('access_token');
+      const slotId = searchParams.get('state') || hashParams.get('state') || 'acc-1';
+
+      root.innerHTML = `
+        <div class="max-w-md w-full bg-slate-950 border border-slate-800 rounded-3xl p-8 shadow-2xl">
+          <div id="cb-box">
+            <div class="w-12 h-12 rounded-full border-4 border-blue-500 border-t-transparent animate-spin mx-auto mb-4"></div>
+            <h2 class="text-base font-bold text-white mb-2">Processando Conexão com o Google...</h2>
+            <p class="text-xs text-slate-400">Verificando a autenticação da sua conta Google Workspace Pro.</p>
+          </div>
+        </div>
+      `;
+
+      if (error) {
+        document.getElementById('cb-box').innerHTML = `
+          <div class="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-xl font-bold mx-auto mb-4">✕</div>
+          <h2 class="text-base font-bold text-rose-400 mb-2">Autorização Não Concluída</h2>
+          <p class="text-xs text-slate-400 mb-5">${error === 'access_denied' ? 'O acesso foi recusado na janela do Google.' : error}</p>
+          <button onclick="window.close()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-5 py-2.5 rounded-xl font-semibold">Fechar Janela</button>
+        `;
+        if (window.opener) {
+          try {
+            window.opener.postMessage({ type: 'GOOGLE_AUTH_ERROR', error, slotId }, '*');
+          } catch (e) {}
+        }
+        return;
+      }
+
+      if (accessToken) {
+        // Valida imediatamente com a API oficial do Google
+        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { 'Authorization': 'Bearer ' + accessToken }
+        })
+        .then(r => r.json())
+        .then(userInfo => {
+          document.getElementById('cb-box').innerHTML = `
+            <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl font-bold mx-auto mb-4">✓</div>
+            <h2 class="text-base font-bold text-emerald-400 mb-1">Conta Google Pro Conectada!</h2>
+            <p class="text-xs text-slate-300 font-semibold mb-1">${userInfo.name || 'Conta Google'}</p>
+            <p class="text-xs text-blue-400 font-mono mb-4">${userInfo.email}</p>
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-medium border border-emerald-500/20 mb-3">
+              <span>● Token Pro Verificado com Sucesso</span>
+            </div>
+            <p class="text-[11px] text-slate-500">Retornando ao painel em instantes...</p>
+          `;
+
+          if (window.opener) {
+            try {
+              window.opener.postMessage({
+                type: 'GOOGLE_AUTH_SUCCESS',
+                slotId: slotId,
+                email: userInfo.email,
+                name: userInfo.name,
+                picture: userInfo.picture,
+                tokens: { access_token: accessToken }
+              }, '*');
+            } catch (e) {}
+          }
+          setTimeout(() => { window.close(); }, 1400);
+        })
+        .catch(err => {
+          document.getElementById('cb-box').innerHTML = `
+            <div class="text-rose-400 text-xs">Erro na validação do token: ${err.message}</div>
+          `;
+        });
+      } else if (code) {
+        // Envia o código para o opener
+        if (window.opener) {
+          try {
+            window.opener.postMessage({
+              type: 'GOOGLE_AUTH_CODE',
+              slotId: slotId,
+              code: code
+            }, '*');
+          } catch (e) {}
+        }
+        document.getElementById('cb-box').innerHTML = `
+          <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl font-bold mx-auto mb-4">✓</div>
+          <h2 class="text-base font-bold text-emerald-400 mb-2">Código de Autorização Recebido!</h2>
+          <p class="text-xs text-slate-400 mb-4">Concluindo validação no painel...</p>
+        `;
+        setTimeout(() => { window.close(); }, 1200);
+      }
     }
 
     // ========================================================
@@ -312,10 +413,10 @@
                   </p>
                 </div>
                 <div class="flex items-center gap-2">
-                  <button onclick="openGoogleSetupModal()" class="text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl transition-all">
-                    ⚙️ Configurar Google Cloud API
+                  <button onclick="openGoogleAuthWizard(accounts[0]?.id || 'acc-1', 1)" class="text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl transition-all cursor-pointer">
+                    ⚙️ Credenciais Google Cloud
                   </button>
-                  <button onclick="addNewAccountSlot()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-all shadow-sm">
+                  <button onclick="addNewAccountSlot()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-all shadow-sm cursor-pointer">
                     + Novo Slot
                   </button>
                 </div>
@@ -349,12 +450,18 @@
                         ${acc.connected ? `
                           <div class="flex items-center justify-between text-xs">
                             <span class="text-emerald-700 font-medium text-[11px]">Pronta para Reuniões</span>
-                            <button onclick="disconnectAccount('${acc.id}')" class="text-rose-600 hover:text-rose-700 text-xs font-semibold hover:underline">
+                            <button onclick="disconnectAccount('${acc.id}')" class="text-rose-600 hover:text-rose-700 text-xs font-semibold hover:underline cursor-pointer">
                               Desconectar
                             </button>
                           </div>
                         ` : `
-                          <button onclick="startGoogleAuthFlow('${acc.id}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3 rounded-xl transition-all shadow-sm">
+                          <button onclick="openGoogleAuthWizard('${acc.id}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2.5 px-3 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
+                            <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+                              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                            </svg>
                             Fazer Login com Google Pro
                           </button>
                         `}
@@ -492,108 +599,461 @@
 
           </main>
 
-          <!-- Modal de Configuração do Google Cloud API -->
-          <div id="google-setup-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-            <div class="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl">
-              <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-                <h3 class="text-base font-bold text-slate-900">Configuração do Google Cloud OAuth2</h3>
-                <button onclick="closeGoogleSetupModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
-              </div>
-
-              <p class="text-xs text-slate-600 mb-5 leading-relaxed">
-                Para autenticar contas Google Pro reais com persistência permanente, informe seu <strong>Client ID</strong> e <strong>Client Secret</strong> obtidos no Google Cloud Console:
-              </p>
-
-              <div class="space-y-4 mb-6">
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Client ID do Google</label>
-                  <input type="text" id="g-client-id" placeholder="Ex: xxxxxxxxxxxx-xxxxxxxx.apps.googleusercontent.com" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none">
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Client Secret</label>
-                  <input type="password" id="g-client-secret" placeholder="Ex: GOCSPX-xxxxxxxxxxxxxxxx" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none">
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">URI de Redirecionamento Autorizado</label>
-                  <input type="text" id="g-redirect-uri" readonly value="${window.location.origin}/oauth2callback" class="w-full bg-slate-100 border border-slate-200 text-slate-500 rounded-xl px-3 py-2 text-xs font-mono outline-none cursor-not-allowed">
-                  <p class="text-[11px] text-slate-400 mt-1">Copie esta URL e cole em "URIs de redirecionamento autorizados" no Google Cloud.</p>
-                </div>
-              </div>
-
-              <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                <button onclick="closeGoogleSetupModal()" class="text-xs font-semibold text-slate-600 hover:text-slate-800 px-4 py-2">Cancelar</button>
-                <button onclick="saveGoogleCredentialsSubmit()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm">Salvar Credenciais</button>
-              </div>
-            </div>
-          </div>
+          <!-- Container Dinâmico do Assistente de Conexão Google Pro (Wizard Modal) -->
+          <div id="wizard-modal-container"></div>
         `;
       }
 
-      window.openGoogleSetupModal = function() {
-        document.getElementById('google-setup-modal').classList.remove('hidden');
+      // ========================================================
+      // ESTADO E CONTROLADORES DO ASSISTENTE GOOGLE PRO (WIZARD)
+      // ========================================================
+      let wizardState = {
+        slotId: null,
+        step: 1, // 1: Credenciais Google Cloud, 2: Popup Login, 3: Verificação & Ativação
+        popupRef: null,
+        checkTimer: null,
+        verifiedData: null,
+        popupLaunched: false,
+        errorMessage: ''
       };
 
-      window.closeGoogleSetupModal = function() {
-        document.getElementById('google-setup-modal').classList.add('hidden');
+      // Abre o Assistente no momento do clique no botão
+      window.openGoogleAuthWizard = function(slotId, forceStep = null) {
+        wizardState.slotId = slotId;
+        wizardState.errorMessage = '';
+        wizardState.verifiedData = null;
+        wizardState.popupLaunched = false;
+
+        const savedCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+        if (forceStep) {
+          wizardState.step = forceStep;
+        } else if (savedCreds && savedCreds.clientId) {
+          wizardState.step = 2;
+        } else {
+          wizardState.step = 1;
+        }
+
+        renderWizardModal();
       };
 
-      window.saveGoogleCredentialsSubmit = function() {
-        const clientId = document.getElementById('g-client-id').value.trim();
-        const clientSecret = document.getElementById('g-client-secret').value.trim();
-        const redirectUri = document.getElementById('g-redirect-uri').value.trim();
+      window.closeGoogleAuthWizard = function() {
+        if (wizardState.checkTimer) {
+          clearInterval(wizardState.checkTimer);
+          wizardState.checkTimer = null;
+        }
+        if (wizardState.popupRef && !wizardState.popupRef.closed) {
+          try { wizardState.popupRef.close(); } catch (e) {}
+        }
+        wizardState.popupRef = null;
+        const container = document.getElementById('wizard-modal-container');
+        if (container) container.innerHTML = '';
+      };
 
-        if (!clientId || !clientSecret) {
-          alert('Por favor, informe o Client ID e o Client Secret.');
+      window.renderWizardModal = function() {
+        const container = document.getElementById('wizard-modal-container');
+        if (!container) return;
+
+        const targetSlot = accounts.find(a => a.id === wizardState.slotId) || { name: 'Slot Google Pro' };
+        const savedCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+        const savedClientId = savedCreds.clientId || '';
+        const savedClientSecret = savedCreds.clientSecret || '';
+
+        container.innerHTML = `
+          <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div class="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl relative my-auto animate-in fade-in zoom-in-95 duration-200">
+              
+              <!-- Cabeçalho do Assistente -->
+              <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center shadow-sm">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="text-base font-bold text-slate-900">Assistente de Conexão Google Pro</h3>
+                    <p class="text-xs text-slate-500">Configuração para: <strong class="text-blue-700">${targetSlot.name}</strong></p>
+                  </div>
+                </div>
+                <button onclick="closeGoogleAuthWizard()" class="text-slate-400 hover:text-slate-600 text-lg font-bold p-1 rounded-lg hover:bg-slate-100 transition-all cursor-pointer">✕</button>
+              </div>
+
+              <!-- Indicador Visual de Etapas -->
+              <div class="grid grid-cols-3 gap-2 my-5">
+                <div class="flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold ${wizardState.step === 1 ? 'bg-blue-50 border-blue-200 text-blue-700' : (wizardState.step > 1 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400')}">
+                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${wizardState.step > 1 ? 'bg-emerald-600 text-white' : (wizardState.step === 1 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600')}">
+                    ${wizardState.step > 1 ? '✓' : '1'}
+                  </span>
+                  <span class="truncate">1. Credenciais</span>
+                </div>
+
+                <div class="flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold ${wizardState.step === 2 ? 'bg-blue-50 border-blue-200 text-blue-700' : (wizardState.step > 2 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400')}">
+                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${wizardState.step > 2 ? 'bg-emerald-600 text-white' : (wizardState.step === 2 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600')}">
+                    ${wizardState.step > 2 ? '✓' : '2'}
+                  </span>
+                  <span class="truncate">2. Login Popup</span>
+                </div>
+
+                <div class="flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold ${wizardState.step === 3 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400'}">
+                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${wizardState.step === 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600')}">
+                    ${wizardState.step === 3 ? '✓' : '3'}
+                  </span>
+                  <span class="truncate">3. Verificação</span>
+                </div>
+              </div>
+
+              <!-- Aviso de Erro ou Alerta -->
+              ${wizardState.errorMessage ? `
+                <div class="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium flex items-center justify-between">
+                  <span>⚠️ ${wizardState.errorMessage}</span>
+                  <button onclick="wizardState.errorMessage = ''; renderWizardModal();" class="text-amber-600 hover:text-amber-800 font-bold ml-2 cursor-pointer">✕</button>
+                </div>
+              ` : ''}
+
+              <!-- ETAPA 1: CREDENCIAIS GOOGLE CLOUD OAUTH2 -->
+              ${wizardState.step === 1 ? `
+                <div class="space-y-4">
+                  <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                    <h4 class="text-xs font-bold text-slate-900 mb-1">Passo a passo no Google Cloud Console:</h4>
+                    <ol class="text-[11px] text-slate-600 list-decimal list-inside space-y-1 leading-relaxed">
+                      <li>Acesse o Google Cloud com a conta administrativa do seu domínio Google Pro.</li>
+                      <li>Vá em <strong>APIs e Serviços</strong> &gt; <strong>Credenciais</strong> &gt; <strong>Criar Credenciais</strong> &gt; <strong>ID do cliente OAuth</strong>.</li>
+                      <li>Escolha o tipo <strong>Aplicativo da Web</strong>.</li>
+                      <li>Adicione a URI de redirecionamento autorizada abaixo:</li>
+                    </ol>
+
+                    <div class="mt-3 flex items-center gap-2">
+                      <input type="text" id="wz-redirect-uri" readonly value="${window.location.origin}/oauth2callback" class="flex-1 bg-white border border-slate-200 text-slate-700 text-xs font-mono px-3 py-2 rounded-xl outline-none select-all">
+                      <button onclick="copyRedirectUri()" id="btn-copy-uri" class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold px-3 py-2 rounded-xl transition-all whitespace-nowrap cursor-pointer">
+                        Copiar URI 📋
+                      </button>
+                    </div>
+
+                    <div class="mt-3 pt-3 border-t border-slate-200 flex justify-between items-center">
+                      <span class="text-[11px] text-slate-500">Link direto para o Console:</span>
+                      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1">
+                        Abrir Google Cloud Console ↗
+                      </a>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Client ID do Google *</label>
+                    <input type="text" id="wz-client-id" value="${savedClientId}" placeholder="Ex: 123456789012-xxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com" class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs font-mono outline-none">
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Client Secret (Segredo do Cliente)</label>
+                    <input type="password" id="wz-client-secret" value="${savedClientSecret}" placeholder="Ex: GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx" class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs font-mono outline-none">
+                    <p class="text-[11px] text-slate-400 mt-1">Permite persistência contínua com renovação automática de tokens.</p>
+                  </div>
+
+                  <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                    <button onclick="closeGoogleAuthWizard()" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-4 py-2 cursor-pointer">
+                      Cancelar
+                    </button>
+                    <button onclick="saveWizardCredentialsSubmit()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer">
+                      Salvar & Avançar para o Login ➔
+                    </button>
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- ETAPA 2: LOGIN NA JANELA POPUP DO GOOGLE -->
+              ${wizardState.step === 2 ? `
+                <div class="space-y-4">
+                  <div class="text-xs text-slate-600 leading-relaxed">
+                    Credenciais do Google Cloud validadas. Ao clicar no botão abaixo, abriremos uma <strong>janela popup oficial de login do Google</strong> para você selecionar e autorizar sua conta Google Pro.
+                  </div>
+
+                  <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-mono text-slate-600">
+                    <div class="truncate max-w-[340px]">
+                      <span class="text-slate-400 font-sans">Client ID: </span>
+                      <span class="font-semibold text-slate-800">${savedClientId ? savedClientId.substring(0, 26) + '...' : 'Configurado'}</span>
+                    </div>
+                    <button onclick="wizardState.step = 1; renderWizardModal();" class="text-blue-600 hover:text-blue-800 font-sans font-semibold text-xs hover:underline cursor-pointer">
+                      Alterar Chaves
+                    </button>
+                  </div>
+
+                  ${wizardState.popupLaunched ? `
+                    <div class="p-6 bg-blue-50/70 border border-blue-200 rounded-2xl flex flex-col items-center justify-center text-center">
+                      <div class="relative flex items-center justify-center mb-3">
+                        <span class="animate-ping absolute inline-flex h-12 w-12 rounded-full bg-blue-400 opacity-60"></span>
+                        <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-md">
+                          G
+                        </div>
+                      </div>
+                      <h4 class="text-sm font-bold text-slate-900 mb-1">Acompanhando Autenticação em Tempo Real</h4>
+                      <p class="text-xs text-slate-600 max-w-sm mb-4 leading-relaxed">
+                        A janela oficial do Google está aberta. Selecione sua conta <strong>Google Workspace Pro</strong> e clique em <strong>Continuar / Permitir</strong>.
+                      </p>
+                      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-blue-200 text-xs font-semibold text-blue-700 shadow-sm mb-4">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Aguardando conclusão do login no Google...
+                      </div>
+
+                      <button onclick="launchGoogleAuthPopup()" class="text-xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                        Janela não abriu ou foi fechada? Clique aqui para reabrir ↺
+                      </button>
+                    </div>
+                  ` : `
+                    <div class="pt-2">
+                      <button onclick="launchGoogleAuthPopup()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-blue-500/25 text-sm transition-all cursor-pointer">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                        </svg>
+                        Abrir Janela de Login do Google Pro ↗
+                      </button>
+                      <p class="text-[11px] text-slate-400 text-center mt-2">Uma janela popup segura do Google será aberta no centro da sua tela.</p>
+                    </div>
+                  `}
+
+                  <details class="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                    <summary class="cursor-pointer hover:text-slate-700 font-medium py-1">
+                      Preferência manual: Validar Token retornado diretamente
+                    </summary>
+                    <div class="pt-3 space-y-2">
+                      <p class="text-[11px] text-slate-500">Se preferir colar o Access Token do Google (ya29...):</p>
+                      <input type="text" id="manual-token-field" placeholder="Cole o token ya29... aqui" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none">
+                      <button onclick="handleManualTokenVerificationSubmit()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 px-3 rounded-xl text-xs cursor-pointer">
+                        Consultar e Validar na API do Google
+                      </button>
+                    </div>
+                  </details>
+
+                  <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                    <button onclick="wizardState.step = 1; renderWizardModal();" class="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer">
+                      ← Voltar para Credenciais
+                    </button>
+                    <button onclick="closeGoogleAuthWizard()" class="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- ETAPA 3: VERIFICAÇÃO REAL E ATIVAÇÃO DO SLOT -->
+              ${wizardState.step === 3 ? `
+                <div class="space-y-5">
+                  <div class="p-6 bg-emerald-50/50 border-2 border-emerald-200 rounded-2xl flex flex-col items-center text-center">
+                    <div class="w-16 h-16 rounded-full bg-white border-2 border-emerald-500 shadow-md flex items-center justify-center overflow-hidden mb-3">
+                      ${wizardState.verifiedData && wizardState.verifiedData.picture ? `
+                        <img src="${wizardState.verifiedData.picture}" alt="Avatar" class="w-full h-full object-cover">
+                      ` : `
+                        <span class="text-xl font-bold text-emerald-700">${(wizardState.verifiedData && wizardState.verifiedData.name ? wizardState.verifiedData.name.charAt(0) : 'G')}</span>
+                      `}
+                    </div>
+
+                    <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800 text-[11px] font-bold mb-2">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Autenticado com Sucesso pela Google API
+                    </div>
+
+                    <h4 class="text-base font-bold text-slate-900 mb-0.5">${wizardState.verifiedData ? wizardState.verifiedData.name : 'Conta Google Pro'}</h4>
+                    <p class="text-xs text-blue-600 font-mono font-medium mb-4">${wizardState.verifiedData ? wizardState.verifiedData.email : ''}</p>
+
+                    <div class="w-full bg-white/90 border border-emerald-200 rounded-xl p-3.5 text-left space-y-1.5 text-xs text-slate-600">
+                      <div class="flex justify-between items-center">
+                        <span class="text-slate-400">Status Google Pro:</span>
+                        <strong class="text-emerald-700 font-semibold flex items-center gap-1">
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          Conexão Ativa & Validada
+                        </strong>
+                      </div>
+                      <div class="flex justify-between items-center">
+                        <span class="text-slate-400">Tokens de Acesso:</span>
+                        <strong class="text-slate-800 font-mono text-[11px]">Gerados & Salvos</strong>
+                      </div>
+                      <div class="flex justify-between items-center">
+                        <span class="text-slate-400">Destino:</span>
+                        <strong class="text-slate-800">${targetSlot ? targetSlot.name : 'Slot'}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button onclick="confirmAndActivateSlot()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2 cursor-pointer transition-all">
+                    <span>Concluir e Salvar no Pool de Contas</span>
+                    <span>✓</span>
+                  </button>
+                </div>
+              ` : ''}
+
+            </div>
+          </div>
+        `;
+      };
+
+      window.copyRedirectUri = function() {
+        const input = document.getElementById('wz-redirect-uri');
+        if (input) {
+          navigator.clipboard.writeText(input.value).then(() => {
+            const btn = document.getElementById('btn-copy-uri');
+            if (btn) {
+              btn.innerText = 'Copiado! ✓';
+              btn.classList.add('bg-emerald-100', 'text-emerald-800');
+              setTimeout(() => {
+                btn.innerText = 'Copiar URI 📋';
+                btn.classList.remove('bg-emerald-100', 'text-emerald-800');
+              }, 2000);
+            }
+          });
+        }
+      };
+
+      window.saveWizardCredentialsSubmit = function() {
+        const clientId = document.getElementById('wz-client-id').value.trim();
+        const clientSecret = document.getElementById('wz-client-secret').value.trim();
+        const redirectUri = window.location.origin + '/oauth2callback';
+
+        if (!clientId) {
+          alert('Por favor, informe o Client ID do Google Cloud.');
           return;
         }
+
+        localStorage.setItem('brain_google_credentials', JSON.stringify({ clientId, clientSecret }));
 
         fetch('/api/admin/google-credentials', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clientId, clientSecret, redirectUri })
+        }).catch(() => {});
+
+        wizardState.step = 2;
+        wizardState.errorMessage = '';
+        renderWizardModal();
+      };
+
+      window.launchGoogleAuthPopup = function() {
+        wizardState.errorMessage = '';
+        const creds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+        const clientId = creds.clientId;
+
+        if (!clientId) {
+          wizardState.step = 1;
+          wizardState.errorMessage = 'Configure o Client ID antes de abrir o login.';
+          renderWizardModal();
+          return;
+        }
+
+        // Tenta obter URL oficial via backend
+        fetch('/api/accounts/auth-url?slot=' + (wizardState.slotId || 'acc-1'))
+          .then(r => r.json())
+          .then(d => {
+            const url = d.url || buildGoogleOAuthUrl(clientId, wizardState.slotId);
+            openPopup(url);
+          })
+          .catch(() => {
+            const url = buildGoogleOAuthUrl(clientId, wizardState.slotId);
+            openPopup(url);
+          });
+
+        function openPopup(url) {
+          const width = 560;
+          const height = 680;
+          const left = Math.max(0, (window.screen.width - width) / 2);
+          const top = Math.max(0, (window.screen.height - height) / 2);
+
+          wizardState.popupRef = window.open(
+            url,
+            'GoogleProLogin',
+            `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`
+          );
+
+          if (!wizardState.popupRef || wizardState.popupRef.closed || typeof wizardState.popupRef.closed === 'undefined') {
+            wizardState.errorMessage = 'O navegador bloqueou a abertura do popup. Permita popups para este site.';
+            wizardState.popupLaunched = false;
+            renderWizardModal();
+            return;
+          }
+
+          wizardState.popupLaunched = true;
+          renderWizardModal();
+
+          if (wizardState.checkTimer) clearInterval(wizardState.checkTimer);
+          wizardState.checkTimer = setInterval(() => {
+            if (wizardState.popupRef && wizardState.popupRef.closed) {
+              clearInterval(wizardState.checkTimer);
+              if (wizardState.step !== 3) {
+                wizardState.popupLaunched = false;
+                wizardState.errorMessage = 'A janela do Google foi fechada antes de concluir o login. Se desejar, tente novamente.';
+                renderWizardModal();
+              }
+            }
+          }, 1000);
+        }
+      };
+
+      function buildGoogleOAuthUrl(clientId, slotId) {
+        const redirectUri = window.location.origin + '/oauth2callback';
+        const scope = encodeURIComponent('https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/calendar.readonly');
+        const nonce = Math.random().toString(36).substring(2);
+        return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId.trim())}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token%20id_token&scope=${scope}&state=${encodeURIComponent(slotId)}&prompt=select_account%20consent&nonce=${nonce}`;
+      }
+
+      window.handleManualTokenVerificationSubmit = function() {
+        const field = document.getElementById('manual-token-field');
+        if (!field || !field.value.trim()) {
+          alert('Informe o token de acesso recebido do Google.');
+          return;
+        }
+        const token = field.value.trim();
+        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { 'Authorization': 'Bearer ' + token }
         })
-        .then(r => r.json())
-        .then(data => {
-          alert(data.message || 'Credenciais salvas com sucesso!');
-          closeGoogleSetupModal();
+        .then(r => {
+          if (!r.ok) throw new Error('Token inválido ou expirado.');
+          return r.json();
         })
-        .catch(() => {
-          localStorage.setItem('brain_google_credentials', JSON.stringify({ clientId, clientSecret }));
-          alert('Credenciais salvas localmente!');
-          closeGoogleSetupModal();
+        .then(userInfo => {
+          wizardState.verifiedData = {
+            email: userInfo.email,
+            name: userInfo.name,
+            picture: userInfo.picture,
+            tokens: { access_token: token }
+          };
+          wizardState.step = 3;
+          renderWizardModal();
+        })
+        .catch(err => {
+          alert('Falha ao validar token com a Google API: ' + err.message);
         });
       };
 
-      window.startGoogleAuthFlow = function(slotId) {
-        // Tenta obter URL oficial via backend
-        fetch('/api/accounts/auth-url?slot=' + slotId)
-          .then(r => r.json())
-          .then(d => {
-            if (d.url) {
-              window.location.href = d.url;
-            } else {
-              promptDirectEmailAuth(slotId);
-            }
-          })
-          .catch(() => {
-            promptDirectEmailAuth(slotId);
-          });
-      };
+      window.confirmAndActivateSlot = function() {
+        if (!wizardState.slotId || !wizardState.verifiedData) return;
+        const acc = accounts.find(a => a.id === wizardState.slotId);
+        if (acc) {
+          acc.email = wizardState.verifiedData.email;
+          acc.name = wizardState.verifiedData.name || ('Google Pro (' + acc.email.split('@')[0] + ')');
+          acc.picture = wizardState.verifiedData.picture || '';
+          acc.connected = true;
+          acc.connectedAt = new Date().toISOString();
+          acc.tokens = wizardState.verifiedData.tokens || { access_token: 'verified' };
 
-      // Registro rápido do e-mail Google Workspace Pro
-      function promptDirectEmailAuth(slotId) {
-        const email = prompt('Digite o e-mail da Conta Google Workspace Pro para vincular a este slot:');
-        if (email && email.includes('@')) {
-          const acc = accounts.find(a => a.id === slotId);
-          if (acc) {
-            acc.email = email.trim();
-            acc.name = 'Google Pro (' + email.split('@')[0] + ')';
-            acc.connected = true;
-            localStorage.setItem('brain_saved_accounts', JSON.stringify(accounts));
-            render();
-          }
+          localStorage.setItem('brain_saved_accounts', JSON.stringify(accounts));
+
+          fetch('/api/accounts/save-verified', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              slotId: acc.id,
+              email: acc.email,
+              name: acc.name,
+              picture: acc.picture,
+              tokens: acc.tokens
+            })
+          }).catch(() => {});
         }
-      }
+        closeGoogleAuthWizard();
+        render();
+      };
 
       window.disconnectAccount = function(slotId) {
         if (!confirm('Deseja realmente desconectar esta conta Google Pro?')) return;
@@ -601,6 +1061,9 @@
         if (acc) {
           acc.connected = false;
           acc.email = '';
+          acc.picture = '';
+          acc.tokens = undefined;
+          acc.connectedAt = '';
           localStorage.setItem('brain_saved_accounts', JSON.stringify(accounts));
           fetch('/api/accounts/disconnect', {
             method: 'POST',
@@ -610,6 +1073,48 @@
           render();
         }
       };
+
+      // Listener global para receber a mensagem da janela popup após o login
+      window.addEventListener('message', function(event) {
+        if (!event.data) return;
+        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+          if (wizardState.checkTimer) clearInterval(wizardState.checkTimer);
+          wizardState.verifiedData = {
+            email: event.data.email,
+            name: event.data.name,
+            picture: event.data.picture,
+            tokens: event.data.tokens
+          };
+          wizardState.step = 3;
+          wizardState.popupLaunched = false;
+          renderWizardModal();
+        } else if (event.data.type === 'GOOGLE_AUTH_CODE') {
+          // Troca código com backend se disponível
+          fetch('/api/accounts/oauth-exchange', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: event.data.code, slotId: event.data.slotId })
+          })
+          .then(r => r.json())
+          .then(d => {
+            if (d.account) {
+              wizardState.verifiedData = {
+                email: d.account.email,
+                name: d.account.name,
+                picture: d.account.picture
+              };
+              wizardState.step = 3;
+              wizardState.popupLaunched = false;
+              renderWizardModal();
+            }
+          })
+          .catch(() => {});
+        } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+          wizardState.popupLaunched = false;
+          wizardState.errorMessage = event.data.error || 'A autorização foi cancelada ou falhou.';
+          renderWizardModal();
+        }
+      });
 
       window.addNewAccountSlot = function() {
         const newSlot = {

@@ -136,6 +136,16 @@ app.post('/api/accounts/disconnect', (req: any, res: any) => {
     res.json({ success });
 });
 
+// Salvar conta verificada (via popup OAuth ou Google Identity Services)
+app.post('/api/accounts/save-verified', (req: any, res: any) => {
+    const { slotId, email, name, tokens, picture } = req.body;
+    if (!slotId || !email) {
+        return res.status(400).json({ error: 'slotId e email são obrigatórios.' });
+    }
+    const acc = accountManager.saveVerifiedAccount(slotId, email, name, tokens, picture);
+    res.json({ success: true, account: acc });
+});
+
 // ========================================================
 // 2. ROTAS DE SESSÕES & REUNIÕES MULTI-MEET
 // ========================================================
@@ -239,9 +249,21 @@ app.get('/oauth2callback', async (req: any, res: any) => {
                         <p style="color: #64748b; font-size: 13px;">Redirecionando de volta ao painel de administração...</p>
                     </div>
                     <script>
-                        setTimeout(() => {
-                            window.location.href = '/?admin=true';
-                        }, 2500);
+                        if (window.opener) {
+                            try {
+                                window.opener.postMessage({
+                                    type: 'GOOGLE_AUTH_SUCCESS',
+                                    slotId: '${slotId}',
+                                    email: '${account.email}',
+                                    name: '${account.name}'
+                                }, '*');
+                            } catch (e) {}
+                            setTimeout(() => { window.close(); }, 1200);
+                        } else {
+                            setTimeout(() => {
+                                window.location.href = '/?admin=true';
+                            }, 2000);
+                        }
                     </script>
                 </body>
             </html>
