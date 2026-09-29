@@ -69,10 +69,9 @@ export default function AdminMasterDashboard() {
 
   // Formulário de Nova Reunião
   const [newTitle, setNewTitle] = useState<string>('Sessão Executiva com Tradução — Sala 01');
-  const [newCurrentMeetUrl, setNewCurrentMeetUrl] = useState<string>('');
-  const [newNextMeetUrl, setNewNextMeetUrl] = useState<string>('');
-  const [selectedAccountA, setSelectedAccountA] = useState<string>('');
-  const [selectedAccountB, setSelectedAccountB] = useState<string>('');
+  const [meetingQueueSlots, setMeetingQueueSlots] = useState<string[]>(['', '']);
+  const [selectedAccountA, setSelectedAccountA] = useState<string>(''); // Transmissora
+  const [selectedAccountB, setSelectedAccountB] = useState<string>(''); // Receptora
   const [isStartingMeeting, setIsStartingMeeting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>('');
 
@@ -418,18 +417,19 @@ export default function AdminMasterDashboard() {
     e.preventDefault();
     setFormError('');
 
-    if (!newCurrentMeetUrl.includes('meet.google.com')) {
-      setFormError('Por favor, insira uma URL válida do Google Meet para a reunião inicial.');
+    const validSlots = meetingQueueSlots.map(s => s.trim()).filter(s => s.length > 0);
+    if (validSlots.length === 0 || !validSlots[0].includes('meet.google.com')) {
+      setFormError('Por favor, insira pelo menos uma URL válida do Google Meet para a reunião inicial.');
       return;
     }
 
     if (!selectedAccountA || !selectedAccountB) {
-      setFormError('Selecione exatamente 2 contas Google Pro para viabilizar a tradução simultânea.');
+      setFormError('Selecione uma conta Transmissora e uma conta Receptora Google Pro.');
       return;
     }
 
     if (selectedAccountA === selectedAccountB) {
-      setFormError('As duas contas do par devem ser contas Google Pro distintas.');
+      setFormError('A Conta Transmissora e a Conta Receptora devem ser contas Google Pro distintas.');
       return;
     }
 
@@ -440,8 +440,9 @@ export default function AdminMasterDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: newTitle || 'Reunião com Tradução Simultânea',
-          currentMeetUrl: newCurrentMeetUrl,
-          scheduledNextMeetUrl: newNextMeetUrl,
+          currentMeetUrl: validSlots[0],
+          scheduledNextMeetUrl: validSlots[1] || '',
+          meetingQueue: validSlots,
           accountIds: [selectedAccountA, selectedAccountB]
         })
       });
@@ -450,8 +451,7 @@ export default function AdminMasterDashboard() {
       if (data.error) {
         setFormError(data.error);
       } else {
-        setNewCurrentMeetUrl('');
-        setNewNextMeetUrl('');
+        setMeetingQueueSlots(['', '']);
         fetchData();
 
         if (data.meeting?.id) {
@@ -719,74 +719,116 @@ export default function AdminMasterDashboard() {
               </div>
             )}
 
-            <form onSubmit={handleStartMeeting} className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Identificador / Título da Reunião</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={newTitle} 
-                  onChange={e => setNewTitle(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none"
-                />
-              </div>
+            <form onSubmit={handleStartMeeting} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Identificador / Título da Reunião *</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={newTitle} 
+                    onChange={e => setNewTitle(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Link do Google Meet Inicial (Reunião 1) *</label>
-                <input 
-                  type="url" 
-                  required 
-                  placeholder="https://meet.google.com/xxx-yyyy-zzz"
-                  value={newCurrentMeetUrl} 
-                  onChange={e => setNewCurrentMeetUrl(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Link do Google Meet para Próxima Hora (Hot-Swap Agendado)</label>
-                <input 
-                  type="url" 
-                  placeholder="https://meet.google.com/aaa-bbbb-ccc (opcional)"
-                  value={newNextMeetUrl} 
-                  onChange={e => setNewNextMeetUrl(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none font-mono"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Conta Google Pro A *</label>
+                {/* Conta Transmissora */}
+                <div className="p-4 bg-slate-50 border border-blue-200/70 rounded-2xl">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-blue-900">📡 Conta Transmissora (Gera os Meets) *</label>
+                    <a href="https://meet.google.com/new" target="_blank" rel="noreferrer" className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline flex items-center gap-1">
+                      <span>Criar Novo Meet ↗</span>
+                    </a>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mb-2">Esta conta cria e hospeda todas as salas de reuniões que serão transmitidas.</p>
                   <select 
                     value={selectedAccountA} 
                     onChange={e => setSelectedAccountA(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none"
+                    className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none font-medium"
                   >
-                    {accounts.filter(a => a.connected).length > 0 ? accounts.filter(a => a.connected).map(a => (
-                      <option key={a.id} value={a.id}>{a.name} ({a.email})</option>
-                    )) : <option value="">Nenhuma conta autenticada disponível</option>}
+                    {accounts.filter(a => a.connected).map(a => (
+                      <option key={a.id} value={a.id}>👑 {a.name} ({a.email})</option>
+                    ))}
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Conta Google Pro B *</label>
+                {/* Conta Receptora */}
+                <div className="p-4 bg-slate-50 border border-indigo-200/70 rounded-2xl">
+                  <label className="block text-xs font-bold text-indigo-900 mb-1.5">🎧 Conta Receptora (Tradução Simultânea / Bot) *</label>
+                  <p className="text-[11px] text-slate-500 mb-2">Esta conta entra nas salas para capturar o áudio e alimentar a tradução WebRTC.</p>
                   <select 
                     value={selectedAccountB} 
                     onChange={e => setSelectedAccountB(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none"
+                    className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none font-medium"
                   >
                     {accounts.filter(a => a.connected).length > 1 ? accounts.filter(a => a.connected).slice(1).concat(accounts.filter(a => a.connected)[0]).map(a => (
-                      <option key={a.id} value={a.id}>{a.name} ({a.email})</option>
+                      <option key={a.id} value={a.id}>👑 {a.name} ({a.email})</option>
                     )) : <option value="">Necessário pelo menos 2 contas autenticadas</option>}
                   </select>
                 </div>
               </div>
 
-              <div className="md:col-span-2 pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
+              {/* Fila Dinâmica de Reuniões */}
+              <div className="p-5 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <span>📋 Fila de Reuniões do Google Meet (Hot-Swap Pré-Agendado)</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">{meetingQueueSlots.length} Slots</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Cole abaixo as reuniões geradas manualmente pela conta transmissora. Você pode adicionar quantos slots precisar antes e durante o evento!
+                    </p>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setMeetingQueueSlots(prev => [...prev, ''])}
+                    className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Adicionar Mais Uma Reunião na Fila</span>
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {meetingQueueSlots.map((urlVal, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="w-32 shrink-0 text-right">
+                        <span className={`text-[11px] font-bold ${idx === 0 ? 'text-emerald-700' : 'text-slate-600'}`}>
+                          {idx === 0 ? '🟢 Reunião #1 (Inicial) *' : (idx === 1 ? '🔄 Reunião #2 (Swap 1)' : `🔄 Reunião #${idx + 1}`)}
+                        </span>
+                      </div>
+                      <input 
+                        type="url" 
+                        required={idx === 0}
+                        placeholder="https://meet.google.com/xxx-yyyy-zzz"
+                        value={urlVal}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setMeetingQueueSlots(prev => prev.map((s, i) => i === idx ? val : s));
+                        }}
+                        className="flex-1 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 outline-none"
+                      />
+                      {idx > 1 ? (
+                        <button 
+                          type="button" 
+                          onClick={() => setMeetingQueueSlots(prev => prev.filter((_, i) => i !== idx))}
+                          title="Remover este slot"
+                          className="text-rose-500 hover:text-rose-700 p-2 rounded-lg hover:bg-rose-50 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      ) : <div className="w-7" />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100">
                 <p className="text-xs text-slate-500">
                   {connectedCount < 2 
                     ? '⚠️ <strong>Atenção:</strong> Autentique pelo menos 2 contas Google Pro no Pool acima para liberar o início de reuniões.' 
-                    : '✅ Par de contas Pro pronto para operação.'}
+                    : '✅ Par de contas transmissora/receptora pronto para Hot-Swap a cada 2 minutos.'}
                 </p>
 
                 <button 

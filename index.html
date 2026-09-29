@@ -359,8 +359,48 @@
         { id: 'acc-4', name: 'Slot Google Pro 04', email: '', connected: false }
       ];
 
-      // Reuniões ativas
+      // Reuniões ativas (carregadas do localStorage e backend)
       let meetings = [];
+      const savedMeetings = localStorage.getItem('brain_saved_meetings');
+      if (savedMeetings) {
+        try { meetings = JSON.parse(savedMeetings); } catch(e) {}
+      }
+
+      // Fila de slots de links de reuniões no formulário de início
+      if (!window.formMeetingSlots || !Array.isArray(window.formMeetingSlots)) {
+        window.formMeetingSlots = ['', ''];
+      }
+
+      window.addFormMeetingSlot = function() {
+        syncFormMeetingInputs();
+        window.formMeetingSlots.push('');
+        render();
+      };
+
+      window.removeFormMeetingSlot = function(idx) {
+        syncFormMeetingInputs();
+        if (window.formMeetingSlots.length > 1) {
+          window.formMeetingSlots.splice(idx, 1);
+          render();
+        }
+      };
+
+      window.updateFormMeetingSlot = function(idx, val) {
+        if (window.formMeetingSlots[idx] !== undefined) {
+          window.formMeetingSlots[idx] = val;
+        }
+      };
+
+      function syncFormMeetingInputs() {
+        const inputs = document.querySelectorAll('.dynamic-meet-input');
+        if (inputs && inputs.length) {
+          inputs.forEach((inp, i) => {
+            if (i < window.formMeetingSlots.length) {
+              window.formMeetingSlots[i] = inp.value;
+            }
+          });
+        }
+      }
 
       // Carrega contas do localStorage ou backend
       const savedLocalAccounts = localStorage.getItem('brain_saved_accounts');
@@ -377,7 +417,10 @@
       }).catch(() => {});
 
       fetch('/api/meetings').then(r => r.json()).then(data => {
-        if (data.meetings && data.meetings.length) meetings = data.meetings;
+        if (data.meetings && data.meetings.length) {
+          meetings = data.meetings;
+          localStorage.setItem('brain_saved_meetings', JSON.stringify(meetings));
+        }
         render();
       }).catch(() => {});
 
@@ -528,66 +571,116 @@
                 SESSÃO 2: CRIADOR E AGENDADOR DE REUNIÕES (DESTAQUE ÍNDIGO)
                 ======================================================== -->
             <section class="bg-white border-2 border-indigo-100 rounded-3xl overflow-hidden shadow-sm">
-              <div class="bg-indigo-50/70 border-b border-indigo-100 px-6 sm:px-8 py-4">
-                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
-                  Iniciar Nova Reunião com Tradução Simultânea
-                </h2>
-                <p class="text-xs text-slate-500 mt-0.5">
-                  Informe o Google Meet atual e o link da próxima hora (Hot-Swap). Escolha o par de contas Pro e inicie a reunião para abrir a aba dedicada.
-                </p>
+              <div class="bg-indigo-50/70 border-b border-indigo-100 px-6 sm:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+                    Iniciar Nova Reunião com Tradução Simultânea
+                  </h2>
+                  <p class="text-xs text-slate-500 mt-0.5">
+                    Defina a conta transmissora (que gera todas as salas) e a receptora. Enfileire os links do Google Meet para o hot-swap contínuo.
+                  </p>
+                </div>
+                <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold border border-amber-300 shadow-2xs">
+                  <span>⏱️ Modo Teste: Hot-Swap a cada 2 min (120s)</span>
+                </div>
               </div>
 
               <div class="p-6 sm:p-8">
-                <form id="start-meeting-form" onsubmit="handleStartMeetingSubmit(event)" class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Identificador / Título da Reunião</label>
-                    <input type="text" id="m-title" required value="Sessão de Tradução Executiva — Sala 01" class="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none">
-                  </div>
+                <form id="start-meeting-form" onsubmit="handleStartMeetingSubmit(event)" class="space-y-6">
+                  
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <!-- Título da Reunião -->
+                    <div class="md:col-span-2">
+                      <label class="block text-xs font-semibold text-slate-700 mb-1.5">Identificador / Título da Reunião *</label>
+                      <input type="text" id="m-title" required value="Sessão de Tradução Executiva — Sala 01" class="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none">
+                    </div>
 
-                  <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Link do Google Meet Inicial (Reunião 1) *</label>
-                    <input type="url" id="m-meet-current" required placeholder="https://meet.google.com/xxx-yyyy-zzz" class="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none font-mono">
-                  </div>
-
-                  <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Link do Google Meet para Próxima Hora (Hot-Swap Agendado)</label>
-                    <input type="url" id="m-meet-next" placeholder="https://meet.google.com/aaa-bbbb-ccc (opcional)" class="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none font-mono">
-                  </div>
-
-                  <div class="grid grid-cols-2 gap-3">
-                    <div>
-                      <label class="block text-xs font-semibold text-slate-700 mb-1.5">Conta Google Pro A *</label>
-                      <select id="m-acc-a" class="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none">
-                        ${accounts.filter(a => a.connected).length > 0 ? accounts.filter(a => a.connected).map(a => `
-                          <option value="${a.id}">${a.name} (${a.email})</option>
-                        `).join('') : '<option value="">Nenhuma conta autenticada disponível</option>'}
+                    <!-- Conta Transmissora (Geradora) -->
+                    <div class="p-4 bg-slate-50 border border-blue-200/70 rounded-2xl">
+                      <div class="flex items-center justify-between mb-1.5">
+                        <label class="block text-xs font-bold text-blue-900">📡 Conta Transmissora (Geradora dos Meets) *</label>
+                        <a href="https://meet.google.com/new" target="_blank" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline flex items-center gap-1">
+                          <span>Criar Novo Meet ↗</span>
+                        </a>
+                      </div>
+                      <p class="text-[11px] text-slate-500 mb-2">Esta conta cria e hospeda todas as salas de reuniões que serão transmitidas.</p>
+                      <select id="m-acc-transmitter" required class="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none font-medium">
+                        ${accounts.filter(a => a.connected).map((a, i) => `
+                          <option value="${a.id}" ${i === 0 ? 'selected' : ''}>👑 ${a.name} (${a.email})</option>
+                        `).join('')}
                       </select>
                     </div>
 
-                    <div>
-                      <label class="block text-xs font-semibold text-slate-700 mb-1.5">Conta Google Pro B *</label>
-                      <select id="m-acc-b" class="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none">
-                        ${accounts.filter(a => a.connected).length > 1 ? accounts.filter(a => a.connected).slice(1).concat(accounts.filter(a => a.connected)[0]).map(a => `
-                          <option value="${a.id}">${a.name} (${a.email})</option>
-                        `).join('') : '<option value="">Necessário pelo menos 2 contas autenticadas</option>'}
+                    <!-- Conta Receptora (Tradução) -->
+                    <div class="p-4 bg-slate-50 border border-indigo-200/70 rounded-2xl">
+                      <label class="block text-xs font-bold text-indigo-900 mb-1.5">🎧 Conta Receptora (Tradução Simultânea / Bot) *</label>
+                      <p class="text-[11px] text-slate-500 mb-2">Esta conta entra nas salas para capturar o áudio e alimentar a tradução WebRTC.</p>
+                      <select id="m-acc-receiver" required class="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none font-medium">
+                        ${accounts.filter(a => a.connected).length > 1 ? accounts.filter(a => a.connected).map((a, i) => `
+                          <option value="${a.id}" ${i === 1 ? 'selected' : ''}>👑 ${a.name} (${a.email})</option>
+                        `).join('') : '<option value="">Necessário pelo menos 2 contas Pro autenticadas</option>'}
                       </select>
                     </div>
                   </div>
 
-                  <div class="md:col-span-2 pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <!-- Fila Dinâmica de Salas do Google Meet -->
+                  <div class="p-5 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h4 class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                          <span>📋 Fila de Reuniões do Google Meet (Hot-Swap Pré-Agendado)</span>
+                          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">${window.formMeetingSlots.length} Slots</span>
+                        </h4>
+                        <p class="text-[11px] text-slate-500 mt-0.5">
+                          Cole abaixo as reuniões geradas manualmente pela conta transmissora. Você pode adicionar quantos slots precisar antes e durante o evento!
+                        </p>
+                      </div>
+                      <button type="button" onclick="addFormMeetingSlot()" class="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+                        <span>+ Adicionar Mais Uma Reunião na Fila</span>
+                      </button>
+                    </div>
+
+                    <div class="space-y-3" id="form-meeting-slots-container">
+                      ${window.formMeetingSlots.map((urlVal, idx) => `
+                        <div class="flex items-center gap-2">
+                          <div class="w-32 shrink-0 text-right">
+                            <span class="text-[11px] font-bold ${idx === 0 ? 'text-emerald-700' : 'text-slate-600'}">
+                              ${idx === 0 ? '🟢 Reunião #1 (Inicial) *' : (idx === 1 ? '🔄 Reunião #2 (Swap 1)' : '🔄 Reunião #' + (idx + 1))}
+                            </span>
+                          </div>
+                          <input 
+                            type="url" 
+                            required 
+                            placeholder="https://meet.google.com/xxx-yyyy-zzz" 
+                            value="${urlVal}" 
+                            oninput="updateFormMeetingSlot(${idx}, this.value)"
+                            class="dynamic-meet-input flex-1 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 outline-none"
+                          >
+                          ${idx > 1 ? `
+                            <button type="button" onclick="removeFormMeetingSlot(${idx})" title="Remover este slot" class="text-rose-500 hover:text-rose-700 p-2 rounded-lg hover:bg-rose-50 text-xs font-bold transition-all cursor-pointer">
+                              ✕
+                            </button>
+                          ` : '<div class="w-7"></div>'}
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+
+                  <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100">
                     <p class="text-xs text-slate-500">
                       ${connectedCount < 2 
                         ? '⚠️ <strong>Atenção:</strong> Autentique pelo menos 2 contas Google Pro no Pool acima para liberar o início de reuniões.' 
-                        : '✅ Par de contas Pro disponível para operação imediata.'}
+                        : '✅ Par de contas transmissora/receptora pronto para Hot-Swap a cada 2 minutos.'}
                     </p>
 
                     <button 
                       type="submit" 
                       ${connectedCount < 2 ? 'disabled' : ''}
-                      class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                      class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-indigo-600/20 cursor-pointer flex items-center gap-2"
                     >
-                      Iniciar Reunião & Abrir Página Dedicada ↗
+                      <span>Iniciar Reunião & Abrir Página Dedicada</span>
+                      <span>↗</span>
                     </button>
                   </div>
                 </form>
@@ -598,14 +691,19 @@
                 SESSÃO 3: REUNIÕES ATIVAS & EM ANDAMENTO (DESTAQUE ESMERALDA)
                 ======================================================== -->
             <section class="bg-white border-2 border-emerald-100 rounded-3xl overflow-hidden shadow-sm">
-              <div class="bg-emerald-50/70 border-b border-emerald-100 px-6 sm:px-8 py-4">
-                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
-                  Reuniões Ativas & Em Andamento
-                </h2>
-                <p class="text-xs text-slate-500 mt-0.5">
-                  Acompanhe as sessões rodando, o cronômetro para o hot-swap de 1 hora e abra a aba de monitoramento.
-                </p>
+              <div class="bg-emerald-50/70 border-b border-emerald-100 px-6 sm:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                    Reuniões Ativas & Em Andamento
+                  </h2>
+                  <p class="text-xs text-slate-500 mt-0.5">
+                    Acompanhe as sessões rodando, o cronômetro para o hot-swap (2 min em modo teste) e abra a aba de monitoramento.
+                  </p>
+                </div>
+                <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                  ⏱️ Hot-Swap de Teste: 2 min
+                </span>
               </div>
 
               <div class="p-6 sm:p-8">
@@ -624,22 +722,21 @@
                               Transmitindo no Meet
                             </span>
                             <div class="text-xs bg-white border border-slate-200 px-3 py-1 rounded-lg font-mono text-slate-700 font-semibold">
-                              Hot-Swap em: <strong class="text-blue-600">${Math.floor((m.nextSwapInSeconds || 3300) / 60)}m</strong>
+                              Hot-Swap em: <strong class="text-blue-600">${Math.floor((m.nextSwapInSeconds || 120) / 60)}m ${((m.nextSwapInSeconds || 120) % 60)}s</strong>
                             </div>
                           </div>
                           <h3 class="text-base font-bold text-slate-900 mb-2">${m.title}</h3>
-                          <div class="space-y-1.5 text-xs text-slate-600 mb-5 font-mono">
+                          <div class="space-y-1.5 text-xs text-slate-600 mb-4 font-mono">
                             <div>Meet Atual: <span class="text-blue-600 font-semibold">${m.currentMeetUrl}</span></div>
-                            <div>Próximo Meet: <span class="text-slate-500">${m.scheduledNextMeetUrl || 'Nenhum agendado'}</span></div>
+                            <div>Próximo Meet: <span class="text-slate-500">${m.scheduledNextMeetUrl || (m.meetingQueue && m.meetingQueue.length > 1 ? m.meetingQueue[1] : 'Nenhum agendado')}</span></div>
+                            <div class="text-[11px] text-slate-400 font-sans">Fila: <strong>${(m.meetingQueue || []).length || 1} sala(s)</strong> no total</div>
                           </div>
                         </div>
 
                         <div class="pt-4 border-t border-slate-200 flex items-center justify-between gap-3">
-                          <button onclick="alert('Transição Hot-Swap iniciada com sucesso!')" class="text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-2 rounded-xl">
-                            Forçar Hot-Swap Agora
-                          </button>
-                          <button onclick="window.open('/?meeting=${m.id}', '_blank')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm">
-                            Abrir Painel da Reunião ↗
+                          <button onclick="window.open('/?meeting=${m.id}', '_blank')" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2.5 px-4 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer">
+                            <span>Abrir Monitor Dedicado da Reunião</span>
+                            <span>↗</span>
                           </button>
                         </div>
                       </div>
@@ -1313,33 +1410,53 @@
 
       window.handleStartMeetingSubmit = function(e) {
         e.preventDefault();
+        syncFormMeetingInputs();
         const title = document.getElementById('m-title').value;
-        const currentMeetUrl = document.getElementById('m-meet-current').value;
-        const nextMeetUrl = document.getElementById('m-meet-next').value;
-        const accA = document.getElementById('m-acc-a').value;
-        const accB = document.getElementById('m-acc-b').value;
+        const transmitter = document.getElementById('m-acc-transmitter').value;
+        const receiver = document.getElementById('m-acc-receiver').value;
 
-        if (accA === accB) {
-          alert('As duas contas do par devem ser contas Google Pro distintas!');
+        if (transmitter === receiver) {
+          alert('A Conta Transmissora e a Conta Receptora devem ser contas Google Pro distintas!');
+          return;
+        }
+
+        const validSlots = (window.formMeetingSlots || []).map(s => s.trim()).filter(s => s.length > 0);
+        if (validSlots.length === 0) {
+          alert('Por favor, informe ao menos a URL da primeira reunião do Google Meet.');
           return;
         }
 
         const newMeeting = {
           id: 'meet-' + Date.now().toString(36),
           title,
-          currentMeetUrl,
-          scheduledNextMeetUrl: nextMeetUrl,
-          accountA: accA,
-          accountB: accB,
-          nextSwapInSeconds: 3300,
-          latencyMs: 140
+          transmitterAccountId: transmitter,
+          receiverAccountId: receiver,
+          accountA: transmitter,
+          accountB: receiver,
+          currentMeetUrl: validSlots[0],
+          scheduledNextMeetUrl: validSlots[1] || '',
+          meetingQueue: validSlots,
+          currentQueueIndex: 0,
+          status: 'active',
+          nextSwapInSeconds: 120, // 2 minutos para modo de teste acelerado!
+          swapIntervalSeconds: 120,
+          latencyMs: 140,
+          createdAt: new Date().toISOString()
         };
 
-        meetings.push(newMeeting);
+        meetings.unshift(newMeeting);
+        localStorage.setItem('brain_saved_meetings', JSON.stringify(meetings));
+
         fetch('/api/meetings/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newMeeting)
+          body: JSON.stringify({
+            title,
+            currentMeetUrl: validSlots[0],
+            scheduledNextMeetUrl: validSlots[1] || '',
+            accountIds: [transmitter, receiver],
+            meetingQueue: validSlots
+          })
         }).catch(() => {});
 
         // Abre a aba dedicada da reunião
@@ -1356,36 +1473,72 @@
     function renderMeetingRoomMonitor(id) {
       let volume = 85;
       let isMuted = false;
-      let countdown = 3120;
+      let countdown = 120; // 2 minutos em modo teste acelerado!
       let latency = 142;
+
+      // Recupera a reunião salva
+      let meeting = null;
+      try {
+        const saved = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
+        meeting = saved.find(m => m.id === id);
+      } catch(e) {}
+
+      if (!meeting) {
+        meeting = {
+          id: id,
+          title: 'Sessão com Tradução Simultânea — ' + id,
+          transmitterAccountId: 'acc-1',
+          receiverAccountId: 'acc-2',
+          currentMeetUrl: 'https://meet.google.com/abc-defg-hij',
+          scheduledNextMeetUrl: 'https://meet.google.com/klm-nopq-rst',
+          meetingQueue: ['https://meet.google.com/abc-defg-hij', 'https://meet.google.com/klm-nopq-rst'],
+          currentQueueIndex: 0,
+          nextSwapInSeconds: 120
+        };
+      }
+
+      if (!meeting.meetingQueue || !Array.isArray(meeting.meetingQueue) || meeting.meetingQueue.length === 0) {
+        meeting.meetingQueue = [meeting.currentMeetUrl];
+      }
+      if (meeting.currentQueueIndex === undefined) {
+        meeting.currentQueueIndex = 0;
+      }
+
+      let queue = meeting.meetingQueue;
+      let queueIdx = meeting.currentQueueIndex;
+      let currentMeetUrl = queue[queueIdx] || meeting.currentMeetUrl;
+      let nextMeetUrl = queue[queueIdx + 1] || '';
+
+      const accTransmitter = accounts.find(a => a.id === meeting.transmitterAccountId || a.id === meeting.accountA) || { name: 'Conta Transmissora Pro', email: 'transmissor@google' };
+      const accReceiver = accounts.find(a => a.id === meeting.receiverAccountId || a.id === meeting.accountB) || { name: 'Conta Receptora Pro', email: 'receptor@google' };
 
       root.innerHTML = `
         <!-- Header da Reunião -->
-        <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-30 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+        <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-xl sticky top-0 z-30 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div class="flex items-center gap-3.5">
             <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-bold">
               BA
             </div>
             <div>
               <div class="flex items-center gap-2.5">
-                <h1 class="text-lg font-bold text-white tracking-tight">Reunião Ativa — ${id}</h1>
+                <h1 class="text-base sm:text-lg font-bold text-white tracking-tight">${meeting.title || 'Reunião Ativa — ' + id}</h1>
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
                   Transmissão Ao Vivo (Meet)
                 </span>
               </div>
-              <p class="text-xs text-slate-400">Canal WebRTC de Ultra-Baixa Latência</p>
+              <p class="text-xs text-slate-400">Canal WebRTC de Ultra-Baixa Latência • Hot-Swap Acelerado</p>
             </div>
           </div>
 
           <div class="flex items-center gap-3">
             <div class="bg-slate-950 border border-slate-800 px-3.5 py-1.5 rounded-xl flex items-center gap-2 text-xs">
               <span class="text-slate-400">Próximo Hot-Swap:</span>
-              <strong id="timer-display" class="text-blue-400 font-mono">52m 00s</strong>
+              <strong id="timer-display" class="text-blue-400 font-mono">02m 00s</strong>
             </div>
 
-            <button onclick="alert('Transição invisível de 5 segundos disparada!')" class="text-xs font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3.5 py-2 rounded-xl transition-all cursor-pointer">
-              Forçar Hot-Swap Agora
+            <button onclick="triggerMonitorHotSwapNow()" class="text-xs font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5">
+              <span>Forçar Hot-Swap Agora ⚡</span>
             </button>
 
             <button onclick="window.close()" class="text-xs font-semibold text-slate-400 hover:text-white bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-xl transition-all">
@@ -1394,10 +1547,133 @@
           </div>
         </header>
 
-        <!-- Grid Principal -->
+        <!-- SEÇÃO SUPERIOR: ORQUESTRADOR DE SALAS E FILA DE HOT-SWAP (NOVIDADE) -->
+        <section class="max-w-7xl w-full mx-auto px-6 pt-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+            <!-- Header com Papéis de Contas e Modo de Teste -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              <div class="flex items-center gap-3">
+                <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                <div>
+                  <h2 class="text-base font-bold text-white flex items-center gap-2">
+                    Orquestrador de Salas & Hot-Swap Contínuo
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                      Modo Teste: 2 min (120s)
+                    </span>
+                  </h2>
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 mt-1">
+                    <span>📡 Transmissor: <strong class="text-blue-400 font-semibold">${accTransmitter.name}</strong> (${accTransmitter.email})</span>
+                    <span class="text-slate-600 hidden sm:inline">|</span>
+                    <span>🎧 Receptor (Bot): <strong class="text-indigo-400 font-semibold">${accReceiver.name}</strong> (${accReceiver.email})</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <a href="https://meet.google.com/new" target="_blank" class="text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer">
+                  <span>Criar Meet no Google ↗</span>
+                </a>
+              </div>
+            </div>
+
+            <!-- Grid: Sala Atual | Próximo Hot-Swap | Cronômetro -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 my-5">
+              <!-- Card Sala Atual -->
+              <div class="bg-slate-950 border border-emerald-500/30 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span id="monitor-cycle-badge">Sala Atual Ao Vivo (Ciclo #${queueIdx + 1})</span>
+                    </span>
+                    <span class="text-[10px] font-mono text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded">No Ar ●</span>
+                  </div>
+                  <div class="text-xs font-mono text-white truncate font-semibold select-all mt-1" id="monitor-current-meet">
+                    ${currentMeetUrl}
+                  </div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
+                  <button onclick="navigator.clipboard.writeText(currentMeetUrl); alert('Link copiado!');" class="text-[11px] text-blue-400 hover:text-blue-300 font-semibold cursor-pointer">
+                    Copiar Link 📋
+                  </button>
+                  <a id="monitor-current-link" href="${currentMeetUrl}" target="_blank" class="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1">
+                    <span>Abrir Sala</span>
+                    <span>↗</span>
+                  </a>
+                </div>
+              </div>
+
+              <!-- Card Próxima Sala -->
+              <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between" id="monitor-next-card">
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-blue-400">
+                      Próxima Sala Agendada
+                    </span>
+                    <span class="text-[10px] font-mono text-slate-500">Pronto p/ Swap</span>
+                  </div>
+                  <div class="text-xs font-mono text-slate-300 truncate mt-1" id="monitor-next-meet">
+                    ${nextMeetUrl || '<span class="text-amber-400 italic">⚠️ Fila Vazia! Adicione abaixo</span>'}
+                  </div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px]">
+                  <span class="text-slate-500" id="monitor-queue-status">${(queue.length - queueIdx - 1) > 0 ? ((queue.length - queueIdx - 1) + ' sala(s) restante(s) na fila') : 'Última sala em transmissão'}</span>
+                  <button id="monitor-copy-next-btn" onclick="if(nextMeetUrl){navigator.clipboard.writeText(nextMeetUrl); alert('Link da próxima sala copiado!');}" class="text-blue-400 hover:text-blue-300 font-semibold cursor-pointer ${nextMeetUrl ? '' : 'hidden'}">
+                    Copiar Link 📋
+                  </button>
+                </div>
+              </div>
+
+              <!-- Card Cronômetro & Forçar Swap -->
+              <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Hot-Swap Automático</span>
+                    <span class="text-[10px] font-mono text-amber-400">Teste: 2m</span>
+                  </div>
+                  <div class="text-2xl font-bold font-mono text-blue-400 tracking-tight" id="monitor-swap-timer">
+                    02m 00s
+                  </div>
+                </div>
+                <div class="mt-2">
+                  <button onclick="triggerMonitorHotSwapNow()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-2 px-3 rounded-xl transition-all shadow-md shadow-amber-500/10 cursor-pointer flex items-center justify-center gap-1.5">
+                    <span>Forçar Hot-Swap Agora ⚡</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Gerenciador de Adicionar Reuniões à Fila em Tempo Real -->
+            <div class="p-4 bg-slate-950/80 border border-slate-800/80 rounded-2xl">
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-2">
+                <div>
+                  <h4 class="text-xs font-bold text-slate-200">Adicionar Mais Reuniões à Fila (Durante a Transmissão):</h4>
+                  <p class="text-[11px] text-slate-400">Se o evento for estendido, cole novas salas do Meet criadas pela conta transmissora a qualquer momento.</p>
+                </div>
+                <div class="text-[11px] text-slate-500 font-mono">
+                  Total na Fila: <strong class="text-white" id="monitor-queue-total">${queue.length}</strong>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <input type="url" id="monitor-new-meet-url" placeholder="Cole o link do Google Meet aqui (ex: https://meet.google.com/xxx-yyyy-zzz)..." class="flex-1 bg-slate-900 border border-slate-700 focus:border-blue-500 text-white text-xs font-mono px-3.5 py-2.5 rounded-xl outline-none">
+                <button type="button" onclick="addMeetingToMonitorQueue()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all whitespace-nowrap cursor-pointer">
+                  + Enfileirar Reunião
+                </button>
+              </div>
+
+              <!-- Visualizador das Próximas Salas na Fila -->
+              <div id="monitor-queue-list" class="mt-3 flex flex-wrap gap-2 text-[11px]">
+                <!-- Inserido dinamicamente -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Grid Principal (Áudio e Transcrição) -->
         <main class="max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-          <!-- COLUNA ESQUERDA: HUB DE SAÍDA DE ÁUDIO TRADUZIDO (O MAIS IMPORTANTE) -->
+          <!-- COLUNA ESQUERDA: HUB DE SAÍDA DE ÁUDIO TRADUZIDO -->
           <div class="lg:col-span-5 flex flex-col gap-6">
             
             <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col justify-between">
@@ -1432,14 +1708,14 @@
                   <span id="vol-display" class="font-mono text-blue-400">85%</span>
                 </div>
                 <div class="flex items-center gap-3">
-                  <button id="mute-btn" onclick="toggleMute()" class="p-2 rounded-xl bg-slate-950 border border-slate-800 text-blue-400 text-xs font-bold">
+                  <button id="mute-btn" onclick="toggleMute()" class="p-2 rounded-xl bg-slate-950 border border-slate-800 text-blue-400 text-xs font-bold cursor-pointer">
                     VOL
                   </button>
                   <input id="vol-slider" type="range" min="0" max="100" value="85" oninput="changeVolume(this.value)" class="flex-1 accent-blue-500 h-2 bg-slate-950 rounded-lg cursor-pointer">
                 </div>
               </div>
 
-              <!-- Roteamento de Saída (Caixas, Fones, VB-CABLE / Mesa de Som / OBS) -->
+              <!-- Roteamento de Saída -->
               <div class="space-y-2 mb-4">
                 <label class="block text-xs font-semibold text-slate-300">
                   Roteamento de Saída de Áudio (Dispositivo Físico ou Cabo Virtual)
@@ -1493,7 +1769,7 @@
                 <h2 class="text-base font-bold text-white">Transcrição & Legendas em Tempo Real</h2>
                 <p class="text-xs text-slate-400 mt-0.5">Captura simultânea do que está sendo dito e traduzido</p>
               </div>
-              <button onclick="copyTranscription()" class="text-xs text-slate-300 hover:text-white bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+              <button onclick="copyTranscription()" class="text-xs text-slate-300 hover:text-white bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">
                 Copiar Transcrição
               </button>
             </div>
@@ -1522,6 +1798,122 @@
         </main>
       `;
 
+      // Funções dinâmicas de Orquestração da Fila e Hot-Swap
+      function saveCurrentMeetingState() {
+        try {
+          const allMeetings = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
+          const idx = allMeetings.findIndex(m => m.id === id);
+          if (idx !== -1) {
+            allMeetings[idx] = meeting;
+          } else {
+            allMeetings.push(meeting);
+          }
+          localStorage.setItem('brain_saved_meetings', JSON.stringify(allMeetings));
+        } catch(e) {}
+      }
+
+      function updateMonitorCurrentRoomUI() {
+        const curMeetEl = document.getElementById('monitor-current-meet');
+        const curLinkEl = document.getElementById('monitor-current-link');
+        const badgeEl = document.getElementById('monitor-cycle-badge');
+        if (curMeetEl) curMeetEl.innerText = currentMeetUrl;
+        if (curLinkEl) curLinkEl.href = currentMeetUrl;
+        if (badgeEl) badgeEl.innerText = `Sala Atual Ao Vivo (Ciclo #${queueIdx + 1})`;
+      }
+
+      function updateMonitorQueueUI() {
+        const nextMeetEl = document.getElementById('monitor-next-meet');
+        const copyNextBtn = document.getElementById('monitor-copy-next-btn');
+        const queueStatusEl = document.getElementById('monitor-queue-status');
+        const queueTotalEl = document.getElementById('monitor-queue-total');
+        const queueListEl = document.getElementById('monitor-queue-list');
+
+        const remaining = queue.length - queueIdx - 1;
+        if (nextMeetEl) {
+          nextMeetEl.innerHTML = nextMeetUrl || '<span class="text-amber-400 italic">⚠️ Fila Vazia! Adicione abaixo</span>';
+        }
+        if (copyNextBtn) {
+          if (nextMeetUrl) copyNextBtn.classList.remove('hidden');
+          else copyNextBtn.classList.add('hidden');
+        }
+        if (queueStatusEl) {
+          queueStatusEl.innerText = remaining > 0 ? `${remaining} sala(s) restante(s) na fila` : 'Última sala em transmissão';
+        }
+        if (queueTotalEl) {
+          queueTotalEl.innerText = queue.length;
+        }
+
+        if (queueListEl) {
+          queueListEl.innerHTML = queue.map((url, i) => {
+            if (i < queueIdx) {
+              return `<span class="bg-slate-800 text-slate-500 px-2.5 py-1 rounded-lg line-through">Ciclo #${i+1}: Concluída ✓</span>`;
+            } else if (i === queueIdx) {
+              return `<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-2.5 py-1 rounded-lg font-bold">Ciclo #${i+1}: Ao Vivo ●</span>`;
+            } else if (i === queueIdx + 1) {
+              return `<span class="bg-blue-500/20 text-blue-400 border border-blue-500/40 px-2.5 py-1 rounded-lg font-bold">Ciclo #${i+1}: Próxima na Fila</span>`;
+            } else {
+              return `<span class="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg">Ciclo #${i+1}: Agendada</span>`;
+            }
+          }).join('');
+        }
+      }
+
+      function appendSystemLog(msg) {
+        const box = document.getElementById('transcription-box');
+        if (!box) return;
+        const div = document.createElement('div');
+        div.className = 'p-3 rounded-xl bg-blue-950/40 border border-blue-800/60 text-xs space-y-0.5 animate-in fade-in duration-300';
+        div.innerHTML = `
+          <div class="flex items-center justify-between text-[10px] text-blue-400 font-bold uppercase tracking-wider">
+            <span>Orquestrador Multi-Meet</span>
+            <span class="font-mono text-slate-400">${new Date().toLocaleTimeString('pt-BR')}</span>
+          </div>
+          <div class="text-slate-200 font-medium">${msg}</div>
+        `;
+        box.prepend(div);
+      }
+
+      window.addMeetingToMonitorQueue = function() {
+        const input = document.getElementById('monitor-new-meet-url');
+        if (!input || !input.value.trim()) {
+          alert('Por favor, informe a URL do Google Meet.');
+          return;
+        }
+        const val = input.value.trim();
+        queue.push(val);
+        meeting.meetingQueue = queue;
+        input.value = '';
+
+        if (!nextMeetUrl) {
+          nextMeetUrl = val;
+        }
+
+        saveCurrentMeetingState();
+        updateMonitorQueueUI();
+        appendSystemLog(`➕ Nova reunião enfileirada: ${val} (Total na fila: ${queue.length})`);
+      };
+
+      window.triggerMonitorHotSwapNow = function() {
+        if (queueIdx + 1 < queue.length) {
+          queueIdx++;
+          meeting.currentQueueIndex = queueIdx;
+          currentMeetUrl = queue[queueIdx];
+          nextMeetUrl = queue[queueIdx + 1] || '';
+          countdown = 120; // reinicia timer de 2 minutos para o próximo ciclo
+
+          saveCurrentMeetingState();
+          updateMonitorCurrentRoomUI();
+          updateMonitorQueueUI();
+
+          appendSystemLog(`🔄 Hot-Swap realizado com sucesso! Transmissão agora operando na Sala #${queueIdx + 1}: ${currentMeetUrl}`);
+        } else {
+          alert('⚠️ Fila de reuniões concluída!\n\nCole o link de mais uma sala no campo abaixo para continuar a transição automática.');
+        }
+      };
+
+      // Inicializa a UI da fila
+      updateMonitorQueueUI();
+
       // Simulação animada do espectro sonoro
       const spectrumContainer = document.getElementById('spectrum-bars');
       const heights = [45, 80, 60, 95, 30, 75, 90, 65, 85, 40, 70, 100, 55, 80, 60, 90, 50, 75];
@@ -1535,16 +1927,38 @@
           const rand = Math.floor(20 + Math.random() * 80);
           bars[i].style.height = rand + '%';
         }
-        countdown--;
-        if (countdown > 0) {
-          const m = Math.floor(countdown / 60);
-          const s = countdown % 60;
-          document.getElementById('timer-display').innerText = `${m}m ${s < 10 ? '0' : ''}${s}s`;
-        }
         latency = Math.round(135 + Math.random() * 20);
         document.getElementById('latency-val').innerText = latency + 'ms';
         document.getElementById('rtt-val').innerText = latency + ' ms';
       }, 500);
+
+      // Cronômetro do Hot-Swap (Modo Teste 2 Minutos)
+      setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          if (queueIdx + 1 < queue.length) {
+            triggerMonitorHotSwapNow();
+          } else {
+            countdown = 0;
+            const timerEl = document.getElementById('monitor-swap-timer');
+            const headerTimerEl = document.getElementById('timer-display');
+            if (timerEl) {
+              timerEl.innerHTML = '<span class="text-rose-400 text-sm animate-pulse">⚠️ Adicione mais salas!</span>';
+            }
+            if (headerTimerEl) {
+              headerTimerEl.innerText = '00m 00s (Fila Vazia)';
+            }
+          }
+        } else {
+          const m = Math.floor(countdown / 60);
+          const s = countdown % 60;
+          const timeStr = `${m < 10 ? '0' : ''}${m}m ${s < 10 ? '0' : ''}${s}s`;
+          const timerEl = document.getElementById('monitor-swap-timer');
+          const headerTimerEl = document.getElementById('timer-display');
+          if (timerEl) timerEl.innerText = timeStr;
+          if (headerTimerEl) headerTimerEl.innerText = timeStr;
+        }
+      }, 1000);
 
       window.changeVolume = function(val) {
         volume = val;

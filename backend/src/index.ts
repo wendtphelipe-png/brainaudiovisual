@@ -166,9 +166,10 @@ app.get('/api/meetings/:id', (req: any, res: any) => {
 
 // Iniciar uma nova reunião vinculando 2 contas Google Pro
 app.post('/api/meetings/start', async (req: any, res: any) => {
-    const { title, currentMeetUrl, scheduledNextMeetUrl, accountIds, audioRoomName } = req.body;
+    const { title, currentMeetUrl, scheduledNextMeetUrl, meetingQueue, accountIds, audioRoomName } = req.body;
 
-    if (!currentMeetUrl || !currentMeetUrl.includes('meet.google.com')) {
+    const initialUrl = (meetingQueue && meetingQueue.length > 0) ? meetingQueue[0] : currentMeetUrl;
+    if (!initialUrl || !initialUrl.includes('meet.google.com')) {
         return res.status(400).json({ error: 'Forneça uma URL válida do Google Meet.' });
     }
 
@@ -179,19 +180,33 @@ app.post('/api/meetings/start', async (req: any, res: any) => {
     try {
         const session = sessionManager.createSession({
             title,
-            currentMeetUrl,
+            currentMeetUrl: initialUrl,
             scheduledNextMeetUrl,
+            meetingQueue: meetingQueue || [initialUrl],
             accountIds: [accountIds[0], accountIds[1]],
             audioRoomName
         });
 
         // Dispara o robô de captura para este Meet
-        botManager.swapTo(currentMeetUrl).catch(console.error);
+        botManager.swapTo(initialUrl).catch(console.error);
 
         res.json({ success: true, meeting: session });
     } catch (err: any) {
         res.status(500).json({ error: err.message || 'Falha ao iniciar reunião.' });
     }
+});
+
+// Enfileirar mais uma reunião do Meet durante a sessão
+app.post('/api/meetings/:id/queue', (req: any, res: any) => {
+    const { meetUrl } = req.body;
+    if (!meetUrl || !meetUrl.includes('meet.google.com')) {
+        return res.status(400).json({ error: 'Informe uma URL válida do Google Meet para enfileirar.' });
+    }
+    const session = sessionManager.addMeetingToQueue(req.params.id, meetUrl);
+    if (!session) {
+        return res.status(404).json({ error: 'Reunião não encontrada.' });
+    }
+    res.json({ success: true, meeting: session });
 });
 
 // Forçar hot-swap manual para a próxima reunião agendada

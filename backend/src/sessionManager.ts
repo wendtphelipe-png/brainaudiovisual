@@ -25,7 +25,9 @@ export interface MeetingSession {
     title: string;
     currentMeetUrl: string;
     scheduledNextMeetUrl: string;
-    accountIds: [string, string]; // Exatamente 2 contas Google Pro necessárias
+    meetingQueue?: string[];
+    currentQueueIndex?: number;
+    accountIds: [string, string]; // [transmissor, receptor]
     status: 'active' | 'transitioning' | 'scheduled' | 'ended';
     createdAt: string;
     startedAt: string;
@@ -129,22 +131,26 @@ class SessionManager {
         title: string;
         currentMeetUrl: string;
         scheduledNextMeetUrl?: string;
+        meetingQueue?: string[];
         accountIds: [string, string];
         audioRoomName?: string;
     }): MeetingSession {
         const id = `meet-${Date.now().toString(36)}`;
         const audioRoom = data.audioRoomName || id;
+        const queue = data.meetingQueue && data.meetingQueue.length > 0 ? data.meetingQueue : [data.currentMeetUrl];
 
         const newSession: MeetingSession = {
             id,
             title: data.title || `Reunião Traduzida ${id}`,
-            currentMeetUrl: data.currentMeetUrl,
-            scheduledNextMeetUrl: data.scheduledNextMeetUrl || '',
+            currentMeetUrl: queue[0] || data.currentMeetUrl,
+            scheduledNextMeetUrl: queue[1] || data.scheduledNextMeetUrl || '',
+            meetingQueue: queue,
+            currentQueueIndex: 0,
             accountIds: data.accountIds,
             status: 'active',
             createdAt: new Date().toISOString(),
             startedAt: new Date().toISOString(),
-            nextSwapInSeconds: 3300, // 55 minutos padrão até a transição
+            nextSwapInSeconds: 120, // 2 minutos para modo de teste acelerado!
             totalDurationSeconds: 0,
             audioRoomName: audioRoom,
             telemetry: {
@@ -180,19 +186,44 @@ class SessionManager {
         session.status = 'transitioning';
         session.telemetry.transitionBotInstance = `bot-swap-${Date.now()}`;
 
-        // Simula a transição imperceptível de 5 segundos de sobreposição
+        // Transição suave de sobreposição
         setTimeout(() => {
-            if (session.scheduledNextMeetUrl) {
+            if (session.meetingQueue && session.meetingQueue.length > 0) {
+                const nextIdx = (session.currentQueueIndex || 0) + 1;
+                if (nextIdx < session.meetingQueue.length) {
+                    session.currentQueueIndex = nextIdx;
+                    session.currentMeetUrl = session.meetingQueue[nextIdx];
+                    session.scheduledNextMeetUrl = session.meetingQueue[nextIdx + 1] || '';
+                }
+            } else if (session.scheduledNextMeetUrl) {
                 session.currentMeetUrl = session.scheduledNextMeetUrl;
                 session.scheduledNextMeetUrl = '';
             }
+
             session.status = 'active';
             session.telemetry.activeBotInstance = session.telemetry.transitionBotInstance || 'bot-pro-swap';
             session.telemetry.transitionBotInstance = null;
-            session.nextSwapInSeconds = 3300; // Reinicia o timer para a próxima hora
+            session.nextSwapInSeconds = 120; // Reinicia para mais 2 minutos em modo teste
         }, 5000);
 
         return true;
+    }
+
+    public addMeetingToQueue(id: string, newUrl: string): MeetingSession | null {
+        const session = this.sessions.get(id);
+        if (!session) return null;
+
+        if (!session.meetingQueue) {
+            session.meetingQueue = [session.currentMeetUrl];
+        }
+        session.meetingQueue.push(newUrl.trim());
+
+        if (!session.scheduledNextMeetUrl) {
+            const nextIdx = (session.currentQueueIndex || 0) + 1;
+            session.scheduledNextMeetUrl = session.meetingQueue[nextIdx] || '';
+        }
+
+        return session;
     }
 
     public stopSession(id: string): boolean {
