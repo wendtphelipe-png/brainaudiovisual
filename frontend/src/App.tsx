@@ -12,6 +12,8 @@ import {
   AlertTriangle, ExternalLink, Settings, Terminal, Radio, ShieldAlert
 } from 'lucide-react';
 import ConstructionPage from './components/ConstructionPage';
+import AdminMasterDashboard from './components/AdminMasterDashboard';
+import MeetingRoomMonitor from './components/MeetingRoomMonitor';
 // @ts-ignore
 import '@livekit/components-styles';
 
@@ -20,7 +22,8 @@ const serverUrl = import.meta.env.VITE_LIVEKIT_URL || 'ws://localhost:7880';
 const devToken = '';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'construction' | 'player' | 'admin'>('construction');
+  const [currentView, setCurrentView] = useState<'construction' | 'player' | 'admin' | 'meeting'>('construction');
+  const [activeMeetingId, setActiveMeetingId] = useState<string>('');
   const [token, setToken] = useState<string>(devToken);
   const [roomName, setRoomName] = useState<string>('evento-01');
   const [isGeneratingToken, setIsGeneratingToken] = useState<boolean>(false);
@@ -40,13 +43,20 @@ export default function App() {
       .finally(() => setIsGeneratingToken(false));
   };
 
-  // Pega parâmetros da URL (ex: ?room=evento-01&token=xyz&admin=true)
+  // Pega parâmetros da URL (ex: ?meeting=reuniao-01&admin=true&room=evento-01)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const meetingParam = params.get('meeting');
+    const isUrlAdmin = params.get('admin') === 'true';
     const urlToken = params.get('token');
     const urlRoom = params.get('room');
-    const isUrlAdmin = params.get('admin') === 'true';
     const viewParam = params.get('view');
+
+    if (meetingParam) {
+      setActiveMeetingId(meetingParam);
+      setCurrentView('meeting');
+      return;
+    }
 
     if (isUrlAdmin) {
       setCurrentView('admin');
@@ -66,7 +76,7 @@ export default function App() {
       return;
     }
 
-    // Default: 'construction'
+    // Default: 'construction' (Página Limpa Institucional)
     setCurrentView('construction');
   }, []);
 
@@ -77,6 +87,7 @@ export default function App() {
     const newUrl = new URL(window.location.href);
     newUrl.searchParams.set('room', activeRoom);
     newUrl.searchParams.delete('admin');
+    newUrl.searchParams.delete('meeting');
     window.history.pushState({}, '', newUrl.toString());
     fetchTokenForRoom(activeRoom);
   };
@@ -86,6 +97,7 @@ export default function App() {
     const newUrl = new URL(window.location.href);
     newUrl.searchParams.set('admin', 'true');
     newUrl.searchParams.delete('room');
+    newUrl.searchParams.delete('meeting');
     window.history.pushState({}, '', newUrl.toString());
   };
 
@@ -95,13 +107,17 @@ export default function App() {
     window.history.pushState({}, '', newUrl.toString());
   };
 
-  if (currentView === 'admin') {
+  if (currentView === 'meeting' && activeMeetingId) {
     return (
-      <AdminDashboard 
-        onBackHome={handleBackHome} 
-        onOpenPlayer={() => handleJoinRoom('evento-01')} 
+      <MeetingRoomMonitor 
+        meetingId={activeMeetingId} 
+        onBackToAdmin={handleOpenAdmin} 
       />
     );
+  }
+
+  if (currentView === 'admin') {
+    return <AdminMasterDashboard />;
   }
 
   if (currentView === 'player') {
