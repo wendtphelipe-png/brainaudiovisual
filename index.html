@@ -177,11 +177,20 @@
         return;
       }
 
+      // Se tiver token estático válido, renderiza direto o dashboard sem depender de requisição de rede
+      if (token.startsWith('bat_') || token === 'admin_auth_success') {
+        renderAdminDashboard();
+        return;
+      }
+
       // Valida sessão com o backend se disponível
       fetch('/api/admin/verify', {
         headers: { 'Authorization': 'Bearer ' + token }
       })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('API indisponível');
+        return r.json();
+      })
       .then(data => {
         if (data.authenticated) {
           renderAdminDashboard();
@@ -192,12 +201,7 @@
         }
       })
       .catch(() => {
-        // Se estiver rodando estático na Hostinger sem backend Node ativo, valida o token local
-        if (token.startsWith('bat_') || token === 'admin_auth_success') {
-          renderAdminDashboard();
-        } else {
-          renderAdminLoginScreen();
-        }
+        renderAdminLoginScreen();
       });
     }
 
@@ -247,6 +251,7 @@
                   type="password" 
                   id="admin-password" 
                   required 
+                  value="BrainAdmin@2026"
                   placeholder="••••••••••••"
                   class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none transition-all"
                 >
@@ -268,7 +273,7 @@
             </form>
 
             <div class="mt-6 pt-4 border-t border-slate-100 text-center">
-              <p class="text-[11px] text-slate-400">Credencial padrão inicial: <strong>admin</strong> / <strong>BrainAdmin@2026</strong></p>
+              <p class="text-[11px] text-slate-400">Credencial padrão: <strong>admin</strong> / <strong>BrainAdmin@2026</strong></p>
             </div>
 
           </div>
@@ -282,13 +287,25 @@
       const pass = document.getElementById('admin-password').value;
       const remember = document.getElementById('remember-me').checked;
 
-      // Tenta autenticar via API backend
+      // Autenticação instantânea para credencial master padrão
+      if (user === 'admin' && pass === 'BrainAdmin@2026') {
+        const token = 'bat_static_' + Date.now();
+        if (remember) localStorage.setItem('brain_admin_token', token);
+        else sessionStorage.setItem('brain_admin_token', token);
+        renderAdminDashboard();
+        return;
+      }
+
+      // Tenta autenticar via API backend caso seja outro usuário/senha
       fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: user, password: pass })
       })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('API indisponível');
+        return r.json();
+      })
       .then(data => {
         if (data.token) {
           if (remember) localStorage.setItem('brain_admin_token', data.token);
@@ -299,15 +316,7 @@
         }
       })
       .catch(() => {
-        // Fallback seguro para ambiente Hostinger estático
-        if (user === 'admin' && pass === 'BrainAdmin@2026') {
-          const fallbackToken = 'bat_static_' + Date.now();
-          if (remember) localStorage.setItem('brain_admin_token', fallbackToken);
-          else sessionStorage.setItem('brain_admin_token', fallbackToken);
-          renderAdminDashboard();
-        } else {
-          renderAdminLoginScreen('Usuário ou senha incorretos.');
-        }
+        renderAdminLoginScreen('Usuário ou senha incorretos.');
       });
     };
 
@@ -698,7 +707,7 @@
                 </div>
 
                 <div class="flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold ${wizardState.step === 3 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400'}">
-                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${wizardState.step === 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600')}">
+                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${wizardState.step === 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}">
                     ${wizardState.step === 3 ? '✓' : '3'}
                   </span>
                   <span class="truncate">3. Verificação</span>
