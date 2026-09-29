@@ -3,21 +3,37 @@ name: Deploy to Hostinger VPS
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
+  check-configuration:
+    name: Verificar Secrets de Implantação
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checar se Secrets da VPS estão configuradas
+        run: |
+          if [ -z "${{ secrets.VPS_HOST }}" ]; then
+            echo "::notice title=Deploy Ignorado::As credenciais de VPS (VPS_HOST, VPS_USERNAME, VPS_PASSWORD) ainda não foram cadastradas em Settings > Secrets do novo repositório. O deploy automático via SSH será executado assim que forem configuradas."
+          else
+            echo "Credenciais de VPS detectadas. Prosseguindo para o deploy..."
+          fi
+
   deploy:
-    runs-on: ubuntu-latest
+    name: Executar Deploy via SSH
+    needs: check-configuration
+    if: ${{ secrets.VPS_HOST != '' }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Deploy application via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
-          password: ${{ secrets.VPS_PASSWORD }} # Ou use key: ${{ secrets.VPS_SSH_KEY }} se preferir chave pública
+          password: ${{ secrets.VPS_PASSWORD }} # Ou use key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           script: |
             # Navega até a pasta do projeto (ajuste o caminho de acordo com sua VPS)
-            cd /var/www/brainlingo || exit
+            cd /var/www/brainaudiovisual || cd /var/www/brainlingo || exit
             
             # Puxa o código mais recente do GitHub
             git pull origin main
@@ -27,7 +43,6 @@ jobs:
             echo "VITE_LIVEKIT_URL=${{ secrets.LIVEKIT_URL }}" > .env
             npm install
             npm run build
-            # cp -r dist/* /var/www/html/brainlingo/
             
             # --- BUILD BACKEND ---
             cd ../backend
@@ -39,5 +54,4 @@ jobs:
             npm run build
             
             # --- RESTART BOT (PM2) ---
-            # Inicia o PM2 se não estiver rodando, ou reinicia se já estiver
-            pm2 restart brainlingo-bot || pm2 start dist/index.js --name "brainlingo-bot"
+            pm2 restart brainaudiovisual-bot || pm2 restart brainlingo-bot || pm2 start dist/index.js --name "brainaudiovisual-bot"
