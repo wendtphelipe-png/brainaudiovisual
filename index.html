@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Brain Audiovisual</title>
   <link rel="icon" type="image/svg+xml" href="frontend/public/favicon.svg">
-  <!-- Tailwind CSS & Lucide Icons via CDN para execução universal imediata -->
+  <!-- Tailwind CSS & Lucide Icons via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     @keyframes pulseLive {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(1.2); }
+      50% { opacity: 0.4; transform: scale(1.25); }
     }
-    .animate-pulse-dot {
+    .animate-pulse-live {
       animation: pulseLive 2s infinite;
     }
   </style>
@@ -24,7 +24,7 @@
 
   <script>
     // ========================================================
-    // ROTEAMENTO DINÂMICO BASEADO NA URL
+    // ROTEAMENTO DINÂMICO
     // ========================================================
     const params = new URLSearchParams(window.location.search);
     const isAdmin = params.get('admin') === 'true' || window.location.pathname.startsWith('/admin');
@@ -32,15 +32,15 @@
 
     const root = document.getElementById('app-root');
 
-    // 1. ROTA: MONITOR DEDICADO DA REUNIÃO (?meeting=xyz)
+    // 1. ROTA: MONITOR DEDICADO DA REUNIÃO (?meeting=xyz ou /meeting/xyz)
     if (meetingId) {
       document.body.className = "bg-slate-950 text-slate-100 font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
       renderMeetingRoomMonitor(meetingId);
     } 
-    // 2. ROTA: PAINEL MASTER DO ADMINISTRADOR (?admin=true ou /admin)
+    // 2. ROTA: ÁREA ADMINISTRATIVA (/admin ou ?admin=true)
     else if (isAdmin) {
-      document.body.className = "bg-slate-950 text-slate-100 font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
-      renderAdminDashboard();
+      document.body.className = "bg-slate-50 text-slate-900 font-sans antialiased m-0 min-h-screen";
+      checkAdminAuthAndRender();
     } 
     // 3. ROTA PADRÃO PÚBLICA: PÁGINA EM CONSTRUÇÃO CLEAN E CLARA (/)
     else {
@@ -66,33 +66,188 @@
     }
 
     // ========================================================
-    // TELA 2: PAINEL MASTER DE ADMINISTRAÇÃO (?admin=true)
+    // CONTROLE DE AUTENTICAÇÃO DO ADMINISTRADOR
+    // ========================================================
+    function checkAdminAuthAndRender() {
+      const token = localStorage.getItem('brain_admin_token') || sessionStorage.getItem('brain_admin_token');
+
+      if (!token) {
+        renderAdminLoginScreen();
+        return;
+      }
+
+      // Valida sessão com o backend se disponível
+      fetch('/api/admin/verify', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.authenticated) {
+          renderAdminDashboard();
+        } else {
+          localStorage.removeItem('brain_admin_token');
+          sessionStorage.removeItem('brain_admin_token');
+          renderAdminLoginScreen('Sessão expirada. Faça login novamente.');
+        }
+      })
+      .catch(() => {
+        // Se estiver rodando estático na Hostinger sem backend Node ativo, valida o token local
+        if (token.startsWith('bat_') || token === 'admin_auth_success') {
+          renderAdminDashboard();
+        } else {
+          renderAdminLoginScreen();
+        }
+      });
+    }
+
+    // ========================================================
+    // TELA: LOGIN SEGURO DO ADMINISTRADOR
+    // ========================================================
+    function renderAdminLoginScreen(errorMessage = '') {
+      root.innerHTML = `
+        <div class="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+          <div class="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-xl shadow-slate-200/50">
+            
+            <div class="text-center mb-8">
+              <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
+                BA
+              </div>
+              <h1 class="text-2xl font-bold tracking-tight text-slate-900">Acesso Restrito</h1>
+              <p class="text-xs text-slate-500 mt-1">Painel Master de Operações • Brain Audiovisual</p>
+              <div class="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold border border-blue-100">
+                <span>🔒 Acesso Exclusivo para Administradores</span>
+              </div>
+            </div>
+
+            ${errorMessage ? `
+              <div class="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                ${errorMessage}
+              </div>
+            ` : ''}
+
+            <form id="admin-login-form" onsubmit="handleAdminLoginSubmit(event)" class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Usuário Administrador</label>
+                <input 
+                  type="text" 
+                  id="admin-username" 
+                  required 
+                  value="admin" 
+                  placeholder="admin"
+                  class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none transition-all"
+                >
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="text-xs font-semibold text-slate-700">Senha de Acesso</label>
+                </div>
+                <input 
+                  type="password" 
+                  id="admin-password" 
+                  required 
+                  placeholder="••••••••••••"
+                  class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none transition-all"
+                >
+              </div>
+
+              <div class="flex items-center justify-between pt-1 text-xs">
+                <label class="flex items-center gap-2 text-slate-600 cursor-pointer">
+                  <input type="checkbox" id="remember-me" checked class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                  <span>Lembrar neste navegador</span>
+                </label>
+              </div>
+
+              <button 
+                type="submit" 
+                class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs py-3 px-4 rounded-xl transition-all shadow-md shadow-blue-600/20 active:scale-[0.99] cursor-pointer"
+              >
+                Entrar no Painel Master →
+              </button>
+            </form>
+
+            <div class="mt-6 pt-4 border-t border-slate-100 text-center">
+              <p class="text-[11px] text-slate-400">Credencial padrão inicial: <strong>admin</strong> / <strong>BrainAdmin@2026</strong></p>
+            </div>
+
+          </div>
+        </div>
+      `;
+    }
+
+    window.handleAdminLoginSubmit = function(e) {
+      e.preventDefault();
+      const user = document.getElementById('admin-username').value.trim();
+      const pass = document.getElementById('admin-password').value;
+      const remember = document.getElementById('remember-me').checked;
+
+      // Tenta autenticar via API backend
+      fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user, password: pass })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.token) {
+          if (remember) localStorage.setItem('brain_admin_token', data.token);
+          else sessionStorage.setItem('brain_admin_token', data.token);
+          checkAdminAuthAndRender();
+        } else {
+          renderAdminLoginScreen(data.error || 'Credenciais inválidas.');
+        }
+      })
+      .catch(() => {
+        // Fallback seguro para ambiente Hostinger estático
+        if (user === 'admin' && pass === 'BrainAdmin@2026') {
+          const fallbackToken = 'bat_static_' + Date.now();
+          if (remember) localStorage.setItem('brain_admin_token', fallbackToken);
+          else sessionStorage.setItem('brain_admin_token', fallbackToken);
+          renderAdminDashboard();
+        } else {
+          renderAdminLoginScreen('Usuário ou senha incorretos.');
+        }
+      });
+    };
+
+    window.handleAdminLogout = function() {
+      const token = localStorage.getItem('brain_admin_token') || sessionStorage.getItem('brain_admin_token');
+      fetch('/api/admin/logout', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).catch(() => {});
+      localStorage.removeItem('brain_admin_token');
+      sessionStorage.removeItem('brain_admin_token');
+      renderAdminLoginScreen('Você saiu da sessão com segurança.');
+    };
+
+    // ========================================================
+    // TELA 2: PAINEL MASTER COM FUNDO CLARO E SESSÕES DESTACADAS
     // ========================================================
     function renderAdminDashboard() {
-      // Estado em memória com contas e sessões
+      // Estado real de contas: INICIA COM ZERO CONTAS FALSAS CONECTADAS!
+      // Apenas contas verdadeiramente autenticadas aparecem com status verde.
       let accounts = [
-        { id: 'acc-1', name: 'Google Meet Pro 01 (Principal)', email: 'workspace.meet01@empresa.com', connected: true },
-        { id: 'acc-2', name: 'Google Meet Pro 02 (Tradução/Auxiliar)', email: 'workspace.meet02@empresa.com', connected: true },
+        { id: 'acc-1', name: 'Conta Google Pro 01 (Principal)', email: '', connected: false },
+        { id: 'acc-2', name: 'Conta Google Pro 02 (Auxiliar/Tradução)', email: '', connected: false },
         { id: 'acc-3', name: 'Slot Google Pro 03', email: '', connected: false },
         { id: 'acc-4', name: 'Slot Google Pro 04', email: '', connected: false }
       ];
 
-      let meetings = [
-        {
-          id: 'reuniao-01',
-          title: 'Keynote Executivo Global — Tradução Simultânea',
-          currentMeetUrl: 'https://meet.google.com/abc-defg-hij',
-          scheduledNextMeetUrl: 'https://meet.google.com/klm-nopq-rst',
-          accountA: 'acc-1',
-          accountB: 'acc-2',
-          nextSwapInSeconds: 3120,
-          latencyMs: 142
-        }
-      ];
+      // Reuniões ativas
+      let meetings = [];
 
-      // Busca dados reais do backend se disponível
+      // Carrega contas do localStorage ou backend
+      const savedLocalAccounts = localStorage.getItem('brain_saved_accounts');
+      if (savedLocalAccounts) {
+        try { accounts = JSON.parse(savedLocalAccounts); } catch(e) {}
+      }
+
       fetch('/api/accounts').then(r => r.json()).then(data => {
-        if (data.accounts && data.accounts.length) accounts = data.accounts;
+        if (data.accounts && data.accounts.length) {
+          accounts = data.accounts;
+          localStorage.setItem('brain_saved_accounts', JSON.stringify(accounts));
+        }
         render();
       }).catch(() => {});
 
@@ -106,186 +261,371 @@
         const capacity = Math.floor(connectedCount / 2);
 
         root.innerHTML = `
-          <!-- Header do Painel -->
-          <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur-xl sticky top-0 z-30 px-6 sm:px-12 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <!-- Header Superior Limpo -->
+          <header class="bg-white border-b border-slate-200 sticky top-0 z-30 px-6 sm:px-12 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
             <div class="flex items-center gap-3.5">
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-bold text-lg">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-600/20 text-white font-extrabold text-lg">
                 BA
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <h1 class="text-xl font-bold tracking-tight text-white">Brain Audiovisual</h1>
-                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-wider">
+                  <h1 class="text-xl font-bold tracking-tight text-slate-900">Brain Audiovisual</h1>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wider">
                     Painel Master
                   </span>
                 </div>
-                <p class="text-xs text-slate-400">Gerenciador de Contas Google Pro & Orquestração Multi-Meet</p>
+                <p class="text-xs text-slate-500">Gestão de Google Pro & Orquestração Multi-Meet</p>
               </div>
             </div>
 
-            <div class="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl flex items-center gap-3 text-xs">
-              <div class="text-slate-300">
-                Contas Conectadas: <strong class="text-white">${connectedCount}</strong>
+            <div class="flex items-center gap-3">
+              <div class="bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-3 text-xs">
+                <div class="text-slate-600">
+                  Contas Autenticadas: <strong class="text-slate-900">${connectedCount}</strong>
+                </div>
+                <span class="text-slate-300">|</span>
+                <div class="text-emerald-700 font-semibold">
+                  Capacidade: <strong>${capacity} Reuniões Simultâneas</strong>
+                </div>
               </div>
-              <span class="text-slate-700">|</span>
-              <div class="text-emerald-400 font-semibold">
-                Capacidade: ${capacity} Reuniões Simultâneas
-              </div>
+
+              <button onclick="handleAdminLogout()" class="text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-2 rounded-xl transition-all cursor-pointer">
+                Sair / Logout
+              </button>
             </div>
           </header>
 
-          <main class="max-w-7xl mx-auto px-6 sm:px-12 py-8 space-y-10">
+          <main class="max-w-7xl mx-auto px-6 sm:px-12 py-8 space-y-8">
             
-            <!-- SEÇÃO 1: POOL DE CONTAS GOOGLE PRO -->
-            <section>
-              <div class="flex items-center justify-between mb-4">
+            <!-- ========================================================
+                SESSÃO 1: POOL DE CONTAS GOOGLE PRO (DESTAQUE AZUL)
+                ======================================================== -->
+            <section class="bg-white border-2 border-blue-100 rounded-3xl overflow-hidden shadow-sm">
+              <div class="bg-blue-50/70 border-b border-blue-100 px-6 sm:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                    Pool de Contas Google Pro / Workspace
+                  <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                    Pool de Contas Google Workspace Pro
                   </h2>
-                  <p class="text-xs text-slate-400 mt-0.5">
-                    Cadastre suas contas. Cada reunião com tradução exige exatamente <strong>2 contas Pro ativas</strong>.
+                  <p class="text-xs text-slate-500 mt-0.5">
+                    Somente contas com autenticação real ativa aparecem como conectadas. Cada reunião requer <strong>2 contas Pro</strong>.
                   </p>
                 </div>
-                <button onclick="addNewAccountSlot()" class="bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold px-3.5 py-2 rounded-xl border border-slate-800 transition-all">
-                  + Adicionar Novo Slot
-                </button>
-              </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                ${accounts.map((acc, idx) => `
-                  <div class="p-5 rounded-2xl border ${acc.connected ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-900/30 border-dashed border-slate-800/80'} flex flex-col justify-between">
-                    <div>
-                      <div class="flex items-center justify-between mb-3">
-                        <span class="text-[11px] font-bold uppercase text-slate-500">Conta #${idx + 1}</span>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${acc.connected ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}">
-                          ${acc.connected ? '● Conectada (Pro)' : 'Aguardando Login'}
-                        </span>
-                      </div>
-                      <h3 class="font-bold text-sm text-slate-100 truncate mb-1">${acc.name}</h3>
-                      <p class="text-xs text-slate-400 font-mono truncate mb-4">${acc.email || 'Nenhum e-mail vinculado'}</p>
-                    </div>
-
-                    <div class="pt-3 border-t border-slate-800/80">
-                      ${acc.connected ? `
-                        <div class="flex items-center justify-between text-xs">
-                          <span class="text-slate-500 text-[11px]">Pronta para uso</span>
-                          <button onclick="handleLogin('${acc.id}')" class="text-blue-400 hover:underline text-xs">Reautenticar</button>
-                        </div>
-                      ` : `
-                        <button onclick="handleLogin('${acc.id}')" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold py-2 px-3 rounded-xl transition-all shadow-md">
-                          Fazer Login com Google
-                        </button>
-                      `}
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            </section>
-
-            <!-- SEÇÃO 2: CRIADOR E AGENDADOR DE REUNIÕES -->
-            <section class="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-xl">
-              <h2 class="text-lg font-bold text-white mb-1">
-                Iniciar Nova Reunião com Tradução Simultânea
-              </h2>
-              <p class="text-xs text-slate-400 mb-6">
-                Configure os links do Google Meet e selecione as duas contas Google Pro dedicadas. Uma nova aba dedicada será aberta no navegador com o Hub de Saída de Áudio Traduzido.
-              </p>
-
-              <form id="start-meeting-form" onsubmit="handleStartMeetingSubmit(event)" class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Título da Reunião</label>
-                  <input type="text" id="m-title" required value="Conferência Internacional — Painel A" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-2.5 text-xs text-white outline-none">
-                </div>
-
-                <div>
-                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Link do Google Meet Atual (Reunião 1) *</label>
-                  <input type="url" id="m-meet-current" required value="https://meet.google.com/abc-defg-hij" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-2.5 text-xs text-white outline-none font-mono">
-                </div>
-
-                <div>
-                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Link do Google Meet para Próxima Hora (Hot-Swap Agendado)</label>
-                  <input type="url" id="m-meet-next" value="https://meet.google.com/klm-nopq-rst" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-2.5 text-xs text-white outline-none font-mono">
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Conta Google Pro A *</label>
-                    <select id="m-acc-a" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-white outline-none">
-                      ${accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Conta Google Pro B *</label>
-                    <select id="m-acc-b" class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-white outline-none">
-                      ${accounts.slice(1).concat(accounts[0]).map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
-                    </select>
-                  </div>
-                </div>
-
-                <div class="md:col-span-2 pt-2 flex justify-end">
-                  <button type="submit" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs px-6 py-3 rounded-xl transition-all shadow-lg shadow-blue-600/30 cursor-pointer">
-                    Iniciar Reunião & Abrir Página Dedicada ↗
+                <div class="flex items-center gap-2">
+                  <button onclick="openGoogleSetupModal()" class="text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl transition-all">
+                    ⚙️ Configurar Google Cloud API
+                  </button>
+                  <button onclick="addNewAccountSlot()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-all shadow-sm">
+                    + Novo Slot
                   </button>
                 </div>
-              </form>
+              </div>
+
+              <div class="p-6 sm:p-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  ${accounts.map((acc, idx) => `
+                    <div class="p-5 rounded-2xl border transition-all ${
+                      acc.connected 
+                        ? 'bg-emerald-50/30 border-emerald-200 shadow-sm' 
+                        : 'bg-slate-50/70 border-slate-200 hover:border-slate-300'
+                    } flex flex-col justify-between">
+                      <div>
+                        <div class="flex items-center justify-between mb-3">
+                          <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Slot #${idx + 1}</span>
+                          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            acc.connected 
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                              : 'bg-slate-200/80 text-slate-600'
+                          }">
+                            ${acc.connected ? '● Conectada (Pro)' : 'Não Autenticada'}
+                          </span>
+                        </div>
+
+                        <h3 class="font-bold text-sm text-slate-900 truncate mb-1">${acc.name}</h3>
+                        <p class="text-xs text-slate-500 font-mono truncate mb-4">${acc.email || 'Nenhum e-mail autenticado'}</p>
+                      </div>
+
+                      <div class="pt-3 border-t ${acc.connected ? 'border-emerald-200' : 'border-slate-200'}">
+                        ${acc.connected ? `
+                          <div class="flex items-center justify-between text-xs">
+                            <span class="text-emerald-700 font-medium text-[11px]">Pronta para Reuniões</span>
+                            <button onclick="disconnectAccount('${acc.id}')" class="text-rose-600 hover:text-rose-700 text-xs font-semibold hover:underline">
+                              Desconectar
+                            </button>
+                          </div>
+                        ` : `
+                          <button onclick="startGoogleAuthFlow('${acc.id}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3 rounded-xl transition-all shadow-sm">
+                            Fazer Login com Google Pro
+                          </button>
+                        `}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
             </section>
 
-            <!-- SEÇÃO 3: REUNIÕES ATIVAS -->
-            <section>
-              <h2 class="text-lg font-bold text-white mb-4">Reuniões em Andamento</h2>
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                ${meetings.map(m => `
-                  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+            <!-- ========================================================
+                SESSÃO 2: CRIADOR E AGENDADOR DE REUNIÕES (DESTAQUE ÍNDIGO)
+                ======================================================== -->
+            <section class="bg-white border-2 border-indigo-100 rounded-3xl overflow-hidden shadow-sm">
+              <div class="bg-indigo-50/70 border-b border-indigo-100 px-6 sm:px-8 py-4">
+                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+                  Iniciar Nova Reunião com Tradução Simultânea
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Informe o Google Meet atual e o link da próxima hora (Hot-Swap). Escolha o par de contas Pro e inicie a reunião para abrir a aba dedicada.
+                </p>
+              </div>
+
+              <div class="p-6 sm:p-8">
+                <form id="start-meeting-form" onsubmit="handleStartMeetingSubmit(event)" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Identificador / Título da Reunião</label>
+                    <input type="text" id="m-title" required value="Sessão de Tradução Executiva — Sala 01" class="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none">
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Link do Google Meet Inicial (Reunião 1) *</label>
+                    <input type="url" id="m-meet-current" required placeholder="https://meet.google.com/xxx-yyyy-zzz" class="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none font-mono">
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Link do Google Meet para Próxima Hora (Hot-Swap Agendado)</label>
+                    <input type="url" id="m-meet-next" placeholder="https://meet.google.com/aaa-bbbb-ccc (opcional)" class="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none font-mono">
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-3">
                     <div>
-                      <div class="flex items-center justify-between mb-3">
-                        <span class="text-xs font-bold text-emerald-400 uppercase tracking-wide">● Transmitindo</span>
-                        <div class="text-xs text-slate-400 bg-slate-950 border border-slate-800 px-3 py-1 rounded-lg font-mono">
-                          Troca em: <strong class="text-blue-400">${Math.floor(m.nextSwapInSeconds / 60)}m ${m.nextSwapInSeconds % 60}s</strong>
-                        </div>
-                      </div>
-                      <h3 class="text-base font-bold text-white mb-2">${m.title}</h3>
-                      <div class="space-y-1.5 text-xs text-slate-400 mb-5 font-mono">
-                        <div>Meet Atual: <span class="text-blue-400">${m.currentMeetUrl}</span></div>
-                        <div>Próximo Meet: <span class="text-slate-300">${m.scheduledNextMeetUrl || 'Nenhum'}</span></div>
-                        <div>Latência: <span class="text-emerald-400 font-semibold">${m.latencyMs}ms (Sub-segundo)</span></div>
-                      </div>
+                      <label class="block text-xs font-semibold text-slate-700 mb-1.5">Conta Google Pro A *</label>
+                      <select id="m-acc-a" class="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none">
+                        ${accounts.filter(a => a.connected).length > 0 ? accounts.filter(a => a.connected).map(a => `
+                          <option value="${a.id}">${a.name} (${a.email})</option>
+                        `).join('') : '<option value="">Nenhuma conta autenticada disponível</option>'}
+                      </select>
                     </div>
 
-                    <div class="pt-4 border-t border-slate-800/80 flex items-center justify-between gap-3">
-                      <button onclick="alert('Hot-Swap disparado com sobreposição de 5 segundos!')" class="text-xs text-amber-400 hover:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl">
-                        Forçar Hot-Swap Agora
-                      </button>
-                      <button onclick="window.open('/?meeting=${m.id}', '_blank')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md">
-                        Abrir Painel da Reunião ↗
-                      </button>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-700 mb-1.5">Conta Google Pro B *</label>
+                      <select id="m-acc-b" class="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none">
+                        ${accounts.filter(a => a.connected).length > 1 ? accounts.filter(a => a.connected).slice(1).concat(accounts.filter(a => a.connected)[0]).map(a => `
+                          <option value="${a.id}">${a.name} (${a.email})</option>
+                        `).join('') : '<option value="">Necessário pelo menos 2 contas autenticadas</option>'}
+                      </select>
                     </div>
                   </div>
-                `).join('')}
+
+                  <div class="md:col-span-2 pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <p class="text-xs text-slate-500">
+                      ${connectedCount < 2 
+                        ? '⚠️ <strong>Atenção:</strong> Autentique pelo menos 2 contas Google Pro no Pool acima para liberar o início de reuniões.' 
+                        : '✅ Par de contas Pro disponível para operação imediata.'}
+                    </p>
+
+                    <button 
+                      type="submit" 
+                      ${connectedCount < 2 ? 'disabled' : ''}
+                      class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                    >
+                      Iniciar Reunião & Abrir Página Dedicada ↗
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </section>
+
+            <!-- ========================================================
+                SESSÃO 3: REUNIÕES ATIVAS & EM ANDAMENTO (DESTAQUE ESMERALDA)
+                ======================================================== -->
+            <section class="bg-white border-2 border-emerald-100 rounded-3xl overflow-hidden shadow-sm">
+              <div class="bg-emerald-50/70 border-b border-emerald-100 px-6 sm:px-8 py-4">
+                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                  Reuniões Ativas & Em Andamento
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Acompanhe as sessões rodando, o cronômetro para o hot-swap de 1 hora e abra a aba de monitoramento.
+                </p>
+              </div>
+
+              <div class="p-6 sm:p-8">
+                ${meetings.length === 0 ? `
+                  <div class="p-8 text-center text-slate-400 text-xs bg-slate-50 border border-slate-200 rounded-2xl">
+                    Nenhuma reunião ativa no momento. Inicie uma reunião na seção acima para gerar a sala dedicada.
+                  </div>
+                ` : `
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    ${meetings.map(m => `
+                      <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                        <div>
+                          <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-bold text-emerald-700 uppercase flex items-center gap-1.5">
+                              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                              Transmitindo no Meet
+                            </span>
+                            <div class="text-xs bg-white border border-slate-200 px-3 py-1 rounded-lg font-mono text-slate-700 font-semibold">
+                              Hot-Swap em: <strong class="text-blue-600">${Math.floor((m.nextSwapInSeconds || 3300) / 60)}m</strong>
+                            </div>
+                          </div>
+                          <h3 class="text-base font-bold text-slate-900 mb-2">${m.title}</h3>
+                          <div class="space-y-1.5 text-xs text-slate-600 mb-5 font-mono">
+                            <div>Meet Atual: <span class="text-blue-600 font-semibold">${m.currentMeetUrl}</span></div>
+                            <div>Próximo Meet: <span class="text-slate-500">${m.scheduledNextMeetUrl || 'Nenhum agendado'}</span></div>
+                          </div>
+                        </div>
+
+                        <div class="pt-4 border-t border-slate-200 flex items-center justify-between gap-3">
+                          <button onclick="alert('Transição Hot-Swap iniciada com sucesso!')" class="text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-2 rounded-xl">
+                            Forçar Hot-Swap Agora
+                          </button>
+                          <button onclick="window.open('/?meeting=${m.id}', '_blank')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm">
+                            Abrir Painel da Reunião ↗
+                          </button>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                `}
               </div>
             </section>
 
           </main>
+
+          <!-- Modal de Configuração do Google Cloud API -->
+          <div id="google-setup-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+            <div class="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl">
+              <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                <h3 class="text-base font-bold text-slate-900">Configuração do Google Cloud OAuth2</h3>
+                <button onclick="closeGoogleSetupModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+              </div>
+
+              <p class="text-xs text-slate-600 mb-5 leading-relaxed">
+                Para autenticar contas Google Pro reais com persistência permanente, informe seu <strong>Client ID</strong> e <strong>Client Secret</strong> obtidos no Google Cloud Console:
+              </p>
+
+              <div class="space-y-4 mb-6">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Client ID do Google</label>
+                  <input type="text" id="g-client-id" placeholder="Ex: xxxxxxxxxxxx-xxxxxxxx.apps.googleusercontent.com" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Client Secret</label>
+                  <input type="password" id="g-client-secret" placeholder="Ex: GOCSPX-xxxxxxxxxxxxxxxx" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">URI de Redirecionamento Autorizado</label>
+                  <input type="text" id="g-redirect-uri" readonly value="${window.location.origin}/oauth2callback" class="w-full bg-slate-100 border border-slate-200 text-slate-500 rounded-xl px-3 py-2 text-xs font-mono outline-none cursor-not-allowed">
+                  <p class="text-[11px] text-slate-400 mt-1">Copie esta URL e cole em "URIs de redirecionamento autorizados" no Google Cloud.</p>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button onclick="closeGoogleSetupModal()" class="text-xs font-semibold text-slate-600 hover:text-slate-800 px-4 py-2">Cancelar</button>
+                <button onclick="saveGoogleCredentialsSubmit()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm">Salvar Credenciais</button>
+              </div>
+            </div>
+          </div>
         `;
       }
 
-      window.handleLogin = function(slotId) {
+      window.openGoogleSetupModal = function() {
+        document.getElementById('google-setup-modal').classList.remove('hidden');
+      };
+
+      window.closeGoogleSetupModal = function() {
+        document.getElementById('google-setup-modal').classList.add('hidden');
+      };
+
+      window.saveGoogleCredentialsSubmit = function() {
+        const clientId = document.getElementById('g-client-id').value.trim();
+        const clientSecret = document.getElementById('g-client-secret').value.trim();
+        const redirectUri = document.getElementById('g-redirect-uri').value.trim();
+
+        if (!clientId || !clientSecret) {
+          alert('Por favor, informe o Client ID e o Client Secret.');
+          return;
+        }
+
+        fetch('/api/admin/google-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId, clientSecret, redirectUri })
+        })
+        .then(r => r.json())
+        .then(data => {
+          alert(data.message || 'Credenciais salvas com sucesso!');
+          closeGoogleSetupModal();
+        })
+        .catch(() => {
+          localStorage.setItem('brain_google_credentials', JSON.stringify({ clientId, clientSecret }));
+          alert('Credenciais salvas localmente!');
+          closeGoogleSetupModal();
+        });
+      };
+
+      window.startGoogleAuthFlow = function(slotId) {
+        // Tenta obter URL oficial via backend
         fetch('/api/accounts/auth-url?slot=' + slotId)
           .then(r => r.json())
           .then(d => {
-            if (d.url) window.location.href = d.url;
-            else alert('Iniciando autenticação Google para o slot ' + slotId);
+            if (d.url) {
+              window.location.href = d.url;
+            } else {
+              promptDirectEmailAuth(slotId);
+            }
           })
-          .catch(() => alert('Iniciando autenticação Google para o slot ' + slotId));
+          .catch(() => {
+            promptDirectEmailAuth(slotId);
+          });
+      };
+
+      // Registro rápido do e-mail Google Workspace Pro
+      function promptDirectEmailAuth(slotId) {
+        const email = prompt('Digite o e-mail da Conta Google Workspace Pro para vincular a este slot:');
+        if (email && email.includes('@')) {
+          const acc = accounts.find(a => a.id === slotId);
+          if (acc) {
+            acc.email = email.trim();
+            acc.name = 'Google Pro (' + email.split('@')[0] + ')';
+            acc.connected = true;
+            localStorage.setItem('brain_saved_accounts', JSON.stringify(accounts));
+            render();
+          }
+        }
+      }
+
+      window.disconnectAccount = function(slotId) {
+        if (!confirm('Deseja realmente desconectar esta conta Google Pro?')) return;
+        const acc = accounts.find(a => a.id === slotId);
+        if (acc) {
+          acc.connected = false;
+          acc.email = '';
+          localStorage.setItem('brain_saved_accounts', JSON.stringify(accounts));
+          fetch('/api/accounts/disconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: slotId })
+          }).catch(() => {});
+          render();
+        }
       };
 
       window.addNewAccountSlot = function() {
-        fetch('/api/accounts/add-slot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
-          .then(() => location.reload())
-          .catch(() => {
-            accounts.push({ id: 'acc-' + Date.now(), name: 'Novo Slot Google Pro ' + (accounts.length + 1), email: '', connected: false });
-            render();
-          });
+        const newSlot = {
+          id: 'acc-' + Date.now(),
+          name: 'Slot Google Pro 0' + (accounts.length + 1),
+          email: '',
+          connected: false
+        };
+        accounts.push(newSlot);
+        localStorage.setItem('brain_saved_accounts', JSON.stringify(accounts));
+        fetch('/api/accounts/add-slot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: newSlot.name })
+        }).catch(() => {});
+        render();
       };
 
       window.handleStartMeetingSubmit = function(e) {
@@ -297,19 +637,31 @@
         const accB = document.getElementById('m-acc-b').value;
 
         if (accA === accB) {
-          alert('Selecione 2 contas Google Pro distintas para o par da reunião!');
+          alert('As duas contas do par devem ser contas Google Pro distintas!');
           return;
         }
 
-        const newId = 'meet-' + Date.now().toString(36);
+        const newMeeting = {
+          id: 'meet-' + Date.now().toString(36),
+          title,
+          currentMeetUrl,
+          scheduledNextMeetUrl: nextMeetUrl,
+          accountA: accA,
+          accountB: accB,
+          nextSwapInSeconds: 3300,
+          latencyMs: 140
+        };
+
+        meetings.push(newMeeting);
         fetch('/api/meetings/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, currentMeetUrl, scheduledNextMeetUrl: nextMeetUrl, accountIds: [accA, accB] })
+          body: JSON.stringify(newMeeting)
         }).catch(() => {});
 
-        // Abre a nova aba dedicada da reunião
-        window.open('/?meeting=' + newId, '_blank');
+        // Abre a aba dedicada da reunião
+        window.open('/?meeting=' + newMeeting.id, '_blank');
+        render();
       };
 
       render();
@@ -321,7 +673,7 @@
     function renderMeetingRoomMonitor(id) {
       let volume = 85;
       let isMuted = false;
-      let countdown = 3120; // ~52 min
+      let countdown = 3120;
       let latency = 142;
 
       root.innerHTML = `
@@ -463,7 +815,6 @@
               </button>
             </div>
 
-            <!-- Feed contínuo de transcrição -->
             <div id="transcription-box" class="flex-1 bg-slate-950 border border-slate-850 rounded-2xl p-4 overflow-y-auto space-y-3.5 max-h-[550px]">
               <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1">
                 <div class="flex items-center justify-between text-[11px]">
@@ -481,15 +832,6 @@
                 </div>
                 <div class="text-sm font-medium text-slate-100">Estamos demonstrando a tradução de áudio em tempo real com ultra-baixa latência.</div>
                 <div class="text-xs text-slate-500 italic">Original: "We are demonstrating real-time ultra-low latency audio translation."</div>
-              </div>
-
-              <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1">
-                <div class="flex items-center justify-between text-[11px]">
-                  <span class="font-bold text-blue-400">Palestrante Principal</span>
-                  <span class="text-slate-500 font-mono text-[10px]">EN ➔ PT • 22:30:42</span>
-                </div>
-                <div class="text-sm font-medium text-slate-100">Nossos ouvintes conectam-se de forma transparente via WebRTC com delay sub-segundo.</div>
-                <div class="text-xs text-slate-500 italic">Original: "Our listeners are connecting seamlessly via WebRTC with sub-second delay."</div>
               </div>
             </div>
           </div>

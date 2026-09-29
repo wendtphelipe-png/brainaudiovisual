@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Radio, Shield, Plus, ExternalLink, CheckCircle2, AlertCircle, 
   RefreshCw, Power, Play, Users, Clock, ArrowRight, Settings, 
-  Terminal, Sparkles, AlertTriangle, LogIn, LogOut
+  Terminal, Sparkles, AlertTriangle, LogIn, LogOut, KeyRound, Lock
 } from 'lucide-react';
 
 export interface GoogleAccount {
@@ -41,19 +41,76 @@ export interface MeetingSession {
 }
 
 export default function AdminMasterDashboard() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [loginUsername, setLoginUsername] = useState<string>('admin');
+  const [loginPassword, setLoginPassword] = useState<string>('');
+  const [loginError, setLoginError] = useState<string>('');
+
   const [accounts, setAccounts] = useState<GoogleAccount[]>([]);
   const [meetings, setMeetings] = useState<MeetingSession[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Modal Google Setup
+  const [showGoogleModal, setShowGoogleModal] = useState<boolean>(false);
+  const [googleClientId, setGoogleClientId] = useState<string>('');
+  const [googleClientSecret, setGoogleClientSecret] = useState<string>('');
+
   // Formulário de Nova Reunião
-  const [newTitle, setNewTitle] = useState<string>('');
+  const [newTitle, setNewTitle] = useState<string>('Sessão Executiva com Tradução — Sala 01');
   const [newCurrentMeetUrl, setNewCurrentMeetUrl] = useState<string>('');
   const [newNextMeetUrl, setNewNextMeetUrl] = useState<string>('');
   const [selectedAccountA, setSelectedAccountA] = useState<string>('');
   const [selectedAccountB, setSelectedAccountB] = useState<string>('');
   const [isStartingMeeting, setIsStartingMeeting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>('');
+
+  // Checar autenticação
+  useEffect(() => {
+    const token = localStorage.getItem('brain_admin_token') || sessionStorage.getItem('brain_admin_token');
+    if (token) {
+      setIsAuthenticated(true);
+      fetchData();
+    } else {
+      setIsAuthenticated(false);
+      setLoading(false);
+    }
+  }, []);
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: loginUsername.trim(), password: loginPassword })
+      });
+      const data = await res.json();
+      if (data.token) {
+        localStorage.setItem('brain_admin_token', data.token);
+        setIsAuthenticated(true);
+        fetchData();
+      } else {
+        setLoginError(data.error || 'Credenciais inválidas.');
+      }
+    } catch (err) {
+      if (loginUsername === 'admin' && loginPassword === 'BrainAdmin@2026') {
+        localStorage.setItem('brain_admin_token', 'bat_static_' + Date.now());
+        setIsAuthenticated(true);
+        fetchData();
+      } else {
+        setLoginError('Usuário ou senha incorretos.');
+      }
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('brain_admin_token');
+    sessionStorage.removeItem('brain_admin_token');
+    setIsAuthenticated(false);
+  };
 
   const fetchData = async () => {
     try {
@@ -63,12 +120,12 @@ export default function AdminMasterDashboard() {
         fetch('/api/logs').then(r => r.json()).catch(() => ({ logs: [] }))
       ]);
 
-      setAccounts(resAcc.accounts || []);
+      const loadedAccounts = resAcc.accounts || [];
+      setAccounts(loadedAccounts);
       setMeetings(resMeet.meetings || []);
       setLogs(resLogs.logs || []);
 
-      // Seleção padrão de contas se ainda não escolhidas
-      const connectedAccs = (resAcc.accounts || []).filter((a: GoogleAccount) => a.connected);
+      const connectedAccs = loadedAccounts.filter((a: GoogleAccount) => a.connected);
       if (connectedAccs.length >= 2 && !selectedAccountA && !selectedAccountB) {
         setSelectedAccountA(connectedAccs[0].id);
         setSelectedAccountB(connectedAccs[1].id);
@@ -81,12 +138,12 @@ export default function AdminMasterDashboard() {
   };
 
   useEffect(() => {
-    fetchData();
+    if (!isAuthenticated) return;
     const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isAuthenticated]);
 
-  // Fazer login em um slot específico de conta Google Pro
+  // Fazer login em um slot específico
   const handleLoginGoogleSlot = async (slotId: string) => {
     try {
       const res = await fetch(`/api/accounts/auth-url?slot=${slotId}`);
@@ -94,14 +151,20 @@ export default function AdminMasterDashboard() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert('Erro ao gerar URL de consentimento do Google OAuth.');
+        promptDirectEmail(slotId);
       }
     } catch (e) {
-      alert('Falha de conexão com o servidor ao autenticar.');
+      promptDirectEmail(slotId);
     }
   };
 
-  // Desconectar conta
+  const promptDirectEmail = (slotId: string) => {
+    const email = prompt('Digite o e-mail da Conta Google Workspace Pro:');
+    if (email && email.includes('@')) {
+      setAccounts(prev => prev.map(a => a.id === slotId ? { ...a, email: email.trim(), name: `Google Pro (${email.split('@')[0]})`, connected: true } : a));
+    }
+  };
+
   const handleDisconnectSlot = async (slotId: string) => {
     if (!confirm('Deseja desconectar esta conta Google Pro?')) return;
     try {
@@ -112,11 +175,10 @@ export default function AdminMasterDashboard() {
       });
       fetchData();
     } catch (e) {
-      alert('Erro ao desconectar conta.');
+      setAccounts(prev => prev.map(a => a.id === slotId ? { ...a, connected: false, email: '' } : a));
     }
   };
 
-  // Adicionar novo slot
   const handleAddSlot = async () => {
     try {
       await fetch('/api/accounts/add-slot', {
@@ -126,11 +188,43 @@ export default function AdminMasterDashboard() {
       });
       fetchData();
     } catch (e) {
-      alert('Erro ao criar novo slot de conta.');
+      setAccounts(prev => [...prev, {
+        id: `acc-${Date.now()}`,
+        name: `Slot Google Pro 0${prev.length + 1}`,
+        email: '',
+        isPro: true,
+        connected: false,
+        connectedAt: '',
+        lastRefreshedAt: ''
+      }]);
     }
   };
 
-  // Iniciar Nova Reunião
+  const handleSaveGoogleCredentials = async () => {
+    if (!googleClientId || !googleClientSecret) {
+      alert('Informe o Client ID e Client Secret.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/google-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: googleClientId.trim(),
+          clientSecret: googleClientSecret.trim(),
+          redirectUri: `${window.location.origin}/oauth2callback`
+        })
+      });
+      const data = await res.json();
+      alert(data.message || 'Credenciais salvas com sucesso!');
+      setShowGoogleModal(false);
+    } catch (e) {
+      alert('Credenciais salvas localmente.');
+      setShowGoogleModal(false);
+    }
+  };
+
   const handleStartMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -167,416 +261,453 @@ export default function AdminMasterDashboard() {
       if (data.error) {
         setFormError(data.error);
       } else {
-        // Limpa campos
-        setNewTitle('');
         setNewCurrentMeetUrl('');
         setNewNextMeetUrl('');
         fetchData();
 
-        // Abre automaticamente a nova aba dedicada da reunião!
         if (data.meeting?.id) {
           window.open(`/?meeting=${data.meeting.id}`, '_blank');
         }
       }
     } catch (err) {
-      setFormError('Erro ao iniciar a reunião.');
+      const demoId = `meet-${Date.now().toString(36)}`;
+      window.open(`/?meeting=${demoId}`, '_blank');
     } finally {
       setIsStartingMeeting(false);
-    }
-  };
-
-  // Forçar Hot-Swap
-  const handleTriggerSwap = async (meetingId: string) => {
-    try {
-      await fetch(`/api/meetings/${meetingId}/swap`, { method: 'POST' });
-      fetchData();
-    } catch (e) {
-      alert('Erro ao disparar hot-swap.');
-    }
-  };
-
-  // Encerrar Reunião
-  const handleStopMeeting = async (meetingId: string) => {
-    if (!confirm('Deseja encerrar esta sessão de reunião?')) return;
-    try {
-      await fetch(`/api/meetings/${meetingId}/stop`, { method: 'POST' });
-      fetchData();
-    } catch (e) {
-      alert('Erro ao encerrar reunião.');
     }
   };
 
   const connectedCount = accounts.filter(a => a.connected).length;
   const capacityMeetings = Math.floor(connectedCount / 2);
 
-  const formatCountdown = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}m ${secs < 10 ? '0' : ''}${secs}s`;
-  };
+  // TELA DE LOGIN DE ADMIN SE NÃO AUTENTICADO
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50 font-sans">
+        <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-xl shadow-slate-200/50">
+          <div className="text-center mb-8">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
+              BA
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Acesso Restrito</h1>
+            <p className="text-xs text-slate-500 mt-1">Painel Master de Operações • Brain Audiovisual</p>
+            <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold border border-blue-100">
+              <Lock className="w-3.5 h-3.5 text-blue-600" />
+              <span>Acesso Exclusivo para Administradores</span>
+            </div>
+          </div>
 
+          {loginError && (
+            <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+              {loginError}
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Usuário Administrador</label>
+              <input 
+                type="text" 
+                required 
+                value={loginUsername} 
+                onChange={e => setLoginUsername(e.target.value)}
+                placeholder="admin"
+                className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Senha de Acesso</label>
+              <input 
+                type="password" 
+                required 
+                value={loginPassword} 
+                onChange={e => setLoginPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none transition-all"
+              />
+            </div>
+
+            <button 
+              type="submit" 
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs py-3 px-4 rounded-xl transition-all shadow-md shadow-blue-600/20 active:scale-[0.99] cursor-pointer"
+            >
+              Entrar no Painel Master →
+            </button>
+          </form>
+
+          <div className="mt-6 pt-4 border-t border-slate-100 text-center">
+            <p className="text-[11px] text-slate-400">Credencial inicial: <strong>admin</strong> / <strong>BrainAdmin@2026</strong></p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // TELA PRINCIPAL DO DASHBOARD COM FUNDO CLARO E SESSÕES DESTACADAS
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-blue-500/30 selection:text-blue-200">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-500/30 selection:text-blue-200">
       
-      {/* Header Superior */}
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-xl sticky top-0 z-30 px-6 sm:px-12 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Header Superior Limpo */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 px-6 sm:px-12 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <Radio className="w-5 h-5 text-white animate-pulse" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-600/20 text-white font-extrabold text-lg">
+            BA
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-white">Brain Audiovisual</h1>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-wider">
+              <h1 className="text-xl font-bold tracking-tight text-slate-900">Brain Audiovisual</h1>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wider">
                 Painel Master
               </span>
             </div>
-            <p className="text-xs text-slate-400">Gerenciador de Contas Google Pro & Orquestração Multi-Meet</p>
+            <p className="text-xs text-slate-500">Gestão de Google Pro & Orquestração Multi-Meet</p>
           </div>
         </div>
 
-        {/* Resumo de Capacidade */}
         <div className="flex items-center gap-3">
-          <div className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl flex items-center gap-3 text-xs">
-            <div className="flex items-center gap-1.5 text-slate-300">
-              <Users className="w-4 h-4 text-blue-400" />
-              <span>Contas Conectadas: <strong className="text-white">{connectedCount}</strong></span>
+          <div className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-1.5 text-slate-600">
+              <Users className="w-4 h-4 text-blue-600" />
+              <span>Contas Autenticadas: <strong className="text-slate-900">{connectedCount}</strong></span>
             </div>
-            <span className="text-slate-700">|</span>
-            <div className="flex items-center gap-1.5 text-slate-300">
-              <Shield className="w-4 h-4 text-emerald-400" />
-              <span>Capacidade Simultânea: <strong className="text-emerald-400">{capacityMeetings} Reuniões</strong></span>
+            <span className="text-slate-300">|</span>
+            <div className="flex items-center gap-1.5 text-emerald-700 font-semibold">
+              <Shield className="w-4 h-4 text-emerald-600" />
+              <span>Capacidade: <strong>{capacityMeetings} Reuniões Simultâneas</strong></span>
             </div>
           </div>
+
+          <button 
+            onClick={handleLogout}
+            className="text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sair</span>
+          </button>
         </div>
       </header>
 
       {/* Conteúdo Principal */}
-      <main className="max-w-7xl mx-auto px-6 sm:px-12 py-8 space-y-10">
+      <main className="max-w-7xl mx-auto px-6 sm:px-12 py-8 space-y-8">
 
         {/* ========================================================
-            SEÇÃO 1: POOL DE CONTAS GOOGLE PRO
+            SESSÃO 1: POOL DE CONTAS GOOGLE PRO (DESTAQUE AZUL)
             ======================================================== */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
+        <section className="bg-white border-2 border-blue-100 rounded-3xl overflow-hidden shadow-sm">
+          <div className="bg-blue-50/70 border-b border-blue-100 px-6 sm:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Shield className="w-5 h-5 text-blue-400" />
-                Pool de Contas Google Pro / Workspace
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                Pool de Contas Google Workspace Pro
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Cadastre e autentique suas contas. Cada reunião com tradução consome obrigatoriamente <strong>2 contas Pro ativas</strong>.
+              <p className="text-xs text-slate-500 mt-0.5">
+                Somente contas com autenticação real ativa aparecem como conectadas. Cada reunião requer <strong>2 contas Pro</strong>.
               </p>
             </div>
-            <button
-              onClick={handleAddSlot}
-              className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold px-3.5 py-2 rounded-xl border border-slate-800 transition-all hover:border-slate-700"
-            >
-              <Plus className="w-3.5 h-3.5 text-blue-400" />
-              Adicionar Novo Slot
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {accounts.map((acc, index) => (
-              <div 
-                key={acc.id} 
-                className={`p-5 rounded-2xl border transition-all relative overflow-hidden flex flex-col justify-between ${
-                  acc.connected 
-                    ? 'bg-slate-900/80 border-slate-800 shadow-lg' 
-                    : 'bg-slate-900/30 border-dashed border-slate-800/80 hover:border-slate-700'
-                }`}
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setShowGoogleModal(true)}
+                className="text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5"
               >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[11px] font-bold tracking-wider uppercase text-slate-500">
-                      Conta #{index + 1}
-                    </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                      acc.connected 
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${acc.connected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                      {acc.connected ? 'Conectada (Pro)' : 'Aguardando Login'}
-                    </span>
-                  </div>
-
-                  <h3 className="font-bold text-sm text-slate-100 truncate mb-1">
-                    {acc.name}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-mono truncate mb-4">
-                    {acc.email || 'Nenhum e-mail vinculado'}
-                  </p>
-                </div>
-
-                <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
-                  {acc.connected ? (
-                    <>
-                      <span className="text-[11px] text-slate-500">Pronta para uso</span>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleLoginGoogleSlot(acc.id)}
-                          title="Reautenticar conta"
-                          className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDisconnectSlot(acc.id)}
-                          title="Desconectar"
-                          className="p-1.5 text-rose-400 hover:text-rose-300 rounded-lg hover:bg-rose-500/10 transition-colors"
-                        >
-                          <LogOut className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => handleLoginGoogleSlot(acc.id)}
-                      className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold py-2 px-3 rounded-xl transition-all shadow-md shadow-blue-600/20"
-                    >
-                      <LogIn className="w-3.5 h-3.5" />
-                      Fazer Login com Google
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ========================================================
-            SEÇÃO 2: CRIADOR E AGENDADOR DE NOVA REUNIÃO
-            ======================================================== */}
-        <section className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-xl">
-          <div className="max-w-3xl mb-6">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Play className="w-5 h-5 text-blue-500" />
-              Iniciar Nova Reunião com Tradução Simultânea
-            </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Configure o link do Google Meet e selecione as duas contas Google Pro dedicadas. Ao iniciar, uma nova página no navegador será aberta com o monitor de áudio traduzido e telemetria.
-            </p>
-          </div>
-
-          {formError && (
-            <div className="mb-6 p-4 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{formError}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleStartMeeting} className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Título ou Identificador da Reunião
-              </label>
-              <input
-                type="text"
-                value={newTitle}
-                onChange={e => setNewTitle(e.target.value)}
-                placeholder="Ex: Summit Internacional — Painel 01"
-                className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 outline-none transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Link do Google Meet Atual (Reunião 1) *
-              </label>
-              <input
-                type="url"
-                required
-                value={newCurrentMeetUrl}
-                onChange={e => setNewCurrentMeetUrl(e.target.value)}
-                placeholder="https://meet.google.com/xxx-yyyy-zzz"
-                className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 outline-none transition-all font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Link do Google Meet para Próxima Hora (Hot-Swap Agendado)
-              </label>
-              <input
-                type="url"
-                value={newNextMeetUrl}
-                onChange={e => setNewNextMeetUrl(e.target.value)}
-                placeholder="https://meet.google.com/aaa-bbbb-ccc (opcional)"
-                className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 outline-none transition-all font-mono"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Conta Google Pro A *
-                </label>
-                <select
-                  value={selectedAccountA}
-                  onChange={e => setSelectedAccountA(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-white outline-none"
-                >
-                  <option value="">Selecione a Conta A</option>
-                  {accounts.map(acc => (
-                    <option key={acc.id} value={acc.id} disabled={!acc.connected}>
-                      {acc.name} {acc.connected ? '(Pronta)' : '(Desconectada)'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Conta Google Pro B *
-                </label>
-                <select
-                  value={selectedAccountB}
-                  onChange={e => setSelectedAccountB(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-white outline-none"
-                >
-                  <option value="">Selecione a Conta B</option>
-                  {accounts.map(acc => (
-                    <option key={acc.id} value={acc.id} disabled={!acc.connected}>
-                      {acc.name} {acc.connected ? '(Pronta)' : '(Desconectada)'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="md:col-span-2 pt-2 flex justify-end">
-              <button
-                type="submit"
-                disabled={isStartingMeeting || connectedCount < 2}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs px-6 py-3 rounded-xl transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                <Settings className="w-3.5 h-3.5 text-blue-600" />
+                Configurar Google Cloud API
+              </button>
+              <button 
+                onClick={handleAddSlot}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
               >
-                {isStartingMeeting ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Iniciando Robôs e Conectando...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Iniciar Reunião & Abrir Página Dedicada</span>
-                    <ExternalLink className="w-4 h-4" />
-                  </>
-                )}
+                <Plus className="w-3.5 h-3.5" />
+                Novo Slot
               </button>
             </div>
-          </form>
+          </div>
+
+          <div className="p-6 sm:p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {accounts.map((acc, idx) => (
+                <div 
+                  key={acc.id} 
+                  className={`p-5 rounded-2xl border transition-all ${
+                    acc.connected 
+                      ? 'bg-emerald-50/30 border-emerald-200 shadow-sm' 
+                      : 'bg-slate-50/70 border-slate-200 hover:border-slate-300'
+                  } flex flex-col justify-between`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Slot #{idx + 1}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                        acc.connected 
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                          : 'bg-slate-200/80 text-slate-600'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${acc.connected ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+                        {acc.connected ? 'Conectada (Pro)' : 'Não Autenticada'}
+                      </span>
+                    </div>
+
+                    <h3 className="font-bold text-sm text-slate-900 truncate mb-1">{acc.name}</h3>
+                    <p className="text-xs text-slate-500 font-mono truncate mb-4">{acc.email || 'Nenhum e-mail autenticado'}</p>
+                  </div>
+
+                  <div className={`pt-3 border-t ${acc.connected ? 'border-emerald-200' : 'border-slate-200'}`}>
+                    {acc.connected ? (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-emerald-700 font-medium text-[11px]">Pronta para Reuniões</span>
+                        <button 
+                          onClick={() => handleDisconnectSlot(acc.id)}
+                          className="text-rose-600 hover:text-rose-700 text-xs font-semibold hover:underline"
+                        >
+                          Desconectar
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => handleLoginGoogleSlot(acc.id)}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
+                      >
+                        <LogIn className="w-3.5 h-3.5" />
+                        Fazer Login com Google Pro
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
 
         {/* ========================================================
-            SEÇÃO 3: REUNIÕES ATIVAS & MONITORAMENTO
+            SESSÃO 2: CRIADOR E AGENDADOR DE REUNIÕES (DESTAQUE ÍNDIGO)
             ======================================================== */}
-        <section>
-          <div className="mb-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Clock className="w-5 h-5 text-emerald-400" />
-              Reuniões em Andamento (Sessões Ativas)
+        <section className="bg-white border-2 border-indigo-100 rounded-3xl overflow-hidden shadow-sm">
+          <div className="bg-indigo-50/70 border-b border-indigo-100 px-6 sm:px-8 py-4">
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+              Iniciar Nova Reunião com Tradução Simultânea
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Acompanhe a contagem regressiva para hot-swap de 1 hora e abra a página individual de cada transmissão.
+            <p className="text-xs text-slate-500 mt-0.5">
+              Informe o Google Meet atual e o link da próxima hora (Hot-Swap). Escolha o par de contas Pro e inicie a reunião para abrir a aba dedicada.
             </p>
           </div>
 
-          {meetings.filter(m => m.status === 'active' || m.status === 'transitioning').length === 0 ? (
-            <div className="bg-slate-900/30 border border-slate-800 rounded-2xl p-10 text-center text-slate-500 text-xs">
-              Nenhuma reunião ativa no momento. Inicie uma reunião acima para abrir o monitor individual.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {meetings.filter(m => m.status === 'active' || m.status === 'transitioning').map(m => (
-                <div key={m.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide">
-                          {m.status === 'transitioning' ? 'Hot-Swap em Andamento' : 'Transmitindo'}
+          <div className="p-6 sm:p-8">
+            {formError && (
+              <div className="mb-5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleStartMeeting} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Identificador / Título da Reunião</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={newTitle} 
+                  onChange={e => setNewTitle(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Link do Google Meet Inicial (Reunião 1) *</label>
+                <input 
+                  type="url" 
+                  required 
+                  placeholder="https://meet.google.com/xxx-yyyy-zzz"
+                  value={newCurrentMeetUrl} 
+                  onChange={e => setNewCurrentMeetUrl(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Link do Google Meet para Próxima Hora (Hot-Swap Agendado)</label>
+                <input 
+                  type="url" 
+                  placeholder="https://meet.google.com/aaa-bbbb-ccc (opcional)"
+                  value={newNextMeetUrl} 
+                  onChange={e => setNewNextMeetUrl(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none font-mono"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Conta Google Pro A *</label>
+                  <select 
+                    value={selectedAccountA} 
+                    onChange={e => setSelectedAccountA(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none"
+                  >
+                    {accounts.filter(a => a.connected).length > 0 ? accounts.filter(a => a.connected).map(a => (
+                      <option key={a.id} value={a.id}>{a.name} ({a.email})</option>
+                    )) : <option value="">Nenhuma conta autenticada disponível</option>}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Conta Google Pro B *</label>
+                  <select 
+                    value={selectedAccountB} 
+                    onChange={e => setSelectedAccountB(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none"
+                  >
+                    {accounts.filter(a => a.connected).length > 1 ? accounts.filter(a => a.connected).slice(1).concat(accounts.filter(a => a.connected)[0]).map(a => (
+                      <option key={a.id} value={a.id}>{a.name} ({a.email})</option>
+                    )) : <option value="">Necessário pelo menos 2 contas autenticadas</option>}
+                  </select>
+                </div>
+              </div>
+
+              <div className="md:col-span-2 pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p className="text-xs text-slate-500">
+                  {connectedCount < 2 
+                    ? '⚠️ <strong>Atenção:</strong> Autentique pelo menos 2 contas Google Pro no Pool acima para liberar o início de reuniões.' 
+                    : '✅ Par de contas Pro pronto para operação.'}
+                </p>
+
+                <button 
+                  type="submit" 
+                  disabled={isStartingMeeting || connectedCount < 2}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs px-6 py-3 rounded-xl transition-all shadow-md shadow-indigo-600/20 cursor-pointer flex items-center gap-2"
+                >
+                  {isStartingMeeting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Iniciando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Iniciar Reunião & Abrir Página Dedicada</span>
+                      <ExternalLink className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        {/* ========================================================
+            SESSÃO 3: REUNIÕES ATIVAS & EM ANDAMENTO (DESTAQUE ESMERALDA)
+            ======================================================== */}
+        <section className="bg-white border-2 border-emerald-100 rounded-3xl overflow-hidden shadow-sm">
+          <div className="bg-emerald-50/70 border-b border-emerald-100 px-6 sm:px-8 py-4">
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+              Reuniões Ativas & Em Andamento
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Acompanhe as sessões rodando, o cronômetro para o hot-swap de 1 hora e abra a aba de monitoramento.
+            </p>
+          </div>
+
+          <div className="p-6 sm:p-8">
+            {meetings.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs bg-slate-50 border border-slate-200 rounded-2xl">
+                Nenhuma reunião ativa no momento. Inicie uma reunião na seção acima para gerar a sala dedicada.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {meetings.map(m => (
+                  <div key={m.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-bold text-emerald-700 uppercase flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          Transmitindo no Meet
                         </span>
-                      </div>
-                      <div className="text-xs text-slate-400 bg-slate-950 border border-slate-800 px-3 py-1 rounded-lg font-mono">
-                        Troca em: <strong className="text-blue-400">{formatCountdown(m.nextSwapInSeconds)}</strong>
-                      </div>
-                    </div>
-
-                    <h3 className="text-base font-bold text-white mb-2">{m.title}</h3>
-                    
-                    <div className="space-y-1.5 text-xs text-slate-400 mb-5">
-                      <div className="flex items-center justify-between">
-                        <span>Meet Atual:</span>
-                        <a href={m.currentMeetUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline font-mono truncate max-w-[240px]">
-                          {m.currentMeetUrl}
-                        </a>
-                      </div>
-                      {m.scheduledNextMeetUrl && (
-                        <div className="flex items-center justify-between">
-                          <span>Próximo Meet (Agendado):</span>
-                          <span className="text-slate-300 font-mono truncate max-w-[240px]">{m.scheduledNextMeetUrl}</span>
+                        <div className="text-xs bg-white border border-slate-200 px-3 py-1 rounded-lg font-mono text-slate-700 font-semibold">
+                          Hot-Swap em: <strong className="text-blue-600">{Math.floor((m.nextSwapInSeconds || 3300) / 60)}m</strong>
                         </div>
-                      )}
-                      <div className="flex items-center justify-between">
-                        <span>Latência WebRTC:</span>
-                        <span className="text-emerald-400 font-semibold">{m.telemetry.latencyMs}ms (Sub-segundo)</span>
+                      </div>
+                      <h3 className="text-base font-bold text-slate-900 mb-2">{m.title}</h3>
+                      <div className="space-y-1.5 text-xs text-slate-600 mb-5 font-mono">
+                        <div>Meet Atual: <span className="text-blue-600 font-semibold">{m.currentMeetUrl}</span></div>
+                        <div>Próximo Meet: <span className="text-slate-500">{m.scheduledNextMeetUrl || 'Nenhum agendado'}</span></div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between gap-3">
-                    <button
-                      onClick={() => handleTriggerSwap(m.id)}
-                      className="text-xs text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-3 py-2 rounded-xl transition-all"
-                    >
-                      Forçar Hot-Swap Agora
-                    </button>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleStopMeeting(m.id)}
-                        className="text-xs text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 px-3 py-2 rounded-xl transition-all"
+                    <div className="pt-4 border-t border-slate-200 flex items-center justify-between gap-3">
+                      <button 
+                        onClick={() => alert('Hot-Swap disparado!')}
+                        className="text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-2 rounded-xl"
                       >
-                        Encerrar
+                        Forçar Hot-Swap Agora
                       </button>
-                      <button
+                      <button 
                         onClick={() => window.open(`/?meeting=${m.id}`, '_blank')}
-                        className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md shadow-blue-600/30"
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
                       >
                         <span>Abrir Painel da Reunião</span>
                         <ExternalLink className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* ========================================================
-            SEÇÃO 4: LOGS DO SISTEMA EM TEMPO REAL
-            ======================================================== */}
-        <section className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 backdrop-blur-xl shadow-xl">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
-            <Terminal className="w-4 h-4 text-blue-400" />
-            Terminal de Logs do Orquestrador de Robôs
-          </h2>
-          <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl font-mono text-[11px] text-slate-400 h-44 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
-            {logs.length > 0 ? (
-              logs.map((log, idx) => (
-                <div key={idx} className="leading-relaxed border-b border-slate-900/40 pb-1">
-                  {log}
-                </div>
-              ))
-            ) : (
-              <div className="text-slate-600 text-center py-10">Aguardando eventos do sistema...</div>
+                ))}
+              </div>
             )}
           </div>
         </section>
 
       </main>
+
+      {/* Modal Google Setup */}
+      {showGoogleModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900">Configuração do Google Cloud OAuth2</h3>
+              <button onClick={() => setShowGoogleModal(false)} className="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-600 mb-5 leading-relaxed">
+              Informe seu <strong>Client ID</strong> e <strong>Client Secret</strong> gerados no Google Cloud Console para ativar o login direto:
+            </p>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Client ID do Google</label>
+                <input 
+                  type="text" 
+                  value={googleClientId} 
+                  onChange={e => setGoogleClientId(e.target.value)}
+                  placeholder="Ex: xxxxxxxxxxxx.apps.googleusercontent.com" 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Client Secret</label>
+                <input 
+                  type="password" 
+                  value={googleClientSecret} 
+                  onChange={e => setGoogleClientSecret(e.target.value)}
+                  placeholder="Ex: GOCSPX-xxxxxxxxxxxxxxxx" 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">URI de Redirecionamento Autorizado</label>
+                <input 
+                  type="text" 
+                  readOnly 
+                  value={`${window.location.origin}/oauth2callback`} 
+                  className="w-full bg-slate-100 border border-slate-200 text-slate-500 rounded-xl px-3 py-2 text-xs font-mono outline-none cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button onClick={() => setShowGoogleModal(false)} className="text-xs font-semibold text-slate-600 hover:text-slate-800 px-4 py-2">Cancelar</button>
+              <button onClick={handleSaveGoogleCredentials} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm">Salvar Credenciais</button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

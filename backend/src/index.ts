@@ -23,6 +23,85 @@ app.get('/admin', (req: any, res: any) => {
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'devkey';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'secret';
 
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'BrainAdmin@2026';
+
+// Sessões de administradores autenticados em memória (token -> expiresAt)
+const activeAdminTokens = new Map<string, number>();
+
+// ========================================================
+// 0. AUTENTICAÇÃO DO ADMINISTRADOR
+// ========================================================
+
+app.post('/api/admin/login', (req: any, res: any) => {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Usuário e senha são obrigatórios.' });
+    }
+
+    if (username.trim() === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+        // Gera token de sessão válido por 24 horas
+        const token = 'bat_' + Buffer.from(`${username}-${Date.now()}-${Math.random()}`).toString('hex');
+        const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+        activeAdminTokens.set(token, expiresAt);
+
+        return res.json({ 
+            success: true, 
+            token, 
+            username,
+            expiresAt 
+        });
+    }
+
+    return res.status(401).json({ error: 'Credenciais de administrador incorretas.' });
+});
+
+app.get('/api/admin/verify', (req: any, res: any) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ authenticated: false });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const expiresAt = activeAdminTokens.get(token);
+
+    if (expiresAt && expiresAt > Date.now()) {
+        return res.json({ authenticated: true, username: ADMIN_USERNAME });
+    }
+
+    activeAdminTokens.delete(token);
+    return res.status(401).json({ authenticated: false, error: 'Sessão expirada.' });
+});
+
+app.post('/api/admin/logout', (req: any, res: any) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        activeAdminTokens.delete(token);
+    }
+    res.json({ success: true });
+});
+
+// Checar e salvar credenciais do Google OAuth
+app.get('/api/admin/google-status', (req: any, res: any) => {
+    res.json({ hasCredentials: accountManager.hasGoogleCredentials() });
+});
+
+app.post('/api/admin/google-credentials', (req: any, res: any) => {
+    const { clientId, clientSecret, redirectUri } = req.body;
+    if (!clientId || !clientSecret) {
+        return res.status(400).json({ error: 'Client ID e Client Secret são obrigatórios.' });
+    }
+
+    const saved = accountManager.saveGoogleCredentials(clientId, clientSecret, redirectUri);
+    if (saved) {
+        res.json({ success: true, message: 'Credenciais do Google salvas com sucesso!' });
+    } else {
+        res.status(500).json({ error: 'Falha ao salvar credentials.json no servidor.' });
+    }
+});
+
 // ========================================================
 // 1. ROTAS DE GERENCIAMENTO DE CONTAS GOOGLE PRO
 // ========================================================
