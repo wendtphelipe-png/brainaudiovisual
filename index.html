@@ -451,18 +451,43 @@
                   ${accounts.map((acc, idx) => `
                     <div class="p-5 rounded-2xl border transition-all ${
                       acc.connected 
-                        ? 'bg-emerald-50/30 border-emerald-200 shadow-sm' 
+                        ? 'bg-emerald-50/20 border-emerald-200 shadow-sm' 
                         : 'bg-slate-50/70 border-slate-200 hover:border-slate-300'
                     } flex flex-col justify-between">
                       <div>
-                        <div class="flex items-center justify-between mb-3">
+                        <!-- Indicador Visual Superior de Google Pro Ativo -->
+                        <div class="mb-3.5 p-2 rounded-xl border flex items-center justify-between text-xs ${
+                          acc.connected
+                            ? (acc.isPro !== false 
+                                ? 'bg-amber-50/80 border-amber-200 text-amber-950 shadow-xs' 
+                                : 'bg-rose-50 border-rose-200 text-rose-800')
+                            : 'bg-slate-100/80 border-slate-200 text-slate-500'
+                        }">
+                          <div class="flex items-center gap-1.5 font-bold truncate">
+                            <span>${acc.connected ? (acc.isPro !== false ? '👑' : '⚠️') : '🔒'}</span>
+                            <span class="truncate">${
+                              acc.connected 
+                                ? (acc.isPro !== false ? 'Google Pro: ATIVO' : 'CONTA BÁSICA / SEM PRO') 
+                                : 'Requer Google Pro'
+                            }</span>
+                          </div>
+                          ${acc.connected ? `
+                            <button type="button" onclick="toggleSlotProStatus('${acc.id}')" title="Clique para revalidar ou alternar verificação Pro" class="text-[10px] font-semibold text-amber-800 hover:text-amber-950 underline cursor-pointer shrink-0 ml-1">
+                              ${acc.isPro !== false ? 'Verificado ✓' : 'Validar Pro ↺'}
+                            </button>
+                          ` : `
+                            <span class="text-[10px] font-mono opacity-60 shrink-0">&gt; 24h</span>
+                          `}
+                        </div>
+
+                        <div class="flex items-center justify-between mb-2">
                           <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Slot #${idx + 1}</span>
                           <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             acc.connected 
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
                               : 'bg-slate-200/80 text-slate-600'
                           }">
-                            ${acc.connected ? '● Conectada (Pro)' : 'Não Autenticada'}
+                            ${acc.connected ? '● Conectada' : 'Não Autenticada'}
                           </span>
                         </div>
 
@@ -473,7 +498,10 @@
                       <div class="pt-3 border-t ${acc.connected ? 'border-emerald-200' : 'border-slate-200'}">
                         ${acc.connected ? `
                           <div class="flex items-center justify-between text-xs">
-                            <span class="text-emerald-700 font-medium text-[11px]">Pronta para Reuniões</span>
+                            <span class="text-emerald-700 font-medium text-[11px] flex items-center gap-1">
+                              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              Pronta para Reuniões
+                            </span>
                             <button onclick="disconnectAccount('${acc.id}')" class="text-rose-600 hover:text-rose-700 text-xs font-semibold hover:underline cursor-pointer">
                               Desconectar
                             </button>
@@ -784,26 +812,53 @@
                     </div>
                   ` : ''}
 
-                  <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                    <h4 class="text-xs font-bold text-slate-900 mb-1">Passo a passo no Google Cloud Console:</h4>
-                    <ol class="text-[11px] text-slate-600 list-decimal list-inside space-y-1 leading-relaxed">
-                      <li>Acesse o Google Cloud com a conta administrativa do seu domínio Google Pro.</li>
-                      <li>Vá em <strong>APIs e Serviços</strong> &gt; <strong>Credenciais</strong> &gt; <strong>Criar Credenciais</strong> &gt; <strong>ID do cliente OAuth</strong>.</li>
-                      <li>Escolha o tipo <strong>Aplicativo da Web</strong>.</li>
-                      <li>Adicione a URI de redirecionamento autorizada abaixo:</li>
+                  <!-- Tutorial Completo Passo a Passo -->
+                  <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                    <div class="flex items-center justify-between">
+                      <h4 class="text-xs font-bold text-slate-900">Passo a passo no Google Cloud Console (Primeira vez):</h4>
+                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">Guia Completo</span>
+                    </div>
+
+                    <ol class="text-[11px] text-slate-600 list-decimal list-inside space-y-1.5 leading-relaxed">
+                      <li>
+                        <strong>Criar Projeto:</strong> No topo da página do Console, clique no seletor de projetos e em <strong>"Novo Projeto"</strong> (Nome: <em>Brain Audiovisual</em>).
+                      </li>
+                      <li>
+                        <strong>Tela de Consentimento OAuth (CRUCIAL):</strong> Vá em <strong>APIs e Serviços &gt; Tela de consentimento OAuth</strong>.
+                        <div class="ml-4 mt-1 text-[11px] text-slate-500 space-y-0.5">
+                          <p>• Se for domínio Google Workspace empresarial: selecione <strong>Interno</strong> (não precisa de aprovação!).</p>
+                          <p>• Se for conta comum/externa: escolha <strong>Externo</strong> e preencha o nome do app.</p>
+                        </div>
+                      </li>
+                      <li class="text-amber-900 bg-amber-50/90 p-2 rounded-xl border border-amber-200">
+                        <strong>⚠️ Evitar o erro "Acesso Bloqueado":</strong> Se o app for Externo (modo de teste), role até <strong>Usuários de teste (Test Users)</strong>, clique em <strong>+ ADD USERS</strong> e adicione o e-mail da sua conta Google Pro! Isso libera o acesso imediatamente sem exigir verificação.
+                      </li>
+                      <li>
+                        <strong>Criar as Credenciais:</strong> Vá em <strong>APIs e Serviços &gt; Credenciais &gt; Criar Credenciais &gt; ID do cliente OAuth</strong>. Escolha <strong>Aplicativo da Web</strong>.
+                      </li>
+                      <li>
+                        <strong>Adicionar URI Autorizada:</strong> No campo <em>"URIs de redirecionamento autorizados"</em>, cole exatamente o endereço abaixo:
+                      </li>
                     </ol>
 
-                    <div class="mt-3 flex items-center gap-2">
-                      <input type="text" id="wz-redirect-uri" readonly value="${window.location.origin}/oauth2callback" class="flex-1 bg-white border border-slate-200 text-slate-700 text-xs font-mono px-3 py-2 rounded-xl outline-none select-all">
-                      <button onclick="copyRedirectUri()" id="btn-copy-uri" class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold px-3 py-2 rounded-xl transition-all whitespace-nowrap cursor-pointer">
+                    <!-- Campo de Cópia da URI de Callback -->
+                    <div class="flex items-center gap-2 pt-1">
+                      <input type="text" id="wz-redirect-uri" readonly value="${window.location.origin}/oauth2callback" class="flex-1 bg-white border border-slate-200 text-slate-700 text-xs font-mono px-3 py-2 rounded-xl outline-none select-all shadow-xs">
+                      <button type="button" onclick="copyRedirectUri()" id="btn-copy-uri" class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold px-3 py-2 rounded-xl transition-all whitespace-nowrap cursor-pointer">
                         Copiar URI 📋
                       </button>
                     </div>
 
-                    <div class="mt-3 pt-3 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <span class="text-[11px] text-slate-500">Abrir o Console para gerar chaves desta conta:</span>
-                      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition-all cursor-pointer">
-                        <span>Abrir Google Cloud Console</span>
+                    <!-- Link e Botão para Copiar a URL do Google Console -->
+                    <div class="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                      <div class="flex-1 flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-700">
+                        <span class="truncate text-[11px] select-all">https://console.cloud.google.com/apis/credentials</span>
+                        <button type="button" onclick="copyConsoleUrl()" id="btn-copy-console" class="bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-semibold px-2 py-1 rounded-lg transition-all whitespace-nowrap cursor-pointer">
+                          Copiar Link 📋
+                        </button>
+                      </div>
+                      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2 rounded-xl shadow-sm whitespace-nowrap cursor-pointer">
+                        <span>Abrir Console</span>
                         <span>↗</span>
                       </a>
                     </div>
@@ -883,6 +938,29 @@
                       <p class="text-[11px] text-slate-400 text-center mt-2">Uma janela popup segura do Google será aberta no centro da sua tela.</p>
                     </div>
                   `}
+
+                  <!-- Box de Solução Imediata para o Erro 'Acesso Bloqueado' -->
+                  <div class="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl text-xs space-y-2">
+                    <div class="flex items-center gap-1.5 font-bold text-amber-900">
+                      <span>⚠️</span>
+                      <span>Apareceu a mensagem "Acesso bloqueado: o app não concluiu a verificação"?</span>
+                    </div>
+                    <p class="text-[11px] text-amber-800 leading-relaxed">
+                      Isso é normal quando o aplicativo Google Cloud está em modo de teste. Para autorizar esta conta:
+                    </p>
+                    <ol class="text-[11px] text-amber-900 list-decimal list-inside space-y-1 font-medium bg-white/70 p-2.5 rounded-xl border border-amber-200/60">
+                      <li>Acesse a <strong>Tela de consentimento OAuth</strong> no Google Cloud Console.</li>
+                      <li>Role a página até a seção <strong>Usuários de teste (Test users)</strong>.</li>
+                      <li>Clique em <strong>+ ADD USERS</strong> e adicione o e-mail exato desta conta.</li>
+                      <li>Clique em <strong>Salvar</strong> e tente abrir o login novamente acima!</li>
+                    </ol>
+                    <div class="pt-1 flex items-center justify-between">
+                      <span class="text-[10px] text-amber-700">Link da Tela de Consentimento:</span>
+                      <button type="button" onclick="navigator.clipboard.writeText('https://console.cloud.google.com/apis/credentials/consent'); alert('Link da Tela de Consentimento copiado!');" class="text-[10px] font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer">
+                        Copiar Link Direto 📋
+                      </button>
+                    </div>
+                  </div>
 
                   <details class="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
                     <summary class="cursor-pointer hover:text-slate-700 font-medium py-1">
@@ -1110,6 +1188,7 @@
           acc.name = window.wizardState.verifiedData.name || ('Google Pro (' + acc.email.split('@')[0] + ')');
           acc.picture = window.wizardState.verifiedData.picture || '';
           acc.connected = true;
+          acc.isPro = true;
           acc.connectedAt = new Date().toISOString();
           acc.tokens = window.wizardState.verifiedData.tokens || { access_token: 'verified' };
 
@@ -1129,6 +1208,29 @@
         }
         closeGoogleAuthWizard();
         render();
+      };
+
+      window.toggleSlotProStatus = function(slotId) {
+        const acc = accounts.find(a => a.id === slotId);
+        if (acc) {
+          acc.isPro = acc.isPro === false ? true : false;
+          localStorage.setItem('brain_saved_accounts', JSON.stringify(accounts));
+          render();
+        }
+      };
+
+      window.copyConsoleUrl = function() {
+        navigator.clipboard.writeText('https://console.cloud.google.com/apis/credentials').then(() => {
+          const btn = document.getElementById('btn-copy-console');
+          if (btn) {
+            btn.innerText = 'Copiado! ✓';
+            btn.classList.add('bg-emerald-100', 'text-emerald-800');
+            setTimeout(() => {
+              btn.innerText = 'Copiar Link 📋';
+              btn.classList.remove('bg-emerald-100', 'text-emerald-800');
+            }, 2500);
+          }
+        });
       };
 
       window.disconnectAccount = function(slotId) {

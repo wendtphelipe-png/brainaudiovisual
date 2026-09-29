@@ -62,6 +62,7 @@ export default function AdminMasterDashboard() {
   const [googleClientId, setGoogleClientId] = useState<string>('');
   const [googleClientSecret, setGoogleClientSecret] = useState<string>('');
   const [copiedUri, setCopiedUri] = useState<boolean>(false);
+  const [copiedConsoleUrl, setCopiedConsoleUrl] = useState<boolean>(false);
   const [manualToken, setManualToken] = useState<string>('');
   const popupRef = useRef<Window | null>(null);
   const checkTimerRef = useRef<any>(null);
@@ -384,6 +385,21 @@ export default function AdminMasterDashboard() {
     });
   };
 
+  const copyConsoleUrl = () => {
+    navigator.clipboard.writeText('https://console.cloud.google.com/apis/credentials').then(() => {
+      setCopiedConsoleUrl(true);
+      setTimeout(() => setCopiedConsoleUrl(false), 2500);
+    });
+  };
+
+  const handleTogglePro = (slotId: string) => {
+    setAccounts(prev => {
+      const updated = prev.map(a => a.id === slotId ? { ...a, isPro: a.isPro === false ? true : false } : a);
+      localStorage.setItem('brain_saved_accounts', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const handleDisconnectSlot = async (slotId: string) => {
     if (!confirm('Deseja desconectar esta conta Google Pro?')) return;
     try {
@@ -608,7 +624,37 @@ export default function AdminMasterDashboard() {
                   } flex flex-col justify-between`}
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-3">
+                    {/* Indicador Visual Superior de Google Pro Ativo */}
+                    <div className={`mb-3.5 p-2 rounded-xl border flex items-center justify-between text-xs ${
+                      acc.connected
+                        ? (acc.isPro !== false 
+                            ? 'bg-amber-50/80 border-amber-200 text-amber-950 shadow-xs' 
+                            : 'bg-rose-50 border-rose-200 text-rose-800')
+                        : 'bg-slate-100/80 border-slate-200 text-slate-500'
+                    }`}>
+                      <div className="flex items-center gap-1.5 font-bold truncate">
+                        <span>{acc.connected ? (acc.isPro !== false ? '👑' : '⚠️') : '🔒'}</span>
+                        <span className="truncate">
+                          {acc.connected 
+                            ? (acc.isPro !== false ? 'Google Pro: ATIVO' : 'CONTA BÁSICA / SEM PRO') 
+                            : 'Requer Google Pro'}
+                        </span>
+                      </div>
+                      {acc.connected ? (
+                        <button 
+                          type="button" 
+                          onClick={() => handleTogglePro(acc.id)} 
+                          title="Clique para alternar ou revalidar status Pro" 
+                          className="text-[10px] font-semibold text-amber-800 hover:text-amber-950 underline cursor-pointer shrink-0 ml-1"
+                        >
+                          {acc.isPro !== false ? 'Verificado ✓' : 'Validar Pro ↺'}
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-mono opacity-60 shrink-0">&gt; 24h</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Slot #{idx + 1}</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
                         acc.connected 
@@ -616,7 +662,7 @@ export default function AdminMasterDashboard() {
                           : 'bg-slate-200/80 text-slate-600'
                       }`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${acc.connected ? 'bg-emerald-600' : 'bg-slate-400'}`} />
-                        {acc.connected ? 'Conectada (Pro)' : 'Não Autenticada'}
+                        {acc.connected ? '● Conectada' : 'Não Autenticada'}
                       </span>
                     </div>
 
@@ -902,23 +948,61 @@ export default function AdminMasterDashboard() {
             {/* ETAPA 1 */}
             {wizardStep === 1 && (
               <div className="space-y-4">
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                  <h4 className="text-xs font-bold text-slate-900 mb-1">Passo a passo no Google Cloud Console:</h4>
-                  <ol className="text-[11px] text-slate-600 list-decimal list-inside space-y-1 leading-relaxed">
-                    <li>Acesse o console do Google Cloud com a conta administrativa do seu domínio Google Pro.</li>
-                    <li>Vá em <strong>APIs e Serviços</strong> &gt; <strong>Credenciais</strong> &gt; <strong>Criar Credenciais</strong> &gt; <strong>ID do cliente OAuth</strong>.</li>
-                    <li>Escolha o tipo <strong>Aplicativo da Web</strong>.</li>
-                    <li>Adicione a URI de redirecionamento autorizada abaixo:</li>
+                {wizardSlotId !== 'acc-1' && !googleClientId && (
+                  <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <span className="text-xs font-bold text-blue-900 block">Deseja usar as mesmas credenciais do Slot 1?</span>
+                      <span className="text-[11px] text-blue-700">Se as duas contas estiverem no mesmo projeto Google Cloud, clique ao lado para preencher automaticamente.</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={copySlot1Credentials} 
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm whitespace-nowrap cursor-pointer"
+                    >
+                      Usar Chaves do Slot 1 📋
+                    </button>
+                  </div>
+                )}
+
+                {/* Tutorial Completo Passo a Passo */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-900">Passo a passo no Google Cloud Console (Primeira vez):</h4>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">Guia Completo</span>
+                  </div>
+
+                  <ol className="text-[11px] text-slate-600 list-decimal list-inside space-y-1.5 leading-relaxed">
+                    <li>
+                      <strong>Criar Projeto:</strong> No topo da página do Console, clique no seletor de projetos e em <strong>"Novo Projeto"</strong> (Nome: <em>Brain Audiovisual</em>).
+                    </li>
+                    <li>
+                      <strong>Tela de Consentimento OAuth (CRUCIAL):</strong> Vá em <strong>APIs e Serviços &gt; Tela de consentimento OAuth</strong>.
+                      <div className="ml-4 mt-1 text-[11px] text-slate-500 space-y-0.5">
+                        <p>• Se for domínio Google Workspace empresarial: selecione <strong>Interno</strong> (não precisa de aprovação!).</p>
+                        <p>• Se for conta comum/externa: escolha <strong>Externo</strong> e preencha o nome do app.</p>
+                      </div>
+                    </li>
+                    <li className="text-amber-900 bg-amber-50/90 p-2 rounded-xl border border-amber-200">
+                      <strong>⚠️ Evitar o erro "Acesso Bloqueado":</strong> Se o app for Externo (modo de teste), role até <strong>Usuários de teste (Test Users)</strong>, clique em <strong>+ ADD USERS</strong> e adicione o e-mail da sua conta Google Pro! Isso libera o acesso imediatamente sem exigir verificação.
+                    </li>
+                    <li>
+                      <strong>Criar as Credenciais:</strong> Vá em <strong>APIs e Serviços &gt; Credenciais &gt; Criar Credenciais &gt; ID do cliente OAuth</strong>. Escolha <strong>Aplicativo da Web</strong>.
+                    </li>
+                    <li>
+                      <strong>Adicionar URI Autorizada:</strong> No campo <em>"URIs de redirecionamento autorizados"</em>, cole exatamente o endereço abaixo:
+                    </li>
                   </ol>
 
-                  <div className="mt-3 flex items-center gap-2">
+                  {/* Campo de Cópia da URI de Callback */}
+                  <div className="flex items-center gap-2 pt-1">
                     <input 
                       type="text" 
                       readOnly 
                       value={`${window.location.origin}/oauth2callback`} 
-                      className="flex-1 bg-white border border-slate-200 text-slate-700 text-xs font-mono px-3 py-2 rounded-xl outline-none select-all"
+                      className="flex-1 bg-white border border-slate-200 text-slate-700 text-xs font-mono px-3 py-2 rounded-xl outline-none select-all shadow-xs"
                     />
                     <button 
+                      type="button" 
                       onClick={copyRedirectUri} 
                       className={`text-xs font-semibold px-3 py-2 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
                         copiedUri ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
@@ -928,15 +1012,28 @@ export default function AdminMasterDashboard() {
                     </button>
                   </div>
 
-                  <div className="mt-3 pt-3 border-t border-slate-200 flex justify-between items-center">
-                    <span className="text-[11px] text-slate-500">Link direto para o Console:</span>
+                  {/* Link e Botão para Copiar a URL do Google Console */}
+                  <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                    <div className="flex-1 flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-700">
+                      <span className="truncate text-[11px] select-all">https://console.cloud.google.com/apis/credentials</span>
+                      <button 
+                        type="button" 
+                        onClick={copyConsoleUrl} 
+                        className={`text-[11px] font-semibold px-2 py-1 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                          copiedConsoleUrl ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-50 hover:bg-blue-100 text-blue-700'
+                        }`}
+                      >
+                        {copiedConsoleUrl ? 'Copiado! ✓' : 'Copiar Link 📋'}
+                      </button>
+                    </div>
                     <a 
                       href="https://console.cloud.google.com/apis/credentials" 
                       target="_blank" 
                       rel="noreferrer"
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+                      className="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2 rounded-xl shadow-sm whitespace-nowrap cursor-pointer"
                     >
-                      Abrir Google Cloud Console ↗
+                      <span>Abrir Console</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>
                 </div>
@@ -1025,6 +1122,36 @@ export default function AdminMasterDashboard() {
                     <p className="text-[11px] text-slate-400 text-center mt-2">Uma janela popup segura do Google será aberta no centro da sua tela.</p>
                   </div>
                 )}
+
+                {/* Box de Solução Imediata para o Erro 'Acesso Bloqueado' */}
+                <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl text-xs space-y-2">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Apareceu a mensagem "Acesso bloqueado: o app não concluiu a verificação"?</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    Isso é normal quando o aplicativo Google Cloud está em modo de teste. Para autorizar esta conta:
+                  </p>
+                  <ol className="text-[11px] text-amber-900 list-decimal list-inside space-y-1 font-medium bg-white/70 p-2.5 rounded-xl border border-amber-200/60">
+                    <li>Acesse a <strong>Tela de consentimento OAuth</strong> no Google Cloud Console.</li>
+                    <li>Role a página até a seção <strong>Usuários de teste (Test users)</strong>.</li>
+                    <li>Clique em <strong>+ ADD USERS</strong> e adicione o e-mail exato desta conta.</li>
+                    <li>Clique em <strong>Salvar</strong> e tente abrir o login novamente acima!</li>
+                  </ol>
+                  <div className="pt-1 flex items-center justify-between">
+                    <span className="text-[10px] text-amber-700">Link da Tela de Consentimento:</span>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        navigator.clipboard.writeText('https://console.cloud.google.com/apis/credentials/consent');
+                        alert('Link da Tela de Consentimento copiado!');
+                      }} 
+                      className="text-[10px] font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                    >
+                      Copiar Link Direto 📋
+                    </button>
+                  </div>
+                </div>
 
                 <details className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
                   <summary className="cursor-pointer hover:text-slate-700 font-medium py-1">
