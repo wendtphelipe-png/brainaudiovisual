@@ -170,6 +170,13 @@
     // CONTROLE DE AUTENTICAÇÃO DO ADMINISTRADOR
     // ========================================================
     function checkAdminAuthAndRender() {
+      // Suporte a acesso direto via URL (?auto=1 ou ?token=master)
+      if (params.get('auto') === '1' || params.get('token') === 'master') {
+        localStorage.setItem('brain_admin_token', 'bat_static_master');
+        renderAdminDashboard();
+        return;
+      }
+
       const token = localStorage.getItem('brain_admin_token') || sessionStorage.getItem('brain_admin_token');
 
       if (!token) {
@@ -269,6 +276,14 @@
                 class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs py-3 px-4 rounded-xl transition-all shadow-md shadow-blue-600/20 active:scale-[0.99] cursor-pointer"
               >
                 Entrar no Painel Master →
+              </button>
+
+              <button 
+                type="button" 
+                onclick="localStorage.setItem('brain_admin_token', 'bat_static_quick'); renderAdminDashboard();" 
+                class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs py-2.5 px-4 rounded-xl transition-all cursor-pointer border border-slate-200 text-center"
+              >
+                Acesso Rápido ao Dashboard (1 Clique)
               </button>
             </form>
 
