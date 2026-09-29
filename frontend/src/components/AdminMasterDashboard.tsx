@@ -293,7 +293,7 @@ export default function AdminMasterDashboard() {
     const top = Math.max(0, (window.screen.height - height) / 2);
 
     const redirectUri = `${window.location.origin}/oauth2callback`;
-    const scope = encodeURIComponent('https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/calendar.readonly');
+    const scope = encodeURIComponent('openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile');
     const nonce = Math.random().toString(36).substring(2);
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId.trim())}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token%20id_token&scope=${scope}&state=${encodeURIComponent(wizardSlotId || 'acc-1')}&prompt=select_account%20consent&nonce=${nonce}`;
 

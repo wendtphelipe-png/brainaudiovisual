@@ -19,10 +19,9 @@ const ACCOUNTS_FILE = path.join(__dirname, '..', 'accounts.json');
 const CREDENTIALS_PATH = path.join(__dirname, '..', 'credentials.json');
 
 const SCOPES = [
+    'openid',
     'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/calendar.readonly',
-    'https://www.googleapis.com/auth/calendar.events'
+    'https://www.googleapis.com/auth/userinfo.profile'
 ];
 
 class AccountManager {
