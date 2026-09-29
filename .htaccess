@@ -38,3 +38,13 @@ ServerSignature Off
 <IfModule mod_deflate.c>
   AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml
 </IfModule>
+
+# 6. Desativar cache do index.html para refletir atualizações imediatamente
+<FilesMatch "^(index\.html|index\.htm)$">
+  <IfModule mod_headers.c>
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires 0
+  </IfModule>
+</FilesMatch>
+
