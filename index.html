@@ -631,7 +631,7 @@
       // ========================================================
       // ESTADO E CONTROLADORES DO ASSISTENTE GOOGLE PRO (WIZARD)
       // ========================================================
-      let wizardState = {
+      window.wizardState = {
         slotId: null,
         step: 1, // 1: Credenciais Google Cloud, 2: Popup Login, 3: Verificação & Ativação
         popupRef: null,
@@ -641,46 +641,78 @@
         errorMessage: ''
       };
 
+      // Navegação direta e segura entre as etapas do assistente
+      window.wizardGoToStep = function(targetStep) {
+        if (!window.wizardState) return;
+        window.wizardState.step = targetStep;
+        window.wizardState.errorMessage = '';
+        renderWizardModal();
+      };
+
       // Abre o Assistente no momento do clique no botão
       window.openGoogleAuthWizard = function(slotId, forceStep = null) {
-        wizardState.slotId = slotId;
-        wizardState.errorMessage = '';
-        wizardState.verifiedData = null;
-        wizardState.popupLaunched = false;
+        window.wizardState.slotId = slotId;
+        window.wizardState.errorMessage = '';
+        window.wizardState.verifiedData = null;
+        window.wizardState.popupLaunched = false;
 
-        const savedCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+        // Recupera credenciais específicas DESTE slot, sem sobrescrever outros slots
+        const slotCreds = JSON.parse(localStorage.getItem('brain_google_credentials_' + slotId) || '{}');
+
         if (forceStep) {
-          wizardState.step = forceStep;
-        } else if (savedCreds && savedCreds.clientId) {
-          wizardState.step = 2;
+          window.wizardState.step = forceStep;
+        } else if (slotCreds && slotCreds.clientId) {
+          // Se este slot específico já foi configurado antes, vai direto para o popup de login
+          window.wizardState.step = 2;
         } else {
-          wizardState.step = 1;
+          // Novo slot: SEMPRE abre no Passo 1 (Credenciais) para permitir configurar o Google Cloud deste domínio/conta!
+          window.wizardState.step = 1;
         }
 
         renderWizardModal();
       };
 
       window.closeGoogleAuthWizard = function() {
-        if (wizardState.checkTimer) {
-          clearInterval(wizardState.checkTimer);
-          wizardState.checkTimer = null;
+        if (window.wizardState && window.wizardState.checkTimer) {
+          clearInterval(window.wizardState.checkTimer);
+          window.wizardState.checkTimer = null;
         }
-        if (wizardState.popupRef && !wizardState.popupRef.closed) {
-          try { wizardState.popupRef.close(); } catch (e) {}
+        if (window.wizardState && window.wizardState.popupRef && !window.wizardState.popupRef.closed) {
+          try { window.wizardState.popupRef.close(); } catch (e) {}
         }
-        wizardState.popupRef = null;
+        if (window.wizardState) {
+          window.wizardState.popupRef = null;
+          window.wizardState.popupLaunched = false;
+        }
         const container = document.getElementById('wizard-modal-container');
         if (container) container.innerHTML = '';
+      };
+
+      // Atalho para copiar as chaves já configuradas em outro slot (ex: Slot 1)
+      window.copySlot1Credentials = function() {
+        const defaultCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+        if (defaultCreds.clientId) {
+          const idField = document.getElementById('wz-client-id');
+          const secretField = document.getElementById('wz-client-secret');
+          if (idField) idField.value = defaultCreds.clientId;
+          if (secretField) secretField.value = defaultCreds.clientSecret || '';
+        }
       };
 
       window.renderWizardModal = function() {
         const container = document.getElementById('wizard-modal-container');
         if (!container) return;
 
-        const targetSlot = accounts.find(a => a.id === wizardState.slotId) || { name: 'Slot Google Pro' };
-        const savedCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
-        const savedClientId = savedCreds.clientId || '';
-        const savedClientSecret = savedCreds.clientSecret || '';
+        const currentSlotId = window.wizardState.slotId || 'acc-1';
+        const targetSlot = accounts.find(a => a.id === currentSlotId) || { name: 'Slot Google Pro' };
+        
+        // Recupera credenciais específicas DESTE slot, ou fallback geral se existir
+        const slotCreds = JSON.parse(localStorage.getItem('brain_google_credentials_' + currentSlotId) || '{}');
+        const defaultCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+
+        const savedClientId = slotCreds.clientId || '';
+        const savedClientSecret = slotCreds.clientSecret || '';
+        const hasSlot1Creds = !!defaultCreds.clientId;
 
         container.innerHTML = `
           <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
@@ -699,47 +731,59 @@
                   </div>
                   <div>
                     <h3 class="text-base font-bold text-slate-900">Assistente de Conexão Google Pro</h3>
-                    <p class="text-xs text-slate-500">Configuração para: <strong class="text-blue-700">${targetSlot.name}</strong></p>
+                    <p class="text-xs text-slate-500">Configurando: <strong class="text-blue-700">${targetSlot.name}</strong></p>
                   </div>
                 </div>
                 <button onclick="closeGoogleAuthWizard()" class="text-slate-400 hover:text-slate-600 text-lg font-bold p-1 rounded-lg hover:bg-slate-100 transition-all cursor-pointer">✕</button>
               </div>
 
-              <!-- Indicador Visual de Etapas -->
+              <!-- Indicador Visual de Etapas Clicáveis -->
               <div class="grid grid-cols-3 gap-2 my-5">
-                <div class="flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold ${wizardState.step === 1 ? 'bg-blue-50 border-blue-200 text-blue-700' : (wizardState.step > 1 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400')}">
-                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${wizardState.step > 1 ? 'bg-emerald-600 text-white' : (wizardState.step === 1 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600')}">
-                    ${wizardState.step > 1 ? '✓' : '1'}
+                <button type="button" onclick="wizardGoToStep(1)" class="flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer text-left ${window.wizardState.step === 1 ? 'bg-blue-50 border-blue-200 text-blue-700' : (window.wizardState.step > 1 ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' : 'bg-slate-50 border-slate-200 text-slate-400')}">
+                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${window.wizardState.step > 1 ? 'bg-emerald-600 text-white' : (window.wizardState.step === 1 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600')}">
+                    ${window.wizardState.step > 1 ? '✓' : '1'}
                   </span>
                   <span class="truncate">1. Credenciais</span>
-                </div>
+                </button>
 
-                <div class="flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold ${wizardState.step === 2 ? 'bg-blue-50 border-blue-200 text-blue-700' : (wizardState.step > 2 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400')}">
-                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${wizardState.step > 2 ? 'bg-emerald-600 text-white' : (wizardState.step === 2 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600')}">
-                    ${wizardState.step > 2 ? '✓' : '2'}
+                <button type="button" onclick="wizardGoToStep(2)" class="flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer text-left ${window.wizardState.step === 2 ? 'bg-blue-50 border-blue-200 text-blue-700' : (window.wizardState.step > 2 ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' : 'bg-slate-50 border-slate-200 text-slate-400')}">
+                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${window.wizardState.step > 2 ? 'bg-emerald-600 text-white' : (window.wizardState.step === 2 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600')}">
+                    ${window.wizardState.step > 2 ? '✓' : '2'}
                   </span>
                   <span class="truncate">2. Login Popup</span>
-                </div>
+                </button>
 
-                <div class="flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold ${wizardState.step === 3 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400'}">
-                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${wizardState.step === 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}">
-                    ${wizardState.step === 3 ? '✓' : '3'}
+                <div class="flex items-center gap-2 p-2 rounded-xl border text-xs font-semibold ${window.wizardState.step === 3 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400'}">
+                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${window.wizardState.step === 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}">
+                    ${window.wizardState.step === 3 ? '✓' : '3'}
                   </span>
                   <span class="truncate">3. Verificação</span>
                 </div>
               </div>
 
               <!-- Aviso de Erro ou Alerta -->
-              ${wizardState.errorMessage ? `
+              ${window.wizardState.errorMessage ? `
                 <div class="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium flex items-center justify-between">
-                  <span>⚠️ ${wizardState.errorMessage}</span>
-                  <button onclick="wizardState.errorMessage = ''; renderWizardModal();" class="text-amber-600 hover:text-amber-800 font-bold ml-2 cursor-pointer">✕</button>
+                  <span>⚠️ ${window.wizardState.errorMessage}</span>
+                  <button onclick="window.wizardState.errorMessage = ''; renderWizardModal();" class="text-amber-600 hover:text-amber-800 font-bold ml-2 cursor-pointer">✕</button>
                 </div>
               ` : ''}
 
-              <!-- ETAPA 1: CREDENCIAIS GOOGLE CLOUD OAUTH2 -->
-              ${wizardState.step === 1 ? `
+              <!-- ETAPA 1: CREDENCIAIS GOOGLE CLOUD OAUTH2 (ISOLADAS POR SLOT) -->
+              ${window.wizardState.step === 1 ? `
                 <div class="space-y-4">
+                  ${hasSlot1Creds && !savedClientId ? `
+                    <div class="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div>
+                        <span class="text-xs font-bold text-blue-900 block">Deseja usar as mesmas credenciais do Slot 1?</span>
+                        <span class="text-[11px] text-blue-700">Se as duas contas estiverem no mesmo projeto Google Cloud, clique ao lado para preencher automaticamente.</span>
+                      </div>
+                      <button type="button" onclick="copySlot1Credentials()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm whitespace-nowrap cursor-pointer">
+                        Usar Chaves do Slot 1 📋
+                      </button>
+                    </div>
+                  ` : ''}
+
                   <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                     <h4 class="text-xs font-bold text-slate-900 mb-1">Passo a passo no Google Cloud Console:</h4>
                     <ol class="text-[11px] text-slate-600 list-decimal list-inside space-y-1 leading-relaxed">
@@ -756,30 +800,31 @@
                       </button>
                     </div>
 
-                    <div class="mt-3 pt-3 border-t border-slate-200 flex justify-between items-center">
-                      <span class="text-[11px] text-slate-500">Link direto para o Console:</span>
-                      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1">
-                        Abrir Google Cloud Console ↗
+                    <div class="mt-3 pt-3 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span class="text-[11px] text-slate-500">Abrir o Console para gerar chaves desta conta:</span>
+                      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition-all cursor-pointer">
+                        <span>Abrir Google Cloud Console</span>
+                        <span>↗</span>
                       </a>
                     </div>
                   </div>
 
                   <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Client ID do Google *</label>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Client ID do Google para ${targetSlot.name} *</label>
                     <input type="text" id="wz-client-id" value="${savedClientId}" placeholder="Ex: 123456789012-xxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com" class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs font-mono outline-none">
                   </div>
 
                   <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1">Client Secret (Segredo do Cliente)</label>
                     <input type="password" id="wz-client-secret" value="${savedClientSecret}" placeholder="Ex: GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx" class="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-3 py-2.5 text-xs font-mono outline-none">
-                    <p class="text-[11px] text-slate-400 mt-1">Permite persistência contínua com renovação automática de tokens.</p>
+                    <p class="text-[11px] text-slate-400 mt-1">Salvo de forma individual para este slot, garantindo a autonomia de cada conta.</p>
                   </div>
 
                   <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <button onclick="closeGoogleAuthWizard()" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-4 py-2 cursor-pointer">
+                    <button type="button" onclick="closeGoogleAuthWizard()" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-4 py-2 cursor-pointer">
                       Cancelar
                     </button>
-                    <button onclick="saveWizardCredentialsSubmit()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer">
+                    <button type="button" onclick="saveWizardCredentialsSubmit()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer">
                       Salvar & Avançar para o Login ➔
                     </button>
                   </div>
@@ -787,23 +832,23 @@
               ` : ''}
 
               <!-- ETAPA 2: LOGIN NA JANELA POPUP DO GOOGLE -->
-              ${wizardState.step === 2 ? `
+              ${window.wizardState.step === 2 ? `
                 <div class="space-y-4">
                   <div class="text-xs text-slate-600 leading-relaxed">
-                    Credenciais do Google Cloud validadas. Ao clicar no botão abaixo, abriremos uma <strong>janela popup oficial de login do Google</strong> para você selecionar e autorizar sua conta Google Pro.
+                    Credenciais validadas para <strong>${targetSlot.name}</strong>. Ao clicar no botão abaixo, abriremos uma <strong>janela popup oficial de login do Google</strong> para você selecionar e autorizar a conta Google Pro correspondente.
                   </div>
 
-                  <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-mono text-slate-600">
+                  <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-mono text-slate-600">
                     <div class="truncate max-w-[340px]">
                       <span class="text-slate-400 font-sans">Client ID: </span>
-                      <span class="font-semibold text-slate-800">${savedClientId ? savedClientId.substring(0, 26) + '...' : 'Configurado'}</span>
+                      <span class="font-semibold text-slate-800">${savedClientId ? savedClientId.substring(0, 26) + '...' : (defaultCreds.clientId ? defaultCreds.clientId.substring(0, 26) + '...' : 'Configurado')}</span>
                     </div>
-                    <button onclick="wizardState.step = 1; renderWizardModal();" class="text-blue-600 hover:text-blue-800 font-sans font-semibold text-xs hover:underline cursor-pointer">
-                      Alterar Chaves
+                    <button type="button" onclick="wizardGoToStep(1)" class="text-blue-600 hover:text-blue-800 font-sans font-semibold text-xs hover:underline cursor-pointer">
+                      Alterar Chaves deste Slot ⚙️
                     </button>
                   </div>
 
-                  ${wizardState.popupLaunched ? `
+                  ${window.wizardState.popupLaunched ? `
                     <div class="p-6 bg-blue-50/70 border border-blue-200 rounded-2xl flex flex-col items-center justify-center text-center">
                       <div class="relative flex items-center justify-center mb-3">
                         <span class="animate-ping absolute inline-flex h-12 w-12 rounded-full bg-blue-400 opacity-60"></span>
@@ -813,20 +858,20 @@
                       </div>
                       <h4 class="text-sm font-bold text-slate-900 mb-1">Acompanhando Autenticação em Tempo Real</h4>
                       <p class="text-xs text-slate-600 max-w-sm mb-4 leading-relaxed">
-                        A janela oficial do Google está aberta. Selecione sua conta <strong>Google Workspace Pro</strong> e clique em <strong>Continuar / Permitir</strong>.
+                        A janela oficial do Google está aberta. Selecione a conta <strong>Google Workspace Pro</strong> referente a este slot e clique em <strong>Continuar / Permitir</strong>.
                       </p>
                       <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-blue-200 text-xs font-semibold text-blue-700 shadow-sm mb-4">
                         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                         Aguardando conclusão do login no Google...
                       </div>
 
-                      <button onclick="launchGoogleAuthPopup()" class="text-xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                      <button type="button" onclick="launchGoogleAuthPopup()" class="text-xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer">
                         Janela não abriu ou foi fechada? Clique aqui para reabrir ↺
                       </button>
                     </div>
                   ` : `
                     <div class="pt-2">
-                      <button onclick="launchGoogleAuthPopup()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-blue-500/25 text-sm transition-all cursor-pointer">
+                      <button type="button" onclick="launchGoogleAuthPopup()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-blue-500/25 text-sm transition-all cursor-pointer">
                         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                           <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -846,17 +891,17 @@
                     <div class="pt-3 space-y-2">
                       <p class="text-[11px] text-slate-500">Se preferir colar o Access Token do Google (ya29...):</p>
                       <input type="text" id="manual-token-field" placeholder="Cole o token ya29... aqui" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none">
-                      <button onclick="handleManualTokenVerificationSubmit()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 px-3 rounded-xl text-xs cursor-pointer">
+                      <button type="button" onclick="handleManualTokenVerificationSubmit()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 px-3 rounded-xl text-xs cursor-pointer">
                         Consultar e Validar na API do Google
                       </button>
                     </div>
                   </details>
 
                   <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <button onclick="wizardState.step = 1; renderWizardModal();" class="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer">
+                    <button type="button" onclick="wizardGoToStep(1)" class="text-xs font-semibold text-blue-600 hover:text-blue-800 cursor-pointer flex items-center gap-1">
                       ← Voltar para Credenciais
                     </button>
-                    <button onclick="closeGoogleAuthWizard()" class="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer">
+                    <button type="button" onclick="closeGoogleAuthWizard()" class="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer">
                       Cancelar
                     </button>
                   </div>
@@ -864,14 +909,14 @@
               ` : ''}
 
               <!-- ETAPA 3: VERIFICAÇÃO REAL E ATIVAÇÃO DO SLOT -->
-              ${wizardState.step === 3 ? `
+              ${window.wizardState.step === 3 ? `
                 <div class="space-y-5">
                   <div class="p-6 bg-emerald-50/50 border-2 border-emerald-200 rounded-2xl flex flex-col items-center text-center">
                     <div class="w-16 h-16 rounded-full bg-white border-2 border-emerald-500 shadow-md flex items-center justify-center overflow-hidden mb-3">
-                      ${wizardState.verifiedData && wizardState.verifiedData.picture ? `
-                        <img src="${wizardState.verifiedData.picture}" alt="Avatar" class="w-full h-full object-cover">
+                      ${window.wizardState.verifiedData && window.wizardState.verifiedData.picture ? `
+                        <img src="${window.wizardState.verifiedData.picture}" alt="Avatar" class="w-full h-full object-cover">
                       ` : `
-                        <span class="text-xl font-bold text-emerald-700">${(wizardState.verifiedData && wizardState.verifiedData.name ? wizardState.verifiedData.name.charAt(0) : 'G')}</span>
+                        <span class="text-xl font-bold text-emerald-700">${(window.wizardState.verifiedData && window.wizardState.verifiedData.name ? window.wizardState.verifiedData.name.charAt(0) : 'G')}</span>
                       `}
                     </div>
 
@@ -880,8 +925,8 @@
                       Autenticado com Sucesso pela Google API
                     </div>
 
-                    <h4 class="text-base font-bold text-slate-900 mb-0.5">${wizardState.verifiedData ? wizardState.verifiedData.name : 'Conta Google Pro'}</h4>
-                    <p class="text-xs text-blue-600 font-mono font-medium mb-4">${wizardState.verifiedData ? wizardState.verifiedData.email : ''}</p>
+                    <h4 class="text-base font-bold text-slate-900 mb-0.5">${window.wizardState.verifiedData ? window.wizardState.verifiedData.name : 'Conta Google Pro'}</h4>
+                    <p class="text-xs text-blue-600 font-mono font-medium mb-4">${window.wizardState.verifiedData ? window.wizardState.verifiedData.email : ''}</p>
 
                     <div class="w-full bg-white/90 border border-emerald-200 rounded-xl p-3.5 text-left space-y-1.5 text-xs text-slate-600">
                       <div class="flex justify-between items-center">
@@ -902,7 +947,7 @@
                     </div>
                   </div>
 
-                  <button onclick="confirmAndActivateSlot()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2 cursor-pointer transition-all">
+                  <button type="button" onclick="confirmAndActivateSlot()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2 cursor-pointer transition-all">
                     <span>Concluir e Salvar no Pool de Contas</span>
                     <span>✓</span>
                   </button>
@@ -935,46 +980,52 @@
         const clientId = document.getElementById('wz-client-id').value.trim();
         const clientSecret = document.getElementById('wz-client-secret').value.trim();
         const redirectUri = window.location.origin + '/oauth2callback';
+        const currentSlotId = window.wizardState.slotId || 'acc-1';
 
         if (!clientId) {
           alert('Por favor, informe o Client ID do Google Cloud.');
           return;
         }
 
+        // Salva isoladamente para este slot específico, garantindo que o Slot 1 não seja perdido
+        localStorage.setItem('brain_google_credentials_' + currentSlotId, JSON.stringify({ clientId, clientSecret }));
+        // Mantém como fallback geral
         localStorage.setItem('brain_google_credentials', JSON.stringify({ clientId, clientSecret }));
 
         fetch('/api/admin/google-credentials', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientId, clientSecret, redirectUri })
+          body: JSON.stringify({ slotId: currentSlotId, clientId, clientSecret, redirectUri })
         }).catch(() => {});
 
-        wizardState.step = 2;
-        wizardState.errorMessage = '';
+        window.wizardState.step = 2;
+        window.wizardState.errorMessage = '';
         renderWizardModal();
       };
 
       window.launchGoogleAuthPopup = function() {
-        wizardState.errorMessage = '';
-        const creds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
-        const clientId = creds.clientId;
+        window.wizardState.errorMessage = '';
+        const currentSlotId = window.wizardState.slotId || 'acc-1';
+        const slotCreds = JSON.parse(localStorage.getItem('brain_google_credentials_' + currentSlotId) || '{}');
+        const defaultCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+        const clientId = slotCreds.clientId || defaultCreds.clientId;
 
         if (!clientId) {
-          wizardState.step = 1;
-          wizardState.errorMessage = 'Configure o Client ID antes de abrir o login.';
+          window.wizardState.step = 1;
+          window.wizardState.errorMessage = 'Configure o Client ID antes de abrir o login.';
           renderWizardModal();
           return;
         }
 
         // Tenta obter URL oficial via backend
-        fetch('/api/accounts/auth-url?slot=' + (wizardState.slotId || 'acc-1'))
+        fetch('/api/accounts/auth-url?slot=' + currentSlotId)
           .then(r => r.json())
           .then(d => {
-            const url = d.url || buildGoogleOAuthUrl(clientId, wizardState.slotId);
+            const url = d.url || buildGoogleOAuthUrl(clientId, currentSlotId);
             openPopup(url);
           })
           .catch(() => {
-            const url = buildGoogleOAuthUrl(clientId, wizardState.slotId);
+            const url = buildGoogleOAuthUrl(clientId, currentSlotId);
             openPopup(url);
           });
 
@@ -984,29 +1035,29 @@
           const left = Math.max(0, (window.screen.width - width) / 2);
           const top = Math.max(0, (window.screen.height - height) / 2);
 
-          wizardState.popupRef = window.open(
+          window.wizardState.popupRef = window.open(
             url,
             'GoogleProLogin',
             `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`
           );
 
-          if (!wizardState.popupRef || wizardState.popupRef.closed || typeof wizardState.popupRef.closed === 'undefined') {
-            wizardState.errorMessage = 'O navegador bloqueou a abertura do popup. Permita popups para este site.';
-            wizardState.popupLaunched = false;
+          if (!window.wizardState.popupRef || window.wizardState.popupRef.closed || typeof window.wizardState.popupRef.closed === 'undefined') {
+            window.wizardState.errorMessage = 'O navegador bloqueou a abertura do popup. Permita popups para este site.';
+            window.wizardState.popupLaunched = false;
             renderWizardModal();
             return;
           }
 
-          wizardState.popupLaunched = true;
+          window.wizardState.popupLaunched = true;
           renderWizardModal();
 
-          if (wizardState.checkTimer) clearInterval(wizardState.checkTimer);
-          wizardState.checkTimer = setInterval(() => {
-            if (wizardState.popupRef && wizardState.popupRef.closed) {
-              clearInterval(wizardState.checkTimer);
-              if (wizardState.step !== 3) {
-                wizardState.popupLaunched = false;
-                wizardState.errorMessage = 'A janela do Google foi fechada antes de concluir o login. Se desejar, tente novamente.';
+          if (window.wizardState.checkTimer) clearInterval(window.wizardState.checkTimer);
+          window.wizardState.checkTimer = setInterval(() => {
+            if (window.wizardState.popupRef && window.wizardState.popupRef.closed) {
+              clearInterval(window.wizardState.checkTimer);
+              if (window.wizardState.step !== 3) {
+                window.wizardState.popupLaunched = false;
+                window.wizardState.errorMessage = 'A janela do Google foi fechada antes de concluir o login. Se desejar, tente novamente.';
                 renderWizardModal();
               }
             }
@@ -1036,13 +1087,13 @@
           return r.json();
         })
         .then(userInfo => {
-          wizardState.verifiedData = {
+          window.wizardState.verifiedData = {
             email: userInfo.email,
             name: userInfo.name,
             picture: userInfo.picture,
             tokens: { access_token: token }
           };
-          wizardState.step = 3;
+          window.wizardState.step = 3;
           renderWizardModal();
         })
         .catch(err => {
@@ -1051,15 +1102,16 @@
       };
 
       window.confirmAndActivateSlot = function() {
-        if (!wizardState.slotId || !wizardState.verifiedData) return;
-        const acc = accounts.find(a => a.id === wizardState.slotId);
+        if (!window.wizardState.slotId || !window.wizardState.verifiedData) return;
+        const currentSlotId = window.wizardState.slotId;
+        const acc = accounts.find(a => a.id === currentSlotId);
         if (acc) {
-          acc.email = wizardState.verifiedData.email;
-          acc.name = wizardState.verifiedData.name || ('Google Pro (' + acc.email.split('@')[0] + ')');
-          acc.picture = wizardState.verifiedData.picture || '';
+          acc.email = window.wizardState.verifiedData.email;
+          acc.name = window.wizardState.verifiedData.name || ('Google Pro (' + acc.email.split('@')[0] + ')');
+          acc.picture = window.wizardState.verifiedData.picture || '';
           acc.connected = true;
           acc.connectedAt = new Date().toISOString();
-          acc.tokens = wizardState.verifiedData.tokens || { access_token: 'verified' };
+          acc.tokens = window.wizardState.verifiedData.tokens || { access_token: 'verified' };
 
           localStorage.setItem('brain_saved_accounts', JSON.stringify(accounts));
 

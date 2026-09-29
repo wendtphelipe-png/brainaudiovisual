@@ -202,15 +202,20 @@ export default function AdminMasterDashboard() {
     setWizardVerifiedData(null);
     setWizardPopupLaunched(false);
 
-    const savedCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
-    if (savedCreds.clientId) {
-      setGoogleClientId(savedCreds.clientId);
-      setGoogleClientSecret(savedCreds.clientSecret || '');
+    const slotCreds = JSON.parse(localStorage.getItem('brain_google_credentials_' + slotId) || '{}');
+    const defaultCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+
+    if (slotCreds.clientId) {
+      setGoogleClientId(slotCreds.clientId);
+      setGoogleClientSecret(slotCreds.clientSecret || '');
+    } else {
+      setGoogleClientId('');
+      setGoogleClientSecret('');
     }
 
     if (forceStep) {
       setWizardStep(forceStep);
-    } else if (savedCreds && savedCreds.clientId) {
+    } else if (slotCreds && slotCreds.clientId) {
       setWizardStep(2);
     } else {
       setWizardStep(1);
@@ -231,18 +236,29 @@ export default function AdminMasterDashboard() {
     setWizardOpen(false);
   };
 
+  const copySlot1Credentials = () => {
+    const defaultCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+    if (defaultCreds.clientId) {
+      setGoogleClientId(defaultCreds.clientId);
+      setGoogleClientSecret(defaultCreds.clientSecret || '');
+    }
+  };
+
   const saveWizardCredentials = async () => {
     if (!googleClientId.trim()) {
       alert('Por favor, informe o Client ID do Google Cloud.');
       return;
     }
 
+    const currentSlotId = wizardSlotId || 'acc-1';
     const payload = {
+      slotId: currentSlotId,
       clientId: googleClientId.trim(),
       clientSecret: googleClientSecret.trim(),
       redirectUri: `${window.location.origin}/oauth2callback`
     };
 
+    localStorage.setItem('brain_google_credentials_' + currentSlotId, JSON.stringify({ clientId: payload.clientId, clientSecret: payload.clientSecret }));
     localStorage.setItem('brain_google_credentials', JSON.stringify({ clientId: payload.clientId, clientSecret: payload.clientSecret }));
 
     try {
@@ -259,8 +275,10 @@ export default function AdminMasterDashboard() {
 
   const launchGooglePopup = () => {
     setWizardErrorMessage('');
-    const creds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
-    const clientId = creds.clientId || googleClientId;
+    const currentSlotId = wizardSlotId || 'acc-1';
+    const slotCreds = JSON.parse(localStorage.getItem('brain_google_credentials_' + currentSlotId) || '{}');
+    const defaultCreds = JSON.parse(localStorage.getItem('brain_google_credentials') || '{}');
+    const clientId = slotCreds.clientId || defaultCreds.clientId || googleClientId;
 
     if (!clientId) {
       setWizardStep(1);
