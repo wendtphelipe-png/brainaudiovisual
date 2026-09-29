@@ -1,0 +1,35 @@
+# ========================================================
+# Hostinger Root .htaccess - Brain Audiovisual
+# ========================================================
+
+# 1. Definir o arquivo index padrão para evitar 403 Forbidden
+DirectoryIndex index.html index.php
+
+AddDefaultCharset UTF-8
+ServerSignature Off
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # 2. Forçar HTTPS (Redirecionamento Seguro)
+  RewriteCond %{HTTPS} off
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # 3. Remover barras duplicadas
+  RewriteCond %{REQUEST_METHOD} !POST
+  RewriteCond %{THE_REQUEST} \s[^?]*//
+  RewriteRule ^(.*)$ /$1 [R=301,L,NE]
+</IfModule>
+
+# 4. Permitir leitura de arquivos públicos do site
+<IfModule mod_authz_core.c>
+  <FilesMatch "\.(html|htm|css|js|json|svg|png|jpg|jpeg|webp|ico|xml|txt|woff|woff2|ttf)$">
+    Require all granted
+  </FilesMatch>
+</IfModule>
+
+# 5. Compressão GZIP para máxima velocidade
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>
