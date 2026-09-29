@@ -4,6 +4,15 @@
 
 @layer base {
   body {
-    @apply bg-background text-white antialiased m-0 font-sans h-screen w-screen overflow-hidden;
+    @apply bg-slate-950 text-white antialiased m-0 font-sans min-h-screen overflow-x-hidden selection:bg-blue-500/30 selection:text-blue-200;
   }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.08); }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 6s ease-in-out infinite;
 }
