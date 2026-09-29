@@ -976,14 +976,14 @@ export default function AdminMasterDashboard() {
                       <strong>Criar Projeto:</strong> No topo da página do Console, clique no seletor de projetos e em <strong>"Novo Projeto"</strong> (Nome: <em>Brain Audiovisual</em>).
                     </li>
                     <li>
-                      <strong>Tela de Consentimento OAuth (CRUCIAL):</strong> Vá em <strong>APIs e Serviços &gt; Tela de consentimento OAuth</strong>.
+                      <strong>Tela de Consentimento / Público-alvo (CRUCIAL):</strong> No menu lateral esquerdo, acesse <strong>Público-alvo</strong> (ou <em>APIs e Serviços &gt; Tela de consentimento OAuth</em>).
                       <div className="ml-4 mt-1 text-[11px] text-slate-500 space-y-0.5">
                         <p>• Se for domínio Google Workspace empresarial: selecione <strong>Interno</strong> (não precisa de aprovação!).</p>
                         <p>• Se for conta comum/externa: escolha <strong>Externo</strong> e preencha o nome do app.</p>
                       </div>
                     </li>
                     <li className="text-amber-900 bg-amber-50/90 p-2 rounded-xl border border-amber-200">
-                      <strong>⚠️ Evitar o erro "Acesso Bloqueado":</strong> Se o app for Externo (modo de teste), role até <strong>Usuários de teste (Test Users)</strong>, clique em <strong>+ ADD USERS</strong> e adicione o e-mail da sua conta Google Pro! Isso libera o acesso imediatamente sem exigir verificação.
+                      <strong>⚠️ Evitar o erro "Acesso Bloqueado":</strong> No menu <strong>Público-alvo</strong> (Audience), localize o bloco <strong>Usuários de teste (Test Users)</strong>, clique em <strong>+ Adicionar usuários</strong> (+ ADD USERS) e adicione o e-mail da sua conta Google Pro! Isso libera o acesso imediatamente sem exigir verificação.
                     </li>
                     <li>
                       <strong>Criar as Credenciais:</strong> Vá em <strong>APIs e Serviços &gt; Credenciais &gt; Criar Credenciais &gt; ID do cliente OAuth</strong>. Escolha <strong>Aplicativo da Web</strong>.
@@ -1130,21 +1130,21 @@ export default function AdminMasterDashboard() {
                     <span>Apareceu a mensagem "Acesso bloqueado: o app não concluiu a verificação"?</span>
                   </div>
                   <p className="text-[11px] text-amber-800 leading-relaxed">
-                    Isso é normal quando o aplicativo Google Cloud está em modo de teste. Para autorizar esta conta:
+                    O Google Cloud atualizou a interface para <strong>Google Auth Platform</strong>. Para autorizar esta conta:
                   </p>
                   <ol className="text-[11px] text-amber-900 list-decimal list-inside space-y-1 font-medium bg-white/70 p-2.5 rounded-xl border border-amber-200/60">
-                    <li>Acesse a <strong>Tela de consentimento OAuth</strong> no Google Cloud Console.</li>
-                    <li>Role a página até a seção <strong>Usuários de teste (Test users)</strong>.</li>
-                    <li>Clique em <strong>+ ADD USERS</strong> e adicione o e-mail exato desta conta.</li>
+                    <li>No menu lateral esquerdo do Google Cloud, clique em <strong>Público-alvo</strong> (Audience).</li>
+                    <li>Dentro de <strong>Público-alvo</strong>, localize o bloco <strong>Usuários de teste</strong> (Test users).</li>
+                    <li>Clique em <strong>+ Adicionar usuários</strong> (+ ADD USERS) e digite o e-mail exato desta conta.</li>
                     <li>Clique em <strong>Salvar</strong> e tente abrir o login novamente acima!</li>
                   </ol>
                   <div className="pt-1 flex items-center justify-between">
-                    <span className="text-[10px] text-amber-700">Link da Tela de Consentimento:</span>
+                    <span className="text-[10px] text-amber-700">Link direto para Público-alvo:</span>
                     <button 
                       type="button" 
                       onClick={() => {
-                        navigator.clipboard.writeText('https://console.cloud.google.com/apis/credentials/consent');
-                        alert('Link da Tela de Consentimento copiado!');
+                        navigator.clipboard.writeText('https://console.cloud.google.com/auth/audience');
+                        alert('Link de Público-alvo copiado!');
                       }} 
                       className="text-[10px] font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
                     >
