@@ -10,6 +10,8 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     @keyframes pulseLive {
       0%, 100% { opacity: 1; transform: scale(1); }
@@ -186,7 +188,7 @@
     // ========================================================
     const params = new URLSearchParams(window.location.search);
     const isOAuthCallback = params.get('oauth2callback') === 'true' || window.location.pathname.startsWith('/oauth2callback');
-    const isOverlaySubtitles = params.get('overlay') === 'subtitles' || window.location.pathname.startsWith('/overlay/subtitles');
+    const isOverlaySubtitles = params.get('overlay') === 'subtitles' || params.get('telao') === 'true' || window.location.pathname.startsWith('/overlay/subtitles') || window.location.pathname.startsWith('/telao');
     const isAdmin = params.get('admin') === 'true' || window.location.pathname.startsWith('/admin');
     const meetingId = params.get('meeting') || (window.location.pathname.startsWith('/meeting/') ? window.location.pathname.split('/')[2] : null);
 
@@ -1850,39 +1852,49 @@
         };
       }
 
-      let overlayViewMode = 'both'; // 'both' | 'receiver' | 'transmitter'
-      let currentBg = '#000000'; // '#000000', '#00ff00' (Chroma), '#0000ff', 'transparent'
-      let currentFontSize = 24;
+      // Parâmetros de URL para configuração automática no Telão
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlView = urlParams.get('view'); // 'receiver' | 'both' | 'transmitter'
+      const urlBg = urlParams.get('bg');     // 'chroma' | 'black' | 'transparent'
+
+      let overlayViewMode = (urlView === 'receiver' || urlView === 'transmitter') ? urlView : 'both';
+      let currentBg = urlBg === 'chroma' ? '#00ff00' : (urlBg === 'transparent' ? 'transparent' : '#000000');
+      let currentFontSize = 26;
       let areControlsHidden = false;
 
       root.innerHTML = `
         <div id="overlay-container" class="min-h-screen flex flex-col justify-between transition-colors duration-300 relative select-none" style="background-color: ${currentBg};">
-          <!-- BARRA DE CONTROLE SUPERIOR (PODE SER OCULTADA PARA CAPTURA LIMPA NO OBS) -->
+          <!-- BARRA DE CONTROLE SUPERIOR (PODE SER OCULTADA PARA CAPTURA LIMPA NO OBS / TELÃO) -->
           <div id="overlay-topbar" class="p-3 bg-slate-900/90 backdrop-blur-md border-b border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs z-50 text-slate-200">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-3">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <strong class="font-bold text-white tracking-wide">BROADCAST OVERLAY</strong>
+              <strong class="font-bold text-white tracking-wide">BROADCAST TELÃO & OVERLAY</strong>
               <span class="text-slate-400 font-mono text-[11px]">(${meeting.title})</span>
+              
+              <!-- Indicador de Nuvem Global -->
+              <span id="overlay-cloud-indicator" class="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 px-2 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Conectado à Nuvem (Ao Vivo)
+              </span>
             </div>
 
             <!-- Seleção de Modo de Visualização -->
             <div class="flex items-center bg-slate-800 p-0.5 rounded-xl border border-slate-700 text-[11px] font-semibold">
-              <button onclick="setOverlayMode('both')" id="btn-mode-both" class="px-2.5 py-1 rounded-lg bg-blue-600 text-white shadow-2xs">
+              <button onclick="setOverlayMode('both')" id="btn-mode-both" class="px-2.5 py-1 rounded-lg ${overlayViewMode === 'both' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-300 hover:text-white'}">
                 Ambos (Split)
               </button>
-              <button onclick="setOverlayMode('receiver')" id="btn-mode-rec" class="px-2.5 py-1 rounded-lg text-slate-300 hover:text-white">
+              <button onclick="setOverlayMode('receiver')" id="btn-mode-rec" class="px-2.5 py-1 rounded-lg ${overlayViewMode === 'receiver' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-300 hover:text-white'}">
                 Apenas Tradução
               </button>
-              <button onclick="setOverlayMode('transmitter')" id="btn-mode-trans" class="px-2.5 py-1 rounded-lg text-slate-300 hover:text-white">
+              <button onclick="setOverlayMode('transmitter')" id="btn-mode-trans" class="px-2.5 py-1 rounded-lg ${overlayViewMode === 'transmitter' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-300 hover:text-white'}">
                 Apenas Palestrante
               </button>
             </div>
 
-            <!-- Presets de Fundo para Transmissão -->
+            <!-- Presets de Fundo para Transmissão / Telão -->
             <div class="flex items-center gap-1.5">
-              <span class="text-slate-400 text-[11px]">Fundo Transmissão:</span>
-              <button onclick="setOverlayBg('#000000')" title="Preto Puro" class="w-5 h-5 rounded-full bg-black border border-slate-500 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
-              <button onclick="setOverlayBg('#00ff00')" title="Chroma Key Verde" class="w-5 h-5 rounded-full bg-green-500 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+              <span class="text-slate-400 text-[11px]">Fundo:</span>
+              <button onclick="setOverlayBg('#000000')" title="Preto Puro (Telão / Auditório)" class="w-5 h-5 rounded-full bg-black border border-slate-500 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+              <button onclick="setOverlayBg('#00ff00')" title="Chroma Key Verde (OBS / vMix)" class="w-5 h-5 rounded-full bg-green-500 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
               <button onclick="setOverlayBg('#0000ff')" title="Chroma Key Azul" class="w-5 h-5 rounded-full bg-blue-600 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
               <button onclick="setOverlayBg('transparent')" title="Fundo Transparente" class="w-5 h-5 rounded-full bg-slate-800 border border-dashed border-slate-400 cursor-pointer text-[9px] flex items-center justify-center font-mono">T</button>
             </div>
@@ -1890,36 +1902,36 @@
             <!-- Tamanho da Fonte -->
             <div class="flex items-center gap-1">
               <span class="text-slate-400 text-[11px]">Tamanho:</span>
-              <button onclick="changeOverlayFont(-2)" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded font-bold">A-</button>
-              <span id="overlay-font-indicator" class="font-mono text-[11px] font-bold text-white w-7 text-center">24px</span>
-              <button onclick="changeOverlayFont(2)" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded font-bold">A+</button>
+              <button onclick="changeOverlayFont(-2)" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded font-bold cursor-pointer">A-</button>
+              <span id="overlay-font-indicator" class="font-mono text-[11px] font-bold text-white w-7 text-center">26px</span>
+              <button onclick="changeOverlayFont(2)" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded font-bold cursor-pointer">A+</button>
             </div>
 
             <div class="flex items-center gap-2">
               <button onclick="toggleOverlayControls()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-lg text-[11px] font-semibold cursor-pointer">
                 Ocultar Menus (H)
               </button>
-              <button onclick="document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold cursor-pointer">
-                ⛶ Tela Cheia
+              <button onclick="document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold cursor-pointer shadow-xs">
+                ⛶ Tela Cheia (F11)
               </button>
             </div>
           </div>
 
-          <!-- ÁREA CENTRAL DE LEGENDAS DE BROADCAST -->
-          <div id="overlay-stage" class="flex-1 w-full max-w-7xl mx-auto p-6 flex flex-col justify-end gap-6 overflow-hidden">
-            <div id="overlay-grid" class="grid grid-cols-2 gap-6 w-full">
+          <!-- ÁREA CENTRAL DE LEGENDAS DE BROADCAST / TELÃO -->
+          <div id="overlay-stage" class="flex-1 w-full max-w-7xl mx-auto p-6 sm:p-10 flex flex-col justify-end gap-6 overflow-hidden">
+            <div id="overlay-grid" class="${overlayViewMode === 'both' ? 'grid grid-cols-2 gap-6 w-full' : 'grid grid-cols-1 gap-6 w-full max-w-4xl mx-auto'}">
               <!-- Bloco Palestrante -->
-              <div id="overlay-col-trans" class="flex flex-col justify-end space-y-2">
+              <div id="overlay-col-trans" class="flex flex-col justify-end space-y-2 ${overlayViewMode === 'receiver' ? 'hidden' : ''}">
                 <span class="text-xs uppercase tracking-widest text-blue-400 font-bold opacity-75">Palestrante (Original):</span>
-                <div id="overlay-feed-trans" class="space-y-2 text-white font-medium drop-shadow-md leading-relaxed" style="font-size: 24px;">
+                <div id="overlay-feed-trans" class="space-y-2 text-white font-medium drop-shadow-md leading-relaxed" style="font-size: ${currentFontSize}px;">
                   <p class="text-slate-500 italic text-base">Aguardando fala do palestrante...</p>
                 </div>
               </div>
 
               <!-- Bloco Tradução -->
-              <div id="overlay-col-rec" class="flex flex-col justify-end space-y-2">
+              <div id="overlay-col-rec" class="flex flex-col justify-end space-y-2 ${overlayViewMode === 'transmitter' ? 'hidden' : ''}">
                 <span class="text-xs uppercase tracking-widest text-emerald-400 font-bold opacity-75">Tradução Simultânea (Ao Vivo):</span>
-                <div id="overlay-feed-rec" class="space-y-2 text-yellow-300 font-bold drop-shadow-md leading-relaxed" style="font-size: 24px;">
+                <div id="overlay-feed-rec" class="space-y-2 text-yellow-300 font-bold drop-shadow-md leading-relaxed" style="font-size: ${currentFontSize}px;">
                   <p class="text-slate-500 italic text-base">Aguardando tradução simultânea...</p>
                 </div>
               </div>
@@ -1981,7 +1993,7 @@
       };
 
       window.changeOverlayFont = function(delta) {
-        currentFontSize = Math.max(16, Math.min(48, currentFontSize + delta));
+        currentFontSize = Math.max(16, Math.min(56, currentFontSize + delta));
         const ind = document.getElementById('overlay-font-indicator');
         if (ind) ind.innerText = currentFontSize + 'px';
         const feedTrans = document.getElementById('overlay-feed-trans');
@@ -2004,38 +2016,84 @@
         }
       });
 
-      // SINCRONIZAÇÃO EM TEMPO REAL VIA BROADCASTCHANNEL
+      // RENDERIZAÇÃO UNIFICADA DE MENSAGENS COM DEDUPLICAÇÃO
+      const seenSubtitles = new Set();
+      function handleIncomingSubtitle(data) {
+        if (!data || data.type !== 'NEW_SUBTITLE' || !data.text) return;
+        const dedupeKey = data.channel + '_' + data.text.trim();
+        if (seenSubtitles.has(dedupeKey)) return;
+        seenSubtitles.add(dedupeKey);
+        if (seenSubtitles.size > 100) {
+          const first = seenSubtitles.values().next().value;
+          seenSubtitles.delete(first);
+        }
+
+        const feedId = data.channel === 'transmitter' ? 'overlay-feed-trans' : 'overlay-feed-rec';
+        const feed = document.getElementById(feedId);
+        if (feed) {
+          const firstP = feed.querySelector('.italic');
+          if (firstP) firstP.remove();
+
+          const p = document.createElement('p');
+          p.className = 'leading-relaxed transition-all duration-300 py-1.5 border-b border-white/10';
+          p.innerText = data.text;
+          feed.prepend(p); // Mais novo sempre no topo!
+
+          while (feed.children.length > 6) {
+            feed.removeChild(feed.lastChild);
+          }
+        }
+      }
+
+      // 1. SINCRONIZAÇÃO LOCAL (MESMO COMPUTADOR / OBS)
       try {
         const channel = new BroadcastChannel('brain_subtitles_channel');
         channel.onmessage = (event) => {
-          const data = event.data;
-          if (!data || data.type !== 'NEW_SUBTITLE') return;
-
-          const feedId = data.channel === 'transmitter' ? 'overlay-feed-trans' : 'overlay-feed-rec';
-          const feed = document.getElementById(feedId);
-          if (feed) {
-            const firstP = feed.querySelector('.italic');
-            if (firstP) firstP.remove();
-
-            const p = document.createElement('p');
-            p.className = 'leading-relaxed transition-all duration-300 py-1 border-b border-white/10';
-            p.innerText = data.text;
-            feed.prepend(p); // Mais novo sempre no topo!
-
-            while (feed.children.length > 6) {
-              feed.removeChild(feed.lastChild);
-            }
-          }
+          handleIncomingSubtitle(event.data);
         };
       } catch(e) {
         console.warn('BroadcastChannel aviso:', e);
       }
+
+      // 2. SINCRONIZAÇÃO GLOBAL EM NUVEM (QUALQUER COMPUTADOR / TELÃO REMOTO)
+      const safeMeetingId = encodeURIComponent(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const mqttTopic = 'brainaudiovisual/meeting/' + safeMeetingId + '/subtitles';
+      try {
+        if (typeof mqtt !== 'undefined') {
+          const mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'brain_telao_' + Math.random().toString(16).substring(2, 8),
+            clean: true,
+            connectTimeout: 7000,
+            reconnectPeriod: 3000
+          });
+          mqttClient.on('connect', () => {
+            console.log('📡 Telão conectado com sucesso à nuvem global MQTT!');
+            mqttClient.subscribe(mqttTopic, { qos: 0 });
+            const ind = document.getElementById('overlay-cloud-indicator');
+            if (ind) {
+              ind.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Conectado à Nuvem (Ao Vivo)';
+              ind.className = 'flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 px-2 py-0.5 rounded-full';
+            }
+          });
+          mqttClient.on('message', (topic, payload) => {
+            try {
+              const parsed = JSON.parse(payload.toString());
+              handleIncomingSubtitle(parsed);
+            } catch(err) {}
+          });
+          mqttClient.on('offline', () => {
+            const ind = document.getElementById('overlay-cloud-indicator');
+            if (ind) {
+              ind.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Reconectando Nuvem...';
+              ind.className = 'flex items-center gap-1.5 text-[11px] font-semibold text-amber-400 bg-amber-950/40 border border-amber-800/60 px-2 py-0.5 rounded-full';
+            }
+          });
+        }
+      } catch(e) {
+        console.warn('MQTT Telão init warning:', e);
+      }
     }
 
-    // ========================================================
-    // COCKPIT MASTER: TOPO CONGELADO (PROGRESSO + TRANSCRIÇÕES ESTÁTICAS)
-    // + PAINEL OPERACIONAL ROLÁVEL (DISPOSITIVOS E SALAS)
-    // ========================================================
     function renderMeetingRoomMonitor(id) {
       let volume = 85;
       let isReceiverMuted = false;
@@ -2046,11 +2104,59 @@
       let isTimerPaused = false;
       let latency = 142;
 
-      // BroadcastChannel para sincronização instantânea com a janela dedicada de legendas (OBS)
+      // Sincronização em Tempo Real: Local (BroadcastChannel) e Nuvem Global (MQTT WebSockets)
       let subtitleBroadcast = null;
       try {
         subtitleBroadcast = new BroadcastChannel('brain_subtitles_channel');
       } catch(e) {}
+
+      const safeMeetingMqttId = encodeURIComponent(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const mqttMeetingTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/subtitles';
+      let mqttPublisherClient = null;
+
+      try {
+        if (typeof mqtt !== 'undefined') {
+          mqttPublisherClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'brain_cockpit_' + Math.random().toString(16).substring(2, 8),
+            clean: true,
+            connectTimeout: 7000,
+            reconnectPeriod: 3000
+          });
+          mqttPublisherClient.on('connect', () => {
+            console.log('📡 Cockpit conectado à nuvem global para transmissão ao vivo!');
+          });
+        }
+      } catch(e) {
+        console.warn('MQTT pub init warning:', e);
+      }
+
+      function broadcastSubtitleGlobally(channel, text, startSec, endSec) {
+        // 1. Canal Local (OBS / Mesma máquina)
+        if (subtitleBroadcast) {
+          try {
+            subtitleBroadcast.postMessage({
+              type: 'NEW_SUBTITLE',
+              channel,
+              text: text.trim(),
+              startSec,
+              endSec
+            });
+          } catch(e) {}
+        }
+        // 2. Nuvem Global (Qualquer computador do time de telão / internet)
+        if (mqttPublisherClient && mqttPublisherClient.connected) {
+          try {
+            mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify({
+              type: 'NEW_SUBTITLE',
+              channel,
+              text: text.trim(),
+              startSec,
+              endSec,
+              timestamp: Date.now()
+            }), { qos: 0, retain: true });
+          } catch(e) {}
+        }
+      }
 
       // Estado de Áudio e Test Lab
       let micAudioContext = null;
@@ -2219,8 +2325,14 @@
                 </button>
 
                 <!-- BOTÃO ABRIR JANELA DEDICADA DE LEGENDAS (OVERLAY OBS) -->
-                <button onclick="openDedicatedSubtitleOverlay()" class="text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm shadow-indigo-500/20">
-                  <span>🗗 Abrir Legendas em Janela Dedicada (Overlay OBS) ↗</span>
+                <!-- BOTÃO COMPARTILHAR TELÃO (QUALQUER PC / EVENTO) -->
+                <button onclick="openShareTelaoModal()" class="text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm shadow-emerald-500/20">
+                  <span>🔗 Compartilhar Telão (Qualquer PC)</span>
+                </button>
+
+                <!-- BOTÃO ABRIR LOCALMENTE (OBS / MESMO PC) -->
+                <button onclick="openDedicatedSubtitleOverlay()" class="text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                  <span>🗗 Janela OBS Local ↗</span>
                 </button>
 
                 <button onclick="toggleTestLabModal()" class="text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
@@ -2650,6 +2762,90 @@
 
           </main>
 
+          <!-- MODAL DE COMPARTILHAMENTO DE LINK PARA TELÃO / QUALQUER PC -->
+          <div id="share-telao-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto text-slate-800 dark:text-slate-200">
+              <div class="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-700">
+                <div class="flex items-center gap-3">
+                  <div class="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-2xl font-bold">
+                    📡
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">Transmitir Legenda para o Telão</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Compartilhe este link com a equipe de projeção ou abra em qualquer computador.</p>
+                  </div>
+                </div>
+                <button onclick="closeShareTelaoModal()" class="text-slate-400 hover:text-slate-700 text-lg font-bold p-2 hover:bg-slate-100 rounded-xl cursor-pointer">✕</button>
+              </div>
+
+              <!-- Status da Nuvem em Tempo Real -->
+              <div class="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl p-3.5 text-xs">
+                <div class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span class="font-bold text-emerald-900 dark:text-emerald-200">Sincronização em Nuvem Global Ativa</span>
+                </div>
+                <span class="text-[11px] font-mono text-emerald-700 dark:text-emerald-400">Latência: ~35ms ● Qualquer PC</span>
+              </div>
+
+              <!-- Opções de Visualização no Link -->
+              <div class="space-y-2">
+                <label class="text-xs font-bold text-slate-700 dark:text-slate-300 block">Modo de Exibição no Telão:</label>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <label class="border-2 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl p-3 cursor-pointer flex flex-col gap-1 transition-all" id="opt-telao-rec-label">
+                    <div class="flex items-center justify-between">
+                      <span class="font-bold text-slate-900 dark:text-white">Apenas Tradução</span>
+                      <input type="radio" name="telao-view-mode" value="receiver" checked onchange="updateTelaoShareLink()" class="accent-emerald-600">
+                    </div>
+                    <span class="text-[10px] text-slate-500">Padrão para telões e auditórios (limpo e direto).</span>
+                  </label>
+                  <label class="border border-slate-200 dark:border-slate-700 rounded-xl p-3 cursor-pointer flex flex-col gap-1 transition-all" id="opt-telao-both-label">
+                    <div class="flex items-center justify-between">
+                      <span class="font-bold text-slate-900 dark:text-white">Ambos (Split Screen)</span>
+                      <input type="radio" name="telao-view-mode" value="both" onchange="updateTelaoShareLink()" class="accent-emerald-600">
+                    </div>
+                    <span class="text-[10px] text-slate-500">Mostra o palestrante original e a tradução lado a lado.</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Caixa de Link com Botão Copiar -->
+              <div class="space-y-2">
+                <label class="text-xs font-bold text-slate-700 dark:text-slate-300 block">Link Direto da Projeção:</label>
+                <div class="flex gap-2">
+                  <input type="text" id="telao-share-link-input" readonly class="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-800 dark:text-slate-200 select-all focus:outline-none">
+                  <button id="btn-copy-telao-link" onclick="copyTelaoShareLink()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
+                    <span>📋 Copiar Link</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- QR Code + Abertura Direta -->
+              <div class="flex flex-col sm:flex-row items-center gap-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+                <div id="telao-qrcode-box" class="bg-white p-2 rounded-xl border border-slate-200 shadow-2xs shrink-0 flex items-center justify-center w-28 h-28"></div>
+                <div class="space-y-2 text-xs flex-1">
+                  <strong class="font-bold text-slate-900 dark:text-white block">Acesso Instantâneo via QR Code</strong>
+                  <p class="text-slate-500 dark:text-slate-400 text-[11px] leading-relaxed">
+                    Aponte a câmera de um iPad, tablet ou celular para abrir a tela de legendas imediatamente sem digitar nada.
+                  </p>
+                  <button onclick="window.open(document.getElementById('telao-share-link-input').value, '_blank')" class="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer">
+                    <span>Testar e abrir em nova guia ↗</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Instruções para o Operador do Telão -->
+              <div class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-xs space-y-1.5 text-slate-600 dark:text-slate-400">
+                <span class="font-bold text-slate-800 dark:text-slate-200 block">💡 Como o time de telão deve operar:</span>
+                <ol class="list-decimal list-inside space-y-1 text-[11px]">
+                  <li>Abra o link em qualquer computador conectado à internet (Chrome, Edge ou Firefox).</li>
+                  <li>Pressione <strong>F11</strong> no teclado para ativar a <strong>Tela Cheia</strong>.</li>
+                  <li>Pressione a tecla <strong>H</strong> para esconder a barra superior e deixar a tela 100% limpa para projeção.</li>
+                  <li>Não precisa de login: a tela recebe as transcrições automaticamente via nuvem em tempo real!</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
           <!-- MODAL DE FINALIZAR REUNIÃO, EXPORTAÇÃO MP3 & SALVAR COM EXPLORER -->
           <div id="finish-meeting-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto text-slate-800 dark:text-slate-200">
@@ -2798,6 +2994,84 @@
 
       // Atualiza o botão de tema se já existir na página
       updateThemeButtonUI();
+
+      // MODAL E GERENCIAMENTO DO LINK PARA TELÃO (QUALQUER COMPUTADOR)
+      window.openShareTelaoModal = function() {
+        const modal = document.getElementById('share-telao-modal');
+        if (modal) modal.classList.remove('hidden');
+        updateTelaoShareLink();
+      };
+
+      window.closeShareTelaoModal = function() {
+        const modal = document.getElementById('share-telao-modal');
+        if (modal) modal.classList.add('hidden');
+      };
+
+      window.updateTelaoShareLink = function() {
+        const selectedRadio = document.querySelector('input[name="telao-view-mode"]:checked');
+        const viewMode = selectedRadio ? selectedRadio.value : 'receiver';
+        
+        const labelRec = document.getElementById('opt-telao-rec-label');
+        const labelBoth = document.getElementById('opt-telao-both-label');
+        if (labelRec && labelBoth) {
+          if (viewMode === 'receiver') {
+            labelRec.className = 'border-2 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl p-3 cursor-pointer flex flex-col gap-1 transition-all';
+            labelBoth.className = 'border border-slate-200 dark:border-slate-700 rounded-xl p-3 cursor-pointer flex flex-col gap-1 transition-all';
+          } else {
+            labelRec.className = 'border border-slate-200 dark:border-slate-700 rounded-xl p-3 cursor-pointer flex flex-col gap-1 transition-all';
+            labelBoth.className = 'border-2 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl p-3 cursor-pointer flex flex-col gap-1 transition-all';
+          }
+        }
+
+        const baseOrigin = window.location.origin && window.location.origin !== 'null' ? window.location.origin : 'https://brainaudiovisual.com.br';
+        const fullUrl = baseOrigin + '/?meeting=' + encodeURIComponent(id) + '&overlay=subtitles&view=' + viewMode;
+        
+        const input = document.getElementById('telao-share-link-input');
+        if (input) input.value = fullUrl;
+
+        // Renderiza o QR Code
+        const qrContainer = document.getElementById('telao-qrcode-box');
+        if (qrContainer && typeof QRCode !== 'undefined') {
+          qrContainer.innerHTML = '';
+          try {
+            new QRCode(qrContainer, {
+              text: fullUrl,
+              width: 96,
+              height: 96,
+              colorDark: '#0f172a',
+              colorLight: '#ffffff',
+              correctLevel: QRCode.CorrectLevel.M
+            });
+          } catch(e) {}
+        }
+      };
+
+      window.copyTelaoShareLink = function() {
+        const input = document.getElementById('telao-share-link-input');
+        const btn = document.getElementById('btn-copy-telao-link');
+        if (!input) return;
+
+        input.select();
+        input.setSelectionRange(0, 99999);
+
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(input.value);
+          } else {
+            document.execCommand('copy');
+          }
+          if (btn) {
+            btn.innerHTML = '<span>✅ Copiado!</span>';
+            btn.className = 'px-4 py-2.5 bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm';
+            setTimeout(() => {
+              btn.innerHTML = '<span>📋 Copiar Link</span>';
+              btn.className = 'px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm';
+            }, 2500);
+          }
+        } catch(e) {
+          alert('Link selecionado! Pressione Ctrl+C para copiar.');
+        }
+      };
 
       // ABERTURA DA JANELA DEDICADA DE LEGENDAS (OVERLAY OBS / BROADCAST)
       window.openDedicatedSubtitleOverlay = function() {
@@ -3128,17 +3402,7 @@
         const interimEl = document.getElementById('transmitter-interim-text');
         if (interimEl) interimEl.innerText = '';
 
-        if (subtitleBroadcast) {
-          try {
-            subtitleBroadcast.postMessage({
-              type: 'NEW_SUBTITLE',
-              channel: 'transmitter',
-              text: text.trim(),
-              startSec,
-              endSec
-            });
-          } catch(e) {}
-        }
+        broadcastSubtitleGlobally('transmitter', text.trim(), startSec, endSec);
       }
 
       function addReceiverSentenceClean(text, startSec, endSec, isDirectAudio = false) {
@@ -3170,17 +3434,7 @@
         const interimEl = document.getElementById('receiver-interim-text');
         if (interimEl) interimEl.innerText = '';
 
-        if (subtitleBroadcast) {
-          try {
-            subtitleBroadcast.postMessage({
-              type: 'NEW_SUBTITLE',
-              channel: 'receiver',
-              text: text.trim(),
-              startSec,
-              endSec
-            });
-          } catch(e) {}
-        }
+        broadcastSubtitleGlobally('receiver', text.trim(), startSec, endSec);
       }
 
       async function translateAndAddReceiverSentenceClean(originalText, startSec, endSec) {
