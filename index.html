@@ -172,9 +172,11 @@
       background-color: #9333ea !important;
       color: #ffffff !important;
     }
-    /* Preserva botões de amostra de paleta de cor das legendas */
+    /* Preserva botões de amostra de paleta de cor das legendas e overlay OBS */
     html.dark button[onclick*="setSubtitleBg"],
-    html.dark button[onclick*="setSubtitleText"] {
+    html.dark button[onclick*="setSubtitleText"],
+    html.dark button[onclick*="setOverlayBg"],
+    html.dark button[onclick*="setOverlayTextColor"] {
       border: 1px solid rgba(255, 255, 255, 0.5) !important;
     }
 
@@ -1988,9 +1990,11 @@
       const urlParams = new URLSearchParams(window.location.search);
       const urlView = urlParams.get('view'); // 'receiver' | 'both' | 'transmitter'
       const urlBg = urlParams.get('bg');     // 'chroma' | 'black' | 'transparent'
+      const urlTextColor = urlParams.get('textColor');
 
       let overlayViewMode = (urlView === 'receiver' || urlView === 'transmitter') ? urlView : 'both';
       let currentBg = urlBg === 'chroma' ? '#00ff00' : (urlBg === 'transparent' ? 'transparent' : '#000000');
+      let currentOverlayTextColor = urlTextColor ? ('#' + urlTextColor.replace('#', '')) : (localStorage.getItem('brain_overlay_text_color') || '#ffffff');
       let currentFontSize = 26;
       let areControlsHidden = false;
 
@@ -2031,8 +2035,19 @@
               <button onclick="setOverlayBg('transparent')" title="Fundo Transparente" class="w-5 h-5 rounded-full bg-slate-800 border border-dashed border-slate-400 cursor-pointer text-[9px] flex items-center justify-center font-mono">T</button>
             </div>
 
+            <!-- Presets de Cor do Texto / Letra (OBS / TELÃO) -->
+            <div class="flex items-center gap-1.5 border-l border-slate-700 pl-2">
+              <span class="text-slate-400 text-[11px]">Texto:</span>
+              <button onclick="setOverlayTextColor('#ffffff')" title="Texto Branco" class="w-5 h-5 rounded-full bg-white border border-slate-400 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+              <button onclick="setOverlayTextColor('#fde047')" title="Texto Amarelo Cinema" class="w-5 h-5 rounded-full bg-yellow-300 border border-slate-400 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+              <button onclick="setOverlayTextColor('#38bdf8')" title="Texto Ciano" class="w-5 h-5 rounded-full bg-sky-400 border border-slate-400 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+              <button onclick="setOverlayTextColor('#4ade80')" title="Texto Verde" class="w-5 h-5 rounded-full bg-emerald-400 border border-slate-400 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+              <button onclick="setOverlayTextColor('#000000')" title="Texto Preto" class="w-5 h-5 rounded-full bg-black border border-slate-400 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+              <input type="color" value="${currentOverlayTextColor || '#ffffff'}" onchange="setOverlayTextColor(this.value)" class="w-5 h-5 rounded cursor-pointer bg-transparent border-0 p-0" title="Cor Personalizada de Texto">
+            </div>
+
             <!-- Tamanho da Fonte -->
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1 border-l border-slate-700 pl-2">
               <span class="text-slate-400 text-[11px]">Tamanho:</span>
               <button onclick="changeOverlayFont(-2)" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded font-bold cursor-pointer">A-</button>
               <span id="overlay-font-indicator" class="font-mono text-[11px] font-bold text-white w-7 text-center">26px</span>
@@ -2049,13 +2064,13 @@
             </div>
           </div>
 
-          <!-- ÁREA CENTRAL DE LEGENDAS DE BROADCAST / TELÃO -->
+          <!-- ÁREA CENTRAL DE LEGENDAS DE BROADCAST / TELÃO (DE BAIXO PARA CIMA) -->
           <div id="overlay-stage" class="flex-1 w-full max-w-7xl mx-auto p-6 sm:p-10 flex flex-col justify-end gap-6 overflow-hidden">
             <div id="overlay-grid" class="${overlayViewMode === 'both' ? 'grid grid-cols-2 gap-6 w-full' : 'grid grid-cols-1 gap-6 w-full max-w-4xl mx-auto'}">
               <!-- Bloco Palestrante -->
               <div id="overlay-col-trans" class="flex flex-col justify-end space-y-2 ${overlayViewMode === 'receiver' ? 'hidden' : ''}">
                 <span class="text-xs uppercase tracking-widest text-blue-400 font-bold opacity-75">Palestrante (Original):</span>
-                <div id="overlay-feed-trans" class="space-y-2 text-white font-medium drop-shadow-md leading-relaxed" style="font-size: ${currentFontSize}px;">
+                <div id="overlay-feed-trans" class="space-y-3 font-medium drop-shadow-md leading-relaxed overflow-y-auto max-h-[78vh] flex flex-col justify-end" style="font-size: ${currentFontSize}px; color: ${currentOverlayTextColor};">
                   <p class="text-slate-500 italic text-base">Aguardando fala do palestrante...</p>
                 </div>
               </div>
@@ -2063,7 +2078,7 @@
               <!-- Bloco Tradução -->
               <div id="overlay-col-rec" class="flex flex-col justify-end space-y-2 ${overlayViewMode === 'transmitter' ? 'hidden' : ''}">
                 <span class="text-xs uppercase tracking-widest text-emerald-400 font-bold opacity-75">Tradução Simultânea (Ao Vivo):</span>
-                <div id="overlay-feed-rec" class="space-y-2 text-yellow-300 font-bold drop-shadow-md leading-relaxed" style="font-size: ${currentFontSize}px;">
+                <div id="overlay-feed-rec" class="space-y-3 font-bold drop-shadow-md leading-relaxed overflow-y-auto max-h-[78vh] flex flex-col justify-end" style="font-size: ${currentFontSize}px; color: ${currentOverlayTextColor};">
                   <p class="text-slate-500 italic text-base">Aguardando tradução simultânea...</p>
                 </div>
               </div>
@@ -2124,6 +2139,23 @@
         }
       };
 
+      window.setOverlayTextColor = function(color) {
+        currentOverlayTextColor = color;
+        try { localStorage.setItem('brain_overlay_text_color', color); } catch(e) {}
+        const feedTrans = document.getElementById('overlay-feed-trans');
+        const feedRec = document.getElementById('overlay-feed-rec');
+        [feedTrans, feedRec].forEach(feed => {
+          if (feed) {
+            feed.style.color = color;
+            feed.querySelectorAll('p').forEach(p => {
+              if (!p.classList.contains('italic')) {
+                p.style.color = color;
+              }
+            });
+          }
+        });
+      };
+
       window.changeOverlayFont = function(delta) {
         currentFontSize = Math.max(16, Math.min(56, currentFontSize + delta));
         const ind = document.getElementById('overlay-font-indicator');
@@ -2148,7 +2180,7 @@
         }
       });
 
-      // RENDERIZAÇÃO UNIFICADA DE MENSAGENS COM DEDUPLICAÇÃO
+      // RENDERIZAÇÃO UNIFICADA DE MENSAGENS COM DEDUPLICAÇÃO (DINÂMICA DE BAIXO PARA CIMA)
       const seenSubtitles = new Set();
       function handleIncomingSubtitle(data) {
         if (!data || data.type !== 'NEW_SUBTITLE' || !data.text) return;
@@ -2166,19 +2198,31 @@
           const firstP = feed.querySelector('.italic');
           if (firstP) firstP.remove();
 
-          if (feed.firstElementChild) {
-            feed.firstElementChild.className = 'leading-relaxed transition-all duration-200 mb-4 opacity-75 font-normal whitespace-normal break-words';
+          // A fala anterior sobe e fica com intensidade suave de histórico
+          if (feed.lastElementChild) {
+            feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-3 whitespace-normal break-words';
+            feed.lastElementChild.style.opacity = '0.70';
+            feed.lastElementChild.style.fontWeight = '400';
+            feed.lastElementChild.style.color = currentOverlayTextColor;
           }
 
+          // Nova fala entra na base (de baixo para cima) com destaque total
           const p = document.createElement('p');
-          const isRec = data.channel === 'receiver';
-          p.className = `leading-relaxed transition-all duration-300 mb-4 font-bold drop-shadow-md whitespace-normal break-words ${isRec ? 'text-yellow-300' : 'text-white'}`;
+          p.className = 'leading-relaxed transition-all duration-300 mb-3 font-bold drop-shadow-md whitespace-normal break-words';
+          p.style.opacity = '1.0';
+          p.style.fontWeight = '700';
+          p.style.color = currentOverlayTextColor;
           p.innerText = data.text;
-          feed.prepend(p); // Mais novo sempre no topo!
+          feed.appendChild(p); // Inserção na base!
 
-          while (feed.children.length > 20) {
-            feed.removeChild(feed.lastChild);
+          while (feed.children.length > 25) {
+            feed.removeChild(feed.firstChild); // Remove as mais velhas do topo
           }
+
+          // Acompanha a rolagem para a base
+          feed.scrollTop = feed.scrollHeight;
+          const stage = document.getElementById('overlay-stage');
+          if (stage) stage.scrollTop = stage.scrollHeight;
         }
       }
 
@@ -2578,7 +2622,7 @@
 
                   <!-- TERMINAL VISUAL LIMPO (TEXTO COMPLETO E FLUIDO) -->
                   <div id="transmitter-subtitle-box" class="rounded-xl p-3 shadow-inner space-y-1.5 h-[175px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
-                    <div id="transmitter-interim-text" class="italic opacity-90 min-h-[18px] font-semibold text-sky-400 pb-1 text-xs shrink-0 whitespace-normal break-words"></div>
+                    <div id="transmitter-interim-text" class="min-h-[20px] font-medium opacity-65 pb-1 whitespace-normal break-words transition-all duration-150" style="color: ${subtitleConfig.textColor}; font-size: inherit;"></div>
                     <div id="transmitter-transcription-feed" class="flex flex-col w-full ${subtitleConfig.fontFamily}">
                       <div class="placeholder-empty text-slate-500 italic text-xs py-8 text-center">
                         Aguardando fala do palestrante... O texto completo aparecerá aqui de forma fluida.
@@ -2603,6 +2647,7 @@
                       <button onclick="setSubtitleText('#facc15')" title="Amarelo Cinema" class="w-4 h-4 rounded-full bg-yellow-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleText('#38bdf8')" title="Ciano" class="w-4 h-4 rounded-full bg-sky-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleText('#4ade80')" title="Verde" class="w-4 h-4 rounded-full bg-green-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
+                      <button onclick="setSubtitleText('#000000')" title="Preto" class="w-4 h-4 rounded-full bg-black border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <input type="color" value="${subtitleConfig.textColor}" onchange="setSubtitleText(this.value)" class="w-4 h-4 rounded cursor-pointer border-0 bg-transparent p-0">
                     </div>
 
@@ -2651,7 +2696,7 @@
 
                   <!-- TERMINAL VISUAL LIMPO (TEXTO COMPLETO E FLUIDO) -->
                   <div id="receiver-subtitle-box" class="rounded-xl p-3 shadow-inner space-y-1.5 h-[175px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
-                    <div id="receiver-interim-text" class="italic opacity-90 min-h-[18px] font-semibold text-emerald-400 pb-1 text-xs shrink-0 whitespace-normal break-words"></div>
+                    <div id="receiver-interim-text" class="min-h-[20px] font-medium opacity-65 pb-1 whitespace-normal break-words transition-all duration-150" style="color: ${subtitleConfig.textColor}; font-size: inherit;"></div>
                     <div id="receiver-transcription-feed" class="flex flex-col w-full ${subtitleConfig.fontFamily}">
                       <div class="placeholder-empty text-slate-500 italic text-xs py-8 text-center">
                         Aguardando tradução simultânea... O texto completo aparecerá aqui de forma fluida.
@@ -2676,6 +2721,7 @@
                       <button onclick="setSubtitleText('#facc15')" title="Amarelo Cinema" class="w-4 h-4 rounded-full bg-yellow-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleText('#38bdf8')" title="Ciano" class="w-4 h-4 rounded-full bg-sky-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleText('#4ade80')" title="Verde" class="w-4 h-4 rounded-full bg-green-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
+                      <button onclick="setSubtitleText('#000000')" title="Preto" class="w-4 h-4 rounded-full bg-black border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <input type="color" value="${subtitleConfig.textColor}" onchange="setSubtitleText(this.value)" class="w-4 h-4 rounded cursor-pointer border-0 bg-transparent p-0">
                     </div>
 
@@ -3303,6 +3349,18 @@
         const box2 = document.getElementById('receiver-subtitle-box');
         if (box1) box1.style.color = color;
         if (box2) box2.style.color = color;
+
+        // Atualiza a cor dos interims em tempo real
+        const interim1 = document.getElementById('transmitter-interim-text');
+        const interim2 = document.getElementById('receiver-interim-text');
+        if (interim1) interim1.style.color = color;
+        if (interim2) interim2.style.color = color;
+
+        // Atualiza dinamicamente todas as linhas já renderizadas nos dois feeds
+        document.querySelectorAll('.transcription-line').forEach(el => {
+          el.style.color = color;
+        });
+
         try { localStorage.setItem('brain_subtitle_style', JSON.stringify(subtitleConfig)); } catch(e) {}
       };
 
@@ -3315,9 +3373,13 @@
         const box2 = document.getElementById('receiver-subtitle-box');
         const ind1 = document.getElementById('font-size-indicator');
         const ind2 = document.getElementById('font-size-indicator-2');
+        const interim1 = document.getElementById('transmitter-interim-text');
+        const interim2 = document.getElementById('receiver-interim-text');
 
         if (box1) box1.style.fontSize = subtitleConfig.fontSize;
         if (box2) box2.style.fontSize = subtitleConfig.fontSize;
+        if (interim1) interim1.style.fontSize = subtitleConfig.fontSize;
+        if (interim2) interim2.style.fontSize = subtitleConfig.fontSize;
         if (ind1) ind1.innerText = subtitleConfig.fontSize;
         if (ind2) ind2.innerText = subtitleConfig.fontSize;
         try { localStorage.setItem('brain_subtitle_style', JSON.stringify(subtitleConfig)); } catch(e) {}
@@ -3859,7 +3921,8 @@
               speechInterimBuffer = interim.trim();
               const interimEl = document.getElementById('transmitter-interim-text');
               if (interimEl) {
-                interimEl.innerText = `💬 ${speechInterimBuffer}...`;
+                interimEl.innerText = speechInterimBuffer;
+                interimEl.style.color = subtitleConfig.textColor;
               }
 
               // AUTO-FINALIZAÇÃO POR SILÊNCIO: se houver uma pausa de 1.3s na fala,
@@ -4060,14 +4123,20 @@
           const placeholder = feed.querySelector('.placeholder-empty');
           if (placeholder) placeholder.remove();
 
-          // Ajusta estilo das frases anteriores que vão descendo suavemente (sem ícones e sem bordas)
+          // Ajusta estilo das frases anteriores que vão descendo suavemente (mesma cor e fonte, leve intensidade menor)
           if (feed.firstElementChild) {
-            feed.firstElementChild.className = 'transcription-line history-line leading-relaxed mb-3.5 text-slate-300 dark:text-slate-300/80 font-normal opacity-80 whitespace-normal break-words transition-all duration-200';
+            feed.firstElementChild.className = 'transcription-line history-line leading-relaxed mb-3.5 whitespace-normal break-words transition-all duration-200';
+            feed.firstElementChild.style.color = subtitleConfig.textColor;
+            feed.firstElementChild.style.opacity = '0.72';
+            feed.firstElementChild.style.fontWeight = '400';
           }
 
-          // Cria a nova frase no topo: texto completo e contínuo, quebrando de acordo com a largura da tela
+          // Cria a nova frase no topo: texto completo e contínuo, mesma cor e 100% intensidade
           const p = document.createElement('p');
-          p.className = 'transcription-line latest-line leading-relaxed mb-3.5 text-white font-semibold whitespace-normal break-words transition-all duration-300';
+          p.className = 'transcription-line latest-line leading-relaxed mb-3.5 whitespace-normal break-words transition-all duration-300';
+          p.style.color = subtitleConfig.textColor;
+          p.style.opacity = '1.0';
+          p.style.fontWeight = '600';
           p.innerText = clean;
 
           feed.prepend(p);
@@ -4107,12 +4176,18 @@
           if (placeholder) placeholder.remove();
 
           if (feed.firstElementChild) {
-            feed.firstElementChild.className = 'transcription-line history-line leading-relaxed mb-3.5 text-slate-300 dark:text-slate-300/80 font-normal opacity-80 whitespace-normal break-words transition-all duration-200';
+            feed.firstElementChild.className = 'transcription-line history-line leading-relaxed mb-3.5 whitespace-normal break-words transition-all duration-200';
+            feed.firstElementChild.style.color = subtitleConfig.textColor;
+            feed.firstElementChild.style.opacity = '0.72';
+            feed.firstElementChild.style.fontWeight = '400';
           }
 
-          // Nova frase traduzida completa no topo, sem ícones e sem caixas com bordas
+          // Nova frase traduzida completa no topo, mesma cor e 100% intensidade
           const p = document.createElement('p');
-          p.className = 'transcription-line latest-line leading-relaxed mb-3.5 text-emerald-300 dark:text-emerald-300 font-semibold whitespace-normal break-words transition-all duration-300';
+          p.className = 'transcription-line latest-line leading-relaxed mb-3.5 whitespace-normal break-words transition-all duration-300';
+          p.style.color = subtitleConfig.textColor;
+          p.style.opacity = '1.0';
+          p.style.fontWeight = '600';
           p.innerText = clean;
 
           feed.prepend(p);
@@ -4147,10 +4222,11 @@
           return;
         }
 
-        // Mostra indicador visual sutil no interim do receptor enquanto traduz
+        // Mostra indicador visual no interim do receptor mantendo a mesma cor e fonte
         const recInterimEl = document.getElementById('receiver-interim-text');
         if (recInterimEl) {
-          recInterimEl.innerText = `🎧 Traduzindo para ${targetLang}...`;
+          recInterimEl.innerText = clean;
+          recInterimEl.style.color = subtitleConfig.textColor;
         }
 
         let translatedText = '';
