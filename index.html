@@ -2167,11 +2167,12 @@
           if (firstP) firstP.remove();
 
           if (feed.firstElementChild) {
-            feed.firstElementChild.className = 'leading-relaxed transition-all duration-200 py-1 border-b border-white/10 opacity-80 font-normal';
+            feed.firstElementChild.className = 'leading-relaxed transition-all duration-200 mb-4 opacity-75 font-normal whitespace-normal break-words';
           }
 
-          const p = document.createElement('div');
-          p.className = 'leading-relaxed transition-all duration-300 py-1.5 px-2 rounded-lg bg-white/15 border-b border-white/20 font-bold shadow-xs';
+          const p = document.createElement('p');
+          const isRec = data.channel === 'receiver';
+          p.className = `leading-relaxed transition-all duration-300 mb-4 font-bold drop-shadow-md whitespace-normal break-words ${isRec ? 'text-yellow-300' : 'text-white'}`;
           p.innerText = data.text;
           feed.prepend(p); // Mais novo sempre no topo!
 
@@ -2575,12 +2576,12 @@
                     </div>
                   </div>
 
-                  <!-- TERMINAL VISUAL LIMPO (LINHA MAIS NOVA NO TOPO - FRASES CURTAS) -->
+                  <!-- TERMINAL VISUAL LIMPO (TEXTO COMPLETO E FLUIDO) -->
                   <div id="transmitter-subtitle-box" class="rounded-xl p-3 shadow-inner space-y-1.5 h-[175px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
-                    <div id="transmitter-interim-text" class="italic opacity-90 min-h-[18px] font-semibold text-sky-400 pb-1 border-b border-white/10 text-xs shrink-0"></div>
-                    <div id="transmitter-transcription-feed" class="space-y-2 ${subtitleConfig.fontFamily} flex flex-col w-full">
+                    <div id="transmitter-interim-text" class="italic opacity-90 min-h-[18px] font-semibold text-sky-400 pb-1 text-xs shrink-0 whitespace-normal break-words"></div>
+                    <div id="transmitter-transcription-feed" class="flex flex-col w-full ${subtitleConfig.fontFamily}">
                       <div class="placeholder-empty text-slate-500 italic text-xs py-8 text-center">
-                        Aguardando fala do palestrante... As legendas curtas e harmoniosas aparecerão aqui no topo.
+                        Aguardando fala do palestrante... O texto completo aparecerá aqui de forma fluida.
                       </div>
                     </div>
                   </div>
@@ -2648,12 +2649,12 @@
                     </div>
                   </div>
 
-                  <!-- TERMINAL VISUAL LIMPO (LINHA MAIS NOVA NO TOPO - FRASES CURTAS) -->
+                  <!-- TERMINAL VISUAL LIMPO (TEXTO COMPLETO E FLUIDO) -->
                   <div id="receiver-subtitle-box" class="rounded-xl p-3 shadow-inner space-y-1.5 h-[175px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
-                    <div id="receiver-interim-text" class="italic opacity-90 min-h-[18px] font-semibold text-emerald-400 pb-1 border-b border-white/10 text-xs shrink-0"></div>
-                    <div id="receiver-transcription-feed" class="space-y-2 ${subtitleConfig.fontFamily} flex flex-col w-full">
+                    <div id="receiver-interim-text" class="italic opacity-90 min-h-[18px] font-semibold text-emerald-400 pb-1 text-xs shrink-0 whitespace-normal break-words"></div>
+                    <div id="receiver-transcription-feed" class="flex flex-col w-full ${subtitleConfig.fontFamily}">
                       <div class="placeholder-empty text-slate-500 italic text-xs py-8 text-center">
-                        Aguardando áudio traduzido da reunião receptora... As legendas curtas e harmoniosas aparecerão aqui no topo.
+                        Aguardando tradução simultânea... O texto completo aparecerá aqui de forma fluida.
                       </div>
                     </div>
                   </div>
@@ -3802,13 +3803,10 @@
         const interimEl = document.getElementById('transmitter-interim-text');
         if (interimEl) interimEl.innerText = '';
 
-        // 1. Fracionamento em blocos curtos e confortáveis (máx ~48 caracteres)
-        const chunks = splitTextIntoHarmoniousSubtitleChunks(clean, startSec, endSec, 48);
-        chunks.forEach(c => {
-          addTransmitterSentenceClean(c.text, c.timeStart, c.timeEnd);
-        });
+        // 1. Envia a frase completa e fluida para o feed (sem fatiar em bloquinhos ao vivo)
+        addTransmitterSentenceClean(clean, startSec, endSec);
 
-        // 2. Tradução direta e envio para a sessão receptora
+        // 2. Tradução direta da frase completa para a sessão receptora
         translateAndAddReceiverSentenceClean(clean, startSec, endSec);
       }
 
@@ -3976,23 +3974,21 @@
         const startSec = sessionElapsedSeconds;
         const endSec = startSec + 3;
 
-        // Injeta no transmissor
-        const chunksPt = splitTextIntoHarmoniousSubtitleChunks(item.pt, startSec, endSec, 48);
-        chunksPt.forEach(c => addTransmitterSentenceClean(c.text, c.timeStart, c.timeEnd));
+        // Injeta a frase completa no transmissor
+        addTransmitterSentenceClean(item.pt, startSec, endSec);
 
-        // Injeta no receptor com pequeno delay
+        // Injeta a frase completa no receptor com pequeno delay
         setTimeout(() => {
           const targetCode = (selectedTargetLanguage || 'en-US').split('-')[0].toLowerCase();
           const textToUse = targetCode === 'pt' ? item.pt : item.en;
-          const chunksEn = splitTextIntoHarmoniousSubtitleChunks(textToUse, startSec, endSec, 48);
-          chunksEn.forEach(c => addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, false));
+          addReceiverSentenceClean(textToUse, startSec, endSec, false);
         }, 300);
 
         appendSystemLog('🧪 Frase de teste injetada nas legendas com sucesso!');
       };
 
-      // FRACIONAMENTO HARMONIOSO EM BLOCOS CURTOS (MÁX ~48 CARACTERES)
-      function splitTextIntoHarmoniousSubtitleChunks(text, totalStartSec, totalEndSec, maxChars = 48) {
+      // FRACIONAMENTO HARMONIOSO PARA ARQUIVOS DE LEGENDA (MÁX ~100 CARACTERES - DOBRO DO ANTERIOR)
+      function splitTextIntoHarmoniousSubtitleChunks(text, totalStartSec, totalEndSec, maxChars = 100) {
         if (!text) return [];
         const trimmed = text.trim();
         if (trimmed.length <= maxChars) {
@@ -4047,7 +4043,7 @@
         });
       }
 
-      // DINÂMICA DO FEED: NOVA FRASE NO TOPO COM DESTAQUE, ANTERIORES DESCENDO E PRESERVADAS
+      // DINÂMICA DO FEED: NOVA FRASE NO TOPO COM DESTAQUE, ANTERIORES DESCENDO E PRESERVADAS (TEXTO COMPLETO E FLUIDO)
       function addTransmitterSentenceClean(text, startSec, endSec) {
         if (!text || !text.trim()) return;
         const feed = document.getElementById('transmitter-transcription-feed');
@@ -4064,20 +4060,15 @@
           const placeholder = feed.querySelector('.placeholder-empty');
           if (placeholder) placeholder.remove();
 
-          // Ajusta estilo das frases anteriores que vão descendo suavemente
+          // Ajusta estilo das frases anteriores que vão descendo suavemente (sem ícones e sem bordas)
           if (feed.firstElementChild) {
-            feed.firstElementChild.className = 'transcription-line history-line leading-relaxed transition-all duration-200 py-1.5 px-3 border-b border-white/10 text-slate-200 font-normal opacity-85 flex items-start gap-2 text-sm';
-            const icon = feed.firstElementChild.querySelector('.line-marker');
-            if (icon) {
-              icon.className = 'line-marker text-slate-500 text-xs shrink-0 select-none mt-0.5';
-              icon.innerText = '•';
-            }
+            feed.firstElementChild.className = 'transcription-line history-line leading-relaxed mb-3.5 text-slate-300 dark:text-slate-300/80 font-normal opacity-80 whitespace-normal break-words transition-all duration-200';
           }
 
-          // Cria a nova frase que assume o TOPO absoluto com destaque
-          const p = document.createElement('div');
-          p.className = 'transcription-line latest-line leading-relaxed transition-all duration-300 py-2 px-3 rounded-xl bg-white/15 dark:bg-white/10 border border-white/20 text-white font-bold shadow-xs flex items-start gap-2 text-sm';
-          p.innerHTML = `<span class="line-marker text-sky-400 font-bold shrink-0 select-none mt-0.5">▶</span><span class="flex-1">${clean}</span>`;
+          // Cria a nova frase no topo: texto completo e contínuo, quebrando de acordo com a largura da tela
+          const p = document.createElement('p');
+          p.className = 'transcription-line latest-line leading-relaxed mb-3.5 text-white font-semibold whitespace-normal break-words transition-all duration-300';
+          p.innerText = clean;
 
           feed.prepend(p);
 
@@ -4116,17 +4107,13 @@
           if (placeholder) placeholder.remove();
 
           if (feed.firstElementChild) {
-            feed.firstElementChild.className = 'transcription-line history-line leading-relaxed transition-all duration-200 py-1.5 px-3 border-b border-white/10 text-slate-200 font-normal opacity-85 flex items-start gap-2 text-sm';
-            const icon = feed.firstElementChild.querySelector('.line-marker');
-            if (icon) {
-              icon.className = 'line-marker text-slate-500 text-xs shrink-0 select-none mt-0.5';
-              icon.innerText = '•';
-            }
+            feed.firstElementChild.className = 'transcription-line history-line leading-relaxed mb-3.5 text-slate-300 dark:text-slate-300/80 font-normal opacity-80 whitespace-normal break-words transition-all duration-200';
           }
 
-          const p = document.createElement('div');
-          p.className = 'transcription-line latest-line leading-relaxed transition-all duration-300 py-2 px-3 rounded-xl bg-white/15 dark:bg-white/10 border border-white/20 text-emerald-300 font-bold shadow-xs flex items-start gap-2 text-sm';
-          p.innerHTML = `<span class="line-marker text-emerald-400 font-bold shrink-0 select-none mt-0.5">▶</span><span class="flex-1">${clean}</span>`;
+          // Nova frase traduzida completa no topo, sem ícones e sem caixas com bordas
+          const p = document.createElement('p');
+          p.className = 'transcription-line latest-line leading-relaxed mb-3.5 text-emerald-300 dark:text-emerald-300 font-semibold whitespace-normal break-words transition-all duration-300';
+          p.innerText = clean;
 
           feed.prepend(p);
 
@@ -4154,12 +4141,9 @@
         const targetCode = targetLang.split('-')[0].toLowerCase();
         const sourceCode = sourceLang.split('-')[0].toLowerCase();
 
-        // Se o idioma for idêntico, exibe diretamente sem chamada externa
+        // Se o idioma for idêntico, exibe diretamente a frase completa sem chamada externa
         if (targetCode === sourceCode) {
-          const chunks = splitTextIntoHarmoniousSubtitleChunks(clean, startSec, endSec, 48);
-          chunks.forEach(c => {
-            addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, false);
-          });
+          addReceiverSentenceClean(clean, startSec, endSec, false);
           return;
         }
 
@@ -4214,10 +4198,8 @@
         // Delay natural suave (350ms) condizente com a recepção do áudio traduzido que o usuário monitora
         setTimeout(() => {
           if (recInterimEl) recInterimEl.innerText = '';
-          const chunks = splitTextIntoHarmoniousSubtitleChunks(translatedText.trim(), startSec, endSec, 48);
-          chunks.forEach(c => {
-            addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, false);
-          });
+          // Envia a frase completa traduzida para a tela (sem fatiar ao vivo)
+          addReceiverSentenceClean(translatedText.trim(), startSec, endSec, false);
         }, 350);
       }
 
@@ -4299,7 +4281,8 @@
         }
         let refinedItems = [];
         items.forEach(it => {
-          const sub = splitTextIntoHarmoniousSubtitleChunks(it.text, it.timeStart, it.timeEnd, 48);
+          // Cortes menores exclusivamente para arquivo final de legenda (mínimo o dobro do tamanho: 100 caracteres)
+          const sub = splitTextIntoHarmoniousSubtitleChunks(it.text, it.timeStart, it.timeEnd, 100);
           refinedItems.push(...sub);
         });
 
