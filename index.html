@@ -2363,7 +2363,6 @@
             reconnectPeriod: 3000
           });
           mqttClient.on('connect', () => {
-            mqttClient.subscribe(mqttTopic, { qos: 0 });
             const ind = document.getElementById('overlay-cloud-indicator');
             if (ind) {
               ind.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Nuvem Ao Vivo';
@@ -2384,7 +2383,7 @@
 
     // ========================================================
     // TELA DEDICADA: PÁGINA DO ESPECTADOR / AUDIÊNCIA (MOBILE & DESKTOP)
-    // (?meeting=xyz&view=audience)
+    // (?meeting=xyz&view=audience&lang=en ou &lang=es)
     // ========================================================
     function renderAudienceListenerPage(id) {
       let meeting = null;
@@ -2402,56 +2401,84 @@
         };
       }
 
+      // 1. Identificação do Idioma: respeita parâmetro direto na URL (?lang=en ou &lang=es)
+      const audienceUrlParams = new URLSearchParams(window.location.search);
+      const urlLang = audienceUrlParams.get('lang') || audienceUrlParams.get('idioma');
+      let currentAudienceLang = 'en-US';
+      if (urlLang) {
+        const l = urlLang.toLowerCase().trim();
+        if (l.startsWith('es')) currentAudienceLang = 'es-ES';
+        else if (l.startsWith('en')) currentAudienceLang = 'en-US';
+        else if (l.startsWith('pt')) currentAudienceLang = 'pt-BR';
+        else if (l.startsWith('fr')) currentAudienceLang = 'fr-FR';
+        else if (l.startsWith('de')) currentAudienceLang = 'de-DE';
+        else if (l.startsWith('it')) currentAudienceLang = 'it-IT';
+      } else {
+        currentAudienceLang = localStorage.getItem('brain_audience_lang') || (meeting.targetLanguage || 'en-US');
+      }
+
       // Dicionário i18n completo para a experiência no idioma do espectador
       const audienceI18n = {
         'en-US': {
           langName: 'English',
           title: 'Simultaneous Translation',
           liveBadge: 'LIVE',
-          connected: 'Connected to event room',
+          connected: 'Connected (Live Room)',
+          connecting: 'Connecting to room...',
           headphoneAlert: 'Please use headphones or earphones (Bluetooth or cable) to avoid disturbing the auditorium.',
           headphoneConfirmed: 'Headphones active & confirmed',
           headphoneCheckBtn: 'I am wearing headphones',
-          audioChannelTitle: 'Translated Live Audio',
+          audioChannelTitle: 'Live Meeting Audio (Google Meet Dubbing)',
+          audioChannelSub: 'Direct broadcast of the speaker\'s dubbed voice with original tone',
           audioHelp: 'Tap below to listen in real time with your volume slider:',
-          startAudio: '▶ Listen to Translated Audio',
-          audioActive: '🔊 Live Audio Playing',
+          startAudio: '▶ Tap Here to Listen to Meeting Audio',
+          audioActive: '🔊 Live Audio Playing (Google Meet)',
           audioMuted: '🔇 Audio Muted / Inactive',
           volume: 'Volume',
-          transcriptTitle: 'Live Translated Subtitles',
+          testAudioBtn: '🔔 Test Audio',
+          audioTestPhrase: 'Simultaneous translation live audio channel is active and playing correctly.',
+          transcriptTitle: 'Live English Subtitles',
           waitingSpeech: 'Waiting for speech... Translations will appear here in real time.'
         },
         'es-ES': {
           langName: 'Español',
           title: 'Traducción Simultánea',
           liveBadge: 'EN VIVO',
-          connected: 'Conectado a la sala del evento',
+          connected: 'Conectado (Sala en Vivo)',
+          connecting: 'Conectando a la sala...',
           headphoneAlert: 'Por favor, utiliza auriculares (Bluetooth o cable) para no interferir en el audio del auditorio.',
           headphoneConfirmed: 'Auriculares activos y confirmados',
           headphoneCheckBtn: 'Estoy usando auriculares',
-          audioChannelTitle: 'Canal de Audio Traducido',
-          audioHelp: 'Toca abajo para escuchar en tiempo real con control de volumen:',
-          startAudio: '▶ Escuchar Audio Traducido',
-          audioActive: '🔊 Audio en Vivo Activo',
+          audioChannelTitle: 'Traducción en Español (Voz IA en Vivo)',
+          audioChannelSub: 'Audio generado por síntesis de voz en español y subtítulos simultáneos',
+          audioHelp: 'Toca abajo para escuchar la traducción en español con control de volumen:',
+          startAudio: '▶ Toca Aquí para Escuchar en Español',
+          audioActive: '🔊 Voz IA en Español Activa',
           audioMuted: '🔇 Audio Silenciado',
           volume: 'Volumen',
-          transcriptTitle: 'Subtítulos Traducidos en Vivo',
-          waitingSpeech: 'Esperando al ponente... La traducción aparecerá aquí en tiempo real.'
+          testAudioBtn: '🔔 Probar Audio',
+          audioTestPhrase: 'El canal de audio de traducción simultánea en español está activo y funcionando correctamente.',
+          transcriptTitle: 'Subtítulos en Español al Vivo',
+          waitingSpeech: 'Esperando al ponente... La traducción al español aparecerá aquí en tiempo real.'
         },
         'pt-BR': {
           langName: 'Português',
           title: 'Tradução Simultânea',
           liveBadge: 'AO VIVO',
-          connected: 'Conectado à sala do evento',
+          connected: 'Conectado (Sala ao Vivo)',
+          connecting: 'Conectando à sala...',
           headphoneAlert: 'Por favor, utilize fones de ouvido (Bluetooth ou cabo) para não interferir no áudio do auditório.',
           headphoneConfirmed: 'Fones de ouvido confirmados',
           headphoneCheckBtn: 'Estou usando fone de ouvido',
           audioChannelTitle: 'Canal de Áudio Traduzido',
+          audioChannelSub: 'Transmissão de acessibilidade e legendas simultâneas',
           audioHelp: 'Toque abaixo para ouvir em tempo real com controle de volume:',
-          startAudio: '▶ Ouvir Áudio Traduzido',
+          startAudio: '▶ Toque Aqui para Ouvir o Áudio Traduzido',
           audioActive: '🔊 Áudio ao Vivo Ativo',
           audioMuted: '🔇 Áudio Silenciado',
           volume: 'Volume',
+          testAudioBtn: '🔔 Testar Áudio',
+          audioTestPhrase: 'Canal de áudio da tradução simultânea ativo e funcionando perfeitamente.',
           transcriptTitle: 'Legenda Traduzida ao Vivo',
           waitingSpeech: 'Aguardando fala do palestrante... A tradução aparecerá aqui em tempo real.'
         },
@@ -2459,16 +2486,20 @@
           langName: 'Français',
           title: 'Traduction Simultanée',
           liveBadge: 'EN DIRECT',
-          connected: 'Connecté à la salle de conférence',
+          connected: 'Connecté (Salle en direct)',
+          connecting: 'Connexion à la salle...',
           headphoneAlert: 'Veuillez utiliser des écouteurs (Bluetooth ou filaires) pour ne pas perturber l\'auditorium.',
           headphoneConfirmed: 'Écouteurs confirmés',
           headphoneCheckBtn: 'J\'utilise des écouteurs',
           audioChannelTitle: 'Canal Audio Traduit',
+          audioChannelSub: 'Traduction simultanée avec voix synthétique',
           audioHelp: 'Appuyez ci-dessous pour écouter en temps réel avec le curseur de volume:',
           startAudio: '▶ Écouter l\'Audio Traduit',
           audioActive: '🔊 Audio en Direct Actif',
           audioMuted: '🔇 Audio Muet',
           volume: 'Volume',
+          testAudioBtn: '🔔 Tester Audio',
+          audioTestPhrase: 'Le canal audio de traduction simultanée est actif et fonctionne correctement.',
           transcriptTitle: 'Sous-titres Traduits en Direct',
           waitingSpeech: 'En attente de l\'orateur... La traduction apparaîtra ici en temps réel.'
         },
@@ -2476,16 +2507,20 @@
           langName: 'Deutsch',
           title: 'Simultanübersetzung',
           liveBadge: 'LIVE',
-          connected: 'Mit dem Konferenzraum verbunden',
+          connected: 'Verbunden (Live-Raum)',
+          connecting: 'Verbindung zum Raum...',
           headphoneAlert: 'Bitte verwenden Sie Kopfhörer (Bluetooth oder Kabel), um den Raum nicht zu stören.',
           headphoneConfirmed: 'Kopfhörer bestätigt',
           headphoneCheckBtn: 'Ich benutze Kopfhörer',
           audioChannelTitle: 'Übersetzter Audiokanal',
+          audioChannelSub: 'Simultanübersetzung mit KI-Stimme',
           audioHelp: 'Tippen Sie unten, um in Echtzeit mit Lautstärkeregler zuzuhören:',
           startAudio: '▶ Übersetzung Anhören',
           audioActive: '🔊 Live-Audio Aktiv',
           audioMuted: '🔇 Audio Stumm',
           volume: 'Lautstärke',
+          testAudioBtn: '🔔 Audio Testen',
+          audioTestPhrase: 'Der Audiokanal für Simultanübersetzung ist aktiv und funktioniert ordnungsgemäß.',
           transcriptTitle: 'Live Übersetzte Untertitel',
           waitingSpeech: 'Warten auf den Sprecher... Die Übersetzung erscheint hier in Echtzeit.'
         },
@@ -2493,23 +2528,25 @@
           langName: 'Italiano',
           title: 'Traduzione Simultanea',
           liveBadge: 'DAL VIVO',
-          connected: 'Connesso alla sala conferenze',
+          connected: 'Connesso (Stanza dal vivo)',
+          connecting: 'Connessione alla stanza...',
           headphoneAlert: 'Si prega di utilizzare cuffie o auricolari (Bluetooth o cavo) per non disturbare la sala.',
           headphoneConfirmed: 'Cuffie confermate',
           headphoneCheckBtn: 'Sto usando le cuffie',
           audioChannelTitle: 'Canale Audio Tradotto',
+          audioChannelSub: 'Traduzione simultanea con voce IA',
           audioHelp: 'Tocca qui sotto per ascoltare in tempo reale con controllo del volume:',
           startAudio: '▶ Ascolta l\'Audio Tradotto',
           audioActive: '🔊 Audio dal Vivo Attivo',
           audioMuted: '🔇 Audio Disattivato',
           volume: 'Volume',
+          testAudioBtn: '🔔 Testa Audio',
+          audioTestPhrase: 'Il canale audio di traduzione simultanea è attivo e funziona correttamente.',
           transcriptTitle: 'Sottotitoli Tradotti dal Vivo',
           waitingSpeech: 'In attesa del relatore... La traduzione apparirà qui in tempo reale.'
         }
       };
 
-      // Idioma inicial do espectador
-      let currentAudienceLang = localStorage.getItem('brain_audience_lang') || (meeting.targetLanguage || 'en-US');
       if (!audienceI18n[currentAudienceLang]) {
         currentAudienceLang = 'en-US';
       }
@@ -2517,6 +2554,12 @@
       let isAudioPlaybackActive = false;
       let currentVolume = parseFloat(localStorage.getItem('brain_audience_vol') || '0.9');
       let isHeadphoneConfirmed = localStorage.getItem('brain_audience_headphone_ok') === 'true';
+
+      // Estado do WebRTC de Áudio (Exclusivo para Canal Inglês - Som do Google Meet)
+      let audienceViewerId = 'v_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
+      let audienceWebRtcPc = null;
+      let isWebRtcConnected = false;
+      let webRtcStreamStatus = 'idle'; // 'idle' | 'requesting' | 'connected' | 'operator_offline'
 
       function getI18n() {
         return audienceI18n[currentAudienceLang] || audienceI18n['en-US'];
@@ -2528,6 +2571,9 @@
         root.innerHTML = `
           <div class="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between font-sans selection:bg-indigo-500/30 selection:text-indigo-200">
             
+            <!-- ELEMENTO DE ÁUDIO HTML5 PARA TRANSMISSÃO WEBRTC AO VIVO DO GOOGLE MEET -->
+            <audio id="audience-live-stream-audio" autoplay playsinline style="display: none;"></audio>
+
             <!-- HEADER DA PÁGINA DO ESPECTADOR -->
             <header class="bg-slate-900/90 border-b border-slate-800/80 backdrop-blur-md sticky top-0 z-40 px-4 py-3 sm:px-6">
               <div class="max-w-3xl mx-auto flex flex-wrap items-center justify-between gap-3">
@@ -2548,10 +2594,10 @@
 
                 <!-- SELETOR DE IDIOMA DO ESPECTADOR (I18N EM TEMPO REAL) -->
                 <div class="flex items-center gap-1.5">
-                  <label for="audience-lang-select" class="text-[11px] text-slate-400 font-semibold hidden sm:inline">Idioma:</label>
+                  <label for="audience-lang-select" class="text-[11px] text-slate-400 font-semibold hidden sm:inline">Canal:</label>
                   <select id="audience-lang-select" onchange="changeAudienceLanguage(this.value)" class="bg-slate-800 text-white font-bold text-xs border border-indigo-500/40 rounded-xl px-2.5 py-1.5 outline-none shadow-sm cursor-pointer hover:border-indigo-400 transition-colors">
-                    <option value="en-US" ${currentAudienceLang === 'en-US' ? 'selected' : ''}>🇺🇸 English</option>
-                    <option value="es-ES" ${currentAudienceLang === 'es-ES' ? 'selected' : ''}>🇪🇸 Español</option>
+                    <option value="en-US" ${currentAudienceLang === 'en-US' ? 'selected' : ''}>🇺🇸 English (Meet Live Audio)</option>
+                    <option value="es-ES" ${currentAudienceLang === 'es-ES' ? 'selected' : ''}>🇪🇸 Español (Audio & Legendas IA)</option>
                     <option value="pt-BR" ${currentAudienceLang === 'pt-BR' ? 'selected' : ''}>🇧🇷 Português</option>
                     <option value="fr-FR" ${currentAudienceLang === 'fr-FR' ? 'selected' : ''}>🇫🇷 Français</option>
                     <option value="de-DE" ${currentAudienceLang === 'de-DE' ? 'selected' : ''}>🇩🇪 Deutsch</option>
@@ -2576,7 +2622,7 @@
                   </div>
                 </div>
                 <button type="button" onclick="confirmAudienceHeadphone()" class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer ${isHeadphoneConfirmed ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}">
-                  ${isHeadphoneConfirmed ? '✓ Fone Ativo' : t.headphoneCheckBtn}
+                  ${isHeadphoneConfirmed ? '✓ Fone Confirmado' : t.headphoneCheckBtn}
                 </button>
               </div>
 
@@ -2584,33 +2630,50 @@
               <div class="bg-gradient-to-br from-slate-900 via-slate-900/90 to-indigo-950/40 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
                 <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
                   <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full ${isAudioPlaybackActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}"></span>
-                    <h2 class="text-sm sm:text-base font-bold text-white tracking-wide">${t.audioChannelTitle}</h2>
+                    <span id="audience-audio-status-dot" class="w-2.5 h-2.5 rounded-full ${isAudioPlaybackActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400 animate-pulse'}"></span>
+                    <div>
+                      <h2 class="text-sm sm:text-base font-bold text-white tracking-wide">${t.audioChannelTitle}</h2>
+                      <p class="text-[10px] text-slate-400">${t.audioChannelSub || ''}</p>
+                    </div>
                   </div>
                   <span class="text-[11px] font-mono text-indigo-400 bg-indigo-950/60 border border-indigo-800/50 px-2.5 py-0.5 rounded-full font-semibold">
                     ${t.langName}
                   </span>
                 </div>
 
+                <!-- BANNER CHAMATIVO DE ATIVAÇÃO DE ÁUDIO -->
+                <div id="audience-audio-callout" class="p-3 rounded-2xl flex items-center gap-3 text-xs transition-all ${isAudioPlaybackActive ? 'bg-emerald-950/40 border border-emerald-500/50 text-emerald-200' : 'bg-amber-950/40 border border-amber-500/50 text-amber-200 animate-pulse'}">
+                  <span class="text-xl">${isAudioPlaybackActive ? '🔊' : '👉'}</span>
+                  <div class="flex-1 leading-snug">
+                    <strong id="callout-title">${isAudioPlaybackActive ? 'Áudio Conectado e Ao Vivo:' : 'Áudio em Espera (Ação Necessária):'}</strong>
+                    <p id="callout-desc" class="text-[11px] opacity-90 mt-0.5">${isAudioPlaybackActive ? 'O áudio traduzido está saindo normalmente. Ajuste o volume abaixo conforme desejar.' : 'Os navegadores de celular e PC bloqueiam som automático. Toque no botão abaixo para liberar o áudio no seu fone!'}</p>
+                  </div>
+                </div>
+
                 <!-- Botão de Iniciar Áudio Traduzido -->
                 <div>
-                  <button type="button" id="btn-toggle-audience-audio" onclick="toggleAudienceAudioPlayback()" class="w-full py-3.5 px-4 rounded-2xl font-black text-sm transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer shadow-lg ${isAudioPlaybackActive ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-900/30' : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-900/30'}">
+                  <button type="button" id="btn-toggle-audience-audio" onclick="toggleAudienceAudioPlayback()" class="w-full py-4 px-4 rounded-2xl font-black text-sm sm:text-base transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer shadow-lg ${isAudioPlaybackActive ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-900/30' : 'bg-gradient-to-r from-emerald-500 via-indigo-600 to-purple-600 hover:from-emerald-600 hover:to-indigo-500 text-white shadow-indigo-900/30 ring-2 ring-emerald-400/50'}">
                     <span>${isAudioPlaybackActive ? t.audioActive : t.startAudio}</span>
                     ${isAudioPlaybackActive ? '<span class="flex gap-1 items-end h-3"><span class="w-1 bg-white animate-bounce h-3"></span><span class="w-1 bg-white animate-bounce delay-100 h-2"></span><span class="w-1 bg-white animate-bounce delay-200 h-3"></span></span>' : ''}
                   </button>
                   <p class="text-[11px] text-slate-400 text-center mt-2">${t.audioHelp}</p>
                 </div>
 
-                <!-- CONTROLE ÚNICO DE VOLUME SLIDER -->
-                <div class="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3 flex items-center gap-3">
-                  <span class="text-base select-none">🔊</span>
-                  <div class="flex-1 flex flex-col gap-1">
-                    <div class="flex justify-between text-[11px] text-slate-400 font-bold">
-                      <span>${t.volume}:</span>
-                      <span id="audience-vol-value" class="font-mono text-white">${Math.round(currentVolume * 100)}%</span>
+                <!-- CONTROLE DE VOLUME SLIDER + TESTE DE ÁUDIO -->
+                <div class="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3">
+                  <div class="flex items-center gap-2.5 flex-1 min-w-[180px]">
+                    <span class="text-base select-none">🔊</span>
+                    <div class="flex-1 flex flex-col gap-1">
+                      <div class="flex justify-between text-[11px] text-slate-400 font-bold">
+                        <span>${t.volume}:</span>
+                        <span id="audience-vol-value" class="font-mono text-white">${Math.round(currentVolume * 100)}%</span>
+                      </div>
+                      <input type="range" min="0" max="1" step="0.05" value="${currentVolume}" oninput="setAudienceVolume(this.value)" class="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg">
                     </div>
-                    <input type="range" min="0" max="1" step="0.05" value="${currentVolume}" oninput="setAudienceVolume(this.value)" class="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg">
                   </div>
+                  <button type="button" onclick="testAudienceAudioOutput()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs whitespace-nowrap">
+                    ${t.testAudioBtn}
+                  </button>
                 </div>
               </div>
 
@@ -2621,8 +2684,8 @@
                     <span>💬</span>
                     <span>${t.transcriptTitle}</span>
                   </h3>
-                  <span class="text-[10px] font-semibold text-emerald-400 flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ${t.connected}
+                  <span id="audience-cloud-status-badge" class="text-[10px] font-semibold text-amber-300 flex items-center gap-1 bg-amber-950/40 border border-amber-800/60 px-2 py-0.5 rounded-full">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> ${t.connecting}
                   </span>
                 </div>
 
@@ -2642,6 +2705,8 @@
             </footer>
           </div>
         `;
+
+        updateAudienceUIControls();
       }
 
       renderAudienceUI();
@@ -2649,31 +2714,142 @@
       window.changeAudienceLanguage = function(newLang) {
         currentAudienceLang = newLang;
         try { localStorage.setItem('brain_audience_lang', newLang); } catch(e) {}
+        
+        // Cancela TTS anterior se houver
+        if ('speechSynthesis' in window) {
+          try { window.speechSynthesis.cancel(); } catch(e) {}
+        }
+        speechQueue = [];
+        isSpeakingNow = false;
+
+        // Se mudou para Inglês e áudio está ativo, solicita WebRTC da reunião
+        if (currentAudienceLang === 'en-US') {
+          if (isAudioPlaybackActive) {
+            requestAudienceLiveAudioStream();
+          }
+        } else {
+          // Se mudou para Espanhol ou outro idioma, desliga WebRTC do Meet e usará TTS
+          stopAudienceWebRtc();
+        }
+
         renderAudienceUI();
       };
 
-      async function checkHeadphoneHardware() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-          return null;
+      function updateAudienceUIControls() {
+        const t = getI18n();
+        const btn = document.getElementById('btn-toggle-audience-audio');
+        const dot = document.getElementById('audience-audio-status-dot');
+        const card = document.getElementById('headphone-card');
+        const callout = document.getElementById('audience-audio-callout');
+        const calloutTitle = document.getElementById('callout-title');
+        const calloutDesc = document.getElementById('callout-desc');
+
+        if (btn) {
+          if (isAudioPlaybackActive) {
+            btn.className = 'w-full py-4 px-4 rounded-2xl font-black text-sm sm:text-base transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer shadow-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-900/30';
+            btn.innerHTML = `<span>${t.audioActive}</span><span class="flex gap-1 items-end h-3"><span class="w-1 bg-white animate-bounce h-3"></span><span class="w-1 bg-white animate-bounce delay-100 h-2"></span><span class="w-1 bg-white animate-bounce delay-200 h-3"></span></span>`;
+          } else {
+            btn.className = 'w-full py-4 px-4 rounded-2xl font-black text-sm sm:text-base transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer shadow-lg bg-gradient-to-r from-emerald-500 via-indigo-600 to-purple-600 hover:from-emerald-600 hover:to-indigo-500 text-white shadow-indigo-900/30 ring-2 ring-emerald-400/50';
+            btn.innerHTML = `<span>${t.startAudio}</span>`;
+          }
         }
+
+        if (dot) {
+          dot.className = `w-2.5 h-2.5 rounded-full ${isAudioPlaybackActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400 animate-pulse'}`;
+        }
+
+        if (card) {
+          card.className = `rounded-2xl p-3.5 border transition-all duration-300 flex flex-wrap items-center justify-between gap-3 ${isHeadphoneConfirmed ? 'bg-emerald-950/30 border-emerald-600/50 text-emerald-200' : 'bg-indigo-950/40 border-indigo-700/50 text-indigo-200'}`;
+        }
+
+        if (callout && calloutTitle && calloutDesc) {
+          if (isAudioPlaybackActive) {
+            if (currentAudienceLang === 'en-US') {
+              if (webRtcStreamStatus === 'connected') {
+                callout.className = 'p-3 rounded-2xl flex items-center gap-3 text-xs transition-all bg-emerald-950/40 border border-emerald-500/50 text-emerald-200';
+                calloutTitle.innerText = 'Áudio da Reunião Google Meet Conectado (Ao Vivo):';
+                calloutDesc.innerText = 'Você está ouvindo o áudio real do Meet dublado com o timbre e entonação do palestrante.';
+              } else if (webRtcStreamStatus === 'operator_offline') {
+                callout.className = 'p-3 rounded-2xl flex items-center gap-3 text-xs transition-all bg-amber-950/40 border border-amber-500/50 text-amber-200';
+                calloutTitle.innerText = 'Aguardando Operador no Cockpit:';
+                calloutDesc.innerText = 'O operador ainda não conectou a leitura do receptor no Cockpit. Assim que conectar, seu som iniciará automaticamente.';
+              } else {
+                callout.className = 'p-3 rounded-2xl flex items-center gap-3 text-xs transition-all bg-indigo-950/40 border border-indigo-500/50 text-indigo-200 animate-pulse';
+                calloutTitle.innerText = 'Conectando ao Áudio da Reunião...';
+                calloutDesc.innerText = 'Estabelecendo canal WebRTC de áudio de ultra-baixa latência com a sala...';
+              }
+            } else {
+              // Espanhol ou outros idiomas
+              callout.className = 'p-3 rounded-2xl flex items-center gap-3 text-xs transition-all bg-emerald-950/40 border border-emerald-500/50 text-emerald-200';
+              calloutTitle.innerText = 'Áudio em Espanhol Conectado e Ao Vivo:';
+              calloutDesc.innerText = 'A tradução simultânea em espanhol está sendo falada no fone conforme as frases são traduzidas.';
+            }
+          } else {
+            callout.className = 'p-3 rounded-2xl flex items-center gap-3 text-xs transition-all bg-amber-950/40 border border-amber-500/50 text-amber-200 animate-pulse';
+            calloutTitle.innerText = 'Áudio em Espera (Ação Necessária):';
+            calloutDesc.innerText = 'Os navegadores de celular e PC bloqueiam som automático. Toque no botão acima para liberar o áudio no seu fone!';
+          }
+        }
+      }
+
+      // Subsistema Web Audio & Keep-alive Mobile (iOS / Android)
+      let audienceAudioContext = null;
+      let audioKeepAliveOsc = null;
+
+      function playImmediateFeedbackChime() {
         try {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const hasHeadphones = devices.some(d => {
-            const label = (d.label || '').toLowerCase();
-            return label.includes('headphone') || label.includes('fone') || label.includes('headset') ||
-                   label.includes('bluetooth') || label.includes('airpod') || label.includes('buds') ||
-                   label.includes('auricular') || label.includes('écouteur');
-          });
-          return hasHeadphones;
-        } catch(e) {
-          return null;
-        }
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          if (!audienceAudioContext || audienceAudioContext.state === 'closed') {
+            audienceAudioContext = new AudioCtx();
+          }
+          if (audienceAudioContext.state === 'suspended') {
+            audienceAudioContext.resume();
+          }
+          const ctx = audienceAudioContext;
+          const now = ctx.currentTime;
+          
+          const osc1 = ctx.createOscillator();
+          const gain1 = ctx.createGain();
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(523.25, now);
+          gain1.gain.setValueAtTime(0.14 * Math.max(0.2, currentVolume), now);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          osc1.connect(gain1);
+          gain1.connect(ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.15);
+
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(659.25, now + 0.12);
+          gain2.gain.setValueAtTime(0.16 * Math.max(0.2, currentVolume), now + 0.12);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.start(now + 0.12);
+          osc2.stop(now + 0.35);
+
+          // Oscilador de keep-alive inaudível para impedir suspensão do motor de áudio no iOS Safari / Android
+          if (!audioKeepAliveOsc) {
+            const keepOsc = ctx.createOscillator();
+            const keepGain = ctx.createGain();
+            keepOsc.type = 'sine';
+            keepOsc.frequency.setValueAtTime(45, now);
+            keepGain.gain.setValueAtTime(0.00002, now);
+            keepOsc.connect(keepGain);
+            keepGain.connect(ctx.destination);
+            keepOsc.start();
+            audioKeepAliveOsc = keepOsc;
+          }
+        } catch(e) {}
       }
 
       window.confirmAudienceHeadphone = function() {
         isHeadphoneConfirmed = true;
         try { localStorage.setItem('brain_audience_headphone_ok', 'true'); } catch(e) {}
-        renderAudienceUI();
+        updateAudienceUIControls();
       };
 
       window.setAudienceVolume = function(val) {
@@ -2681,72 +2857,333 @@
         try { localStorage.setItem('brain_audience_vol', currentVolume.toString()); } catch(e) {}
         const ind = document.getElementById('audience-vol-value');
         if (ind) ind.innerText = Math.round(currentVolume * 100) + '%';
+
+        // Atualiza volume do áudio ao vivo do Meet (WebRTC)
+        const liveAudioEl = document.getElementById('audience-live-stream-audio');
+        if (liveAudioEl) {
+          liveAudioEl.volume = Math.max(0.0, Math.min(1.0, currentVolume));
+        }
       };
 
-      window.toggleAudienceAudioPlayback = async function() {
-        // Regra de segurança acústica para eventos: áudio requer fone de ouvido conectado ou confirmado
-        if (!isAudioPlaybackActive && !isHeadphoneConfirmed) {
-          const hardwareDetected = await checkHeadphoneHardware();
-          if (hardwareDetected) {
-            isHeadphoneConfirmed = true;
-            try { localStorage.setItem('brain_audience_headphone_ok', 'true'); } catch(e) {}
-          } else {
-            const card = document.getElementById('headphone-card');
-            if (card) {
-              card.classList.add('ring-4', 'ring-rose-500');
-              setTimeout(() => {
-                if (card) card.classList.remove('ring-4', 'ring-rose-500');
-              }, 2200);
+      window.testAudienceAudioOutput = function() {
+        playImmediateFeedbackChime();
+
+        if (currentAudienceLang === 'en-US') {
+          // No Inglês, testa o sinal sonoro do canal de áudio ao vivo
+          if (webRtcStreamStatus === 'connected') {
+            console.log('Testando canal de áudio WebRTC...');
+          }
+          return;
+        }
+
+        // No Espanhol e outros idiomas, testa a voz do TTS
+        if ('speechSynthesis' in window) {
+          try {
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.resume();
+          } catch(e) {}
+          const t = getI18n();
+          const utterance = new SpeechSynthesisUtterance(t.audioTestPhrase);
+          window._audienceTestUtterance = utterance;
+          utterance.lang = currentAudienceLang || 'es-ES';
+          utterance.volume = Math.max(0.2, currentVolume);
+          utterance.rate = 1.05;
+
+          try {
+            const voices = window.speechSynthesis.getVoices();
+            if (voices && voices.length > 0) {
+              const langCode = (currentAudienceLang || 'es').split('-')[0].toLowerCase();
+              const matchedVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith(langCode) && !v.remote);
+              if (matchedVoice) utterance.voice = matchedVoice;
             }
-            alert(getI18n().headphoneAlert);
-            return;
+          } catch(e) {}
+
+          window.speechSynthesis.speak(utterance);
+        }
+      };
+
+      window.toggleAudienceAudioPlayback = function() {
+        isAudioPlaybackActive = !isAudioPlaybackActive;
+        isHeadphoneConfirmed = true;
+        try { localStorage.setItem('brain_audience_headphone_ok', 'true'); } catch(e) {}
+
+        const liveAudioEl = document.getElementById('audience-live-stream-audio');
+
+        if (isAudioPlaybackActive) {
+          playImmediateFeedbackChime();
+
+          // Destrava elemento de áudio no Safari iOS e Android
+          if (liveAudioEl) {
+            liveAudioEl.volume = Math.max(0.05, Math.min(1.0, currentVolume));
+            liveAudioEl.play().catch(() => {});
+          }
+
+          if (currentAudienceLang === 'en-US') {
+            // INGLÊS: Conecta ao áudio real do Google Meet via WebRTC
+            requestAudienceLiveAudioStream();
+          } else {
+            // ESPANHOL E DEMAIS: Usa TTS com voz de IA
+            stopAudienceWebRtc();
+            if ('speechSynthesis' in window) {
+              try {
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.resume();
+                const t = getI18n();
+                const unlock = new SpeechSynthesisUtterance(t.langName + ' audio');
+                unlock.lang = currentAudienceLang || 'es-ES';
+                unlock.volume = 0.4 * Math.max(0.3, currentVolume);
+                unlock.rate = 1.1;
+                window.speechSynthesis.speak(unlock);
+              } catch(e) {}
+            }
+            if (speechQueue.length > 0) {
+              processSpeechQueue();
+            }
+          }
+        } else {
+          // Desativando áudio
+          stopAudienceWebRtc();
+          if ('speechSynthesis' in window) {
+            try { window.speechSynthesis.cancel(); } catch(e) {}
+          }
+          isSpeakingNow = false;
+          speechQueue = [];
+        }
+
+        updateAudienceUIControls();
+      };
+
+      // ========================================================
+      // CLIENTE WEBRTC DO ESPECTADOR (ÁUDIO AO VIVO DO RECEPTOR GOOGLE MEET)
+      // ========================================================
+      function stopAudienceWebRtc() {
+        if (audienceWebRtcPc) {
+          try { audienceWebRtcPc.close(); } catch(e) {}
+          audienceWebRtcPc = null;
+        }
+        isWebRtcConnected = false;
+        webRtcStreamStatus = 'idle';
+        const liveAudioEl = document.getElementById('audience-live-stream-audio');
+        if (liveAudioEl) {
+          try { liveAudioEl.pause(); } catch(e) {}
+          liveAudioEl.srcObject = null;
+        }
+      }
+
+      function requestAudienceLiveAudioStream() {
+        if (!isAudioPlaybackActive) return;
+        if (currentAudienceLang !== 'en-US') {
+          stopAudienceWebRtc();
+          return;
+        }
+
+        stopAudienceWebRtc();
+        webRtcStreamStatus = 'requesting';
+        updateAudienceUIControls();
+
+        if (audienceMqttClient && audienceMqttClient.connected) {
+          audienceMqttClient.publish(audienceMqttWebrtcTopic, JSON.stringify({
+            type: 'VIEWER_REQUEST_STREAM',
+            viewerId: audienceViewerId,
+            lang: currentAudienceLang
+          }), { qos: 0 });
+        }
+      }
+
+      async function handleAudienceWebRtcMessage(data) {
+        if (!data || !data.type) return;
+
+        // Se o operador no Cockpit ativou a leitura do receptor, reconecta na hora!
+        if (data.type === 'STREAM_ONLINE') {
+          if (currentAudienceLang === 'en-US' && isAudioPlaybackActive) {
+            console.log('📡 Cockpit notificou que áudio do receptor está online. Conectando WebRTC...');
+            requestAudienceLiveAudioStream();
+          }
+          return;
+        }
+
+        if (data.type === 'STREAM_OFFLINE') {
+          stopAudienceWebRtc();
+          webRtcStreamStatus = 'operator_offline';
+          updateAudienceUIControls();
+          return;
+        }
+
+        // Mensagens endereçadas especificamente a este visualizador
+        if (data.target !== audienceViewerId) return;
+
+        if (data.type === 'OPERATOR_NOT_READY') {
+          webRtcStreamStatus = 'operator_offline';
+          updateAudienceUIControls();
+          return;
+        }
+
+        if (data.type === 'OFFER' && data.sdp) {
+          try {
+            stopAudienceWebRtc();
+            webRtcStreamStatus = 'requesting';
+            updateAudienceUIControls();
+
+            const pc = new RTCPeerConnection({
+              iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+              ]
+            });
+            audienceWebRtcPc = pc;
+
+            pc.ontrack = (event) => {
+              console.log('🔊 Faixa de áudio WebRTC recebida do Cockpit (Google Meet)!', event);
+              const liveAudioEl = document.getElementById('audience-live-stream-audio');
+              if (liveAudioEl) {
+                liveAudioEl.srcObject = event.streams[0];
+                liveAudioEl.volume = Math.max(0.05, Math.min(1.0, currentVolume));
+                liveAudioEl.play().catch(e => {
+                  console.warn('Erro ao reproduzir áudio WebRTC (requer interação do usuário):', e);
+                });
+              }
+              isWebRtcConnected = true;
+              webRtcStreamStatus = 'connected';
+              updateAudienceUIControls();
+            };
+
+            pc.onicecandidate = (event) => {
+              if (event.candidate && audienceMqttClient && audienceMqttClient.connected) {
+                audienceMqttClient.publish(audienceMqttWebrtcTopic, JSON.stringify({
+                  type: 'ICE_CANDIDATE',
+                  target: 'cockpit',
+                  sender: audienceViewerId,
+                  candidate: event.candidate
+                }), { qos: 0 });
+              }
+            };
+
+            pc.onconnectionstatechange = () => {
+              if (pc.connectionState === 'connected') {
+                isWebRtcConnected = true;
+                webRtcStreamStatus = 'connected';
+              } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                isWebRtcConnected = false;
+                webRtcStreamStatus = 'requesting';
+                setTimeout(() => {
+                  if (isAudioPlaybackActive && currentAudienceLang === 'en-US') {
+                    requestAudienceLiveAudioStream();
+                  }
+                }, 2500);
+              }
+              updateAudienceUIControls();
+            };
+
+            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            if (audienceMqttClient && audienceMqttClient.connected) {
+              audienceMqttClient.publish(audienceMqttWebrtcTopic, JSON.stringify({
+                type: 'ANSWER',
+                target: 'cockpit',
+                sender: audienceViewerId,
+                sdp: pc.localDescription
+              }), { qos: 0 });
+            }
+          } catch(err) {
+            console.error('Erro ao negociar Offer WebRTC no espectador:', err);
           }
         }
 
-        isAudioPlaybackActive = !isAudioPlaybackActive;
-        renderAudienceUI();
-
-        // Feedback sonoro suave de inicialização no fone
-        if (isAudioPlaybackActive && ('speechSynthesis' in window)) {
-          const t = getI18n();
-          const testMsg = new SpeechSynthesisUtterance(t.audioActive.replace(/[^a-zA-ZÀ-ÿ\s]/g, ''));
-          testMsg.lang = currentAudienceLang;
-          testMsg.volume = currentVolume;
-          window.speechSynthesis.speak(testMsg);
+        if (data.type === 'ICE_CANDIDATE' && data.candidate && audienceWebRtcPc) {
+          try {
+            if (audienceWebRtcPc.remoteDescription) {
+              await audienceWebRtcPc.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+          } catch(e) {}
         }
-      };
+      }
 
-      // FILA DE FALA SEQUENCIAL (TTS)
+      // FILA DE FALA SEQUENCIAL (TTS) PARA O CANAL ESPANHOL E DEMAIS IDIOMAS
       let speechQueue = [];
       let isSpeakingNow = false;
+      let speechQueueWatchdog = null;
+      let activeUtteranceRef = null;
 
       function processSpeechQueue() {
         if (!isAudioPlaybackActive || isSpeakingNow || speechQueue.length === 0) return;
+        if (currentAudienceLang === 'en-US') return; // Inglês usa o áudio ao vivo do Meet, sem TTS!
         if (!('speechSynthesis' in window)) return;
 
+        try {
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+        } catch(e) {}
+
         const nextText = speechQueue.shift();
+        if (!nextText || !nextText.trim()) {
+          setTimeout(processSpeechQueue, 40);
+          return;
+        }
+
         isSpeakingNow = true;
-        const utterance = new SpeechSynthesisUtterance(nextText);
-        utterance.lang = currentAudienceLang;
-        utterance.volume = currentVolume;
+        const utterance = new SpeechSynthesisUtterance(nextText.trim());
+        activeUtteranceRef = utterance;
+        window._activeAudienceUtterance = utterance;
+
+        utterance.lang = currentAudienceLang || 'es-ES';
+        utterance.volume = Math.max(0.1, Math.min(1.0, currentVolume));
         utterance.rate = 1.05;
 
-        utterance.onend = () => {
+        try {
+          const voices = window.speechSynthesis.getVoices();
+          if (voices && voices.length > 0) {
+            const langCode = (currentAudienceLang || 'es').split('-')[0].toLowerCase();
+            const matchedVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith(langCode));
+            if (matchedVoice) {
+              utterance.voice = matchedVoice;
+            }
+          }
+        } catch(e) {}
+
+        const finalizeSpeech = () => {
+          if (speechQueueWatchdog) clearTimeout(speechQueueWatchdog);
           isSpeakingNow = false;
-          setTimeout(processSpeechQueue, 80);
-        };
-        utterance.onerror = () => {
-          isSpeakingNow = false;
-          setTimeout(processSpeechQueue, 80);
+          activeUtteranceRef = null;
+          window._activeAudienceUtterance = null;
+          setTimeout(processSpeechQueue, 60);
         };
 
-        window.speechSynthesis.speak(utterance);
+        utterance.onend = finalizeSpeech;
+        utterance.onerror = (err) => {
+          console.warn('SpeechSynthesis aviso:', err);
+          finalizeSpeech();
+        };
+
+        const maxExpectedMs = Math.max(3000, nextText.length * 100);
+        if (speechQueueWatchdog) clearTimeout(speechQueueWatchdog);
+        speechQueueWatchdog = setTimeout(() => {
+          if (isSpeakingNow) {
+            finalizeSpeech();
+          }
+        }, maxExpectedMs);
+
+        try {
+          window.speechSynthesis.resume();
+          window.speechSynthesis.speak(utterance);
+        } catch(e) {
+          finalizeSpeech();
+        }
       }
 
       function queueAudienceSpeech(text) {
         if (!isAudioPlaybackActive || !text || !text.trim()) return;
+        if (currentAudienceLang === 'en-US') return; // Inglês usa o áudio ao vivo do Meet!
         speechQueue.push(text.trim());
         processSpeechQueue();
+      }
+
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          try { window.speechSynthesis.getVoices(); } catch(e) {}
+        };
       }
 
       // ROTEAMENTO INTELIGENTE E DEDUPLICAÇÃO DE LEGENDAS PARA O ESPECTADOR
@@ -2762,9 +3199,9 @@
           audienceSeenSubtitles.delete(first);
         }
 
-        const myLangCode = currentAudienceLang.split('-')[0].toLowerCase();
-        const targetLangCode = (meeting.targetLanguage || 'en-US').split('-')[0].toLowerCase();
-        const sourceLangCode = (meeting.sourceLanguage || 'pt-BR').split('-')[0].toLowerCase();
+        const myLangCode = (currentAudienceLang || 'en-US').split('-')[0].toLowerCase();
+        const msgSourceLang = (data.sourceLanguage || meeting.sourceLanguage || 'pt-BR').split('-')[0].toLowerCase();
+        const msgTargetLang = (data.targetLanguage || meeting.targetLanguage || 'en-US').split('-')[0].toLowerCase();
 
         let textToDisplayAndSpeak = '';
 
@@ -2773,22 +3210,21 @@
           if (data.channel !== 'spanish') return;
           textToDisplayAndSpeak = text;
         }
-        // 2. Espectador no idioma original do Palestrante (ex: Português): consome exclusivamente 'transmitter'
-        else if (myLangCode === sourceLangCode) {
-          if (data.channel !== 'transmitter') return;
-          textToDisplayAndSpeak = text;
-        }
-        // 3. Espectador no idioma do Receptor (ex: Inglês): consome exclusivamente 'receiver'
-        else if (myLangCode === targetLangCode) {
+        // 2. Espectador em Inglês: consome exclusivamente o canal 'receiver'
+        else if (myLangCode === 'en' || myLangCode === msgTargetLang) {
           if (data.channel !== 'receiver') return;
           textToDisplayAndSpeak = text;
         }
-        // 4. Qualquer outro idioma (ex: Francês, Alemão, Italiano):
-        // Consome exclusivamente a frase original do 'transmitter' e faz tradução dinâmica instantânea para o espectador
+        // 3. Espectador em Português: consome 'transmitter'
+        else if (myLangCode === msgSourceLang) {
+          if (data.channel !== 'transmitter') return;
+          textToDisplayAndSpeak = text;
+        }
+        // 4. Qualquer outro idioma: consome 'transmitter' e traduz dinamicamente
         else {
           if (data.channel !== 'transmitter') return;
           try {
-            const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLangCode}&tl=${myLangCode}&dt=t&q=${encodeURIComponent(text)}`);
+            const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${msgSourceLang}&tl=${myLangCode}&dt=t&q=${encodeURIComponent(text)}`);
             if (res.ok) {
               const resData = await res.json();
               if (Array.isArray(resData) && Array.isArray(resData[0])) {
@@ -2824,38 +3260,127 @@
           feed.scrollTop = feed.scrollHeight;
         }
 
-        // Falar no fone do espectador
-        queueAudienceSpeech(textToDisplayAndSpeak);
+        // Falar no fone do espectador (apenas para Espanhol e outros; Inglês usa WebRTC ao vivo)
+        if (currentAudienceLang !== 'en-US') {
+          queueAudienceSpeech(textToDisplayAndSpeak);
+        }
       }
 
-      // 1. Conexão Local (BroadcastChannel)
+      function updateAudienceConnectionBadge(isConnected, message) {
+        const badge = document.getElementById('audience-cloud-status-badge');
+        const t = getI18n();
+        if (badge) {
+          if (isConnected) {
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ${message || t.connected}`;
+            badge.className = 'text-[10px] font-semibold text-emerald-400 flex items-center gap-1 bg-emerald-950/40 border border-emerald-800/60 px-2 py-0.5 rounded-full';
+          } else {
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> ${message || t.connecting}`;
+            badge.className = 'text-[10px] font-semibold text-amber-300 flex items-center gap-1 bg-amber-950/40 border border-amber-800/60 px-2 py-0.5 rounded-full';
+          }
+        }
+      }
+
+      // 1. Conexão Local (BroadcastChannel - Mesma Máquina)
       try {
         const localChannel = new BroadcastChannel('brain_subtitles_channel');
         localChannel.onmessage = (event) => {
           handleAudienceIncomingSubtitle(event.data);
+          updateAudienceConnectionBadge(true, 'Conexão Local (Ao Vivo)');
         };
       } catch(e) {}
 
-      // 2. Conexão Nuvem Global (MQTT para Celular e Qualquer Lugar)
-      try {
-        if (typeof mqtt !== 'undefined') {
-          const audienceMqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-            clientId: 'brain_audience_' + Math.random().toString(16).substring(2, 8),
+      // 2. Conexão Nuvem Global (MQTT WebSockets para Celular, Tablet e Qualquer Lugar)
+      const safeAudienceMeetingId = encodeURIComponent((id || '').toLowerCase().trim()).replace(/[^a-z0-9_-]/g, '_');
+      const audienceMqttTopic = 'brainaudiovisual/meeting/' + safeAudienceMeetingId + '/subtitles';
+      const audienceMqttWebrtcTopic = 'brainaudiovisual/meeting/' + safeAudienceMeetingId + '/webrtc';
+
+      const publicAudienceBrokers = [
+        'wss://broker.emqx.io:8084/mqtt',
+        'wss://broker.hivemq.com:8884/mqtt'
+      ];
+      let audienceBrokerIndex = 0;
+      let audienceMqttClient = null;
+      let audienceConnectTimeout = null;
+
+      function connectAudienceMqtt() {
+        if (typeof mqtt === 'undefined') {
+          console.warn('Biblioteca MQTT carregando dinamicamente...');
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js';
+          s.onload = () => { setTimeout(connectAudienceMqtt, 100); };
+          document.head.appendChild(s);
+          return;
+        }
+
+        const brokerUrl = publicAudienceBrokers[audienceBrokerIndex];
+        console.log(`📡 Conectando espectador ao broker ${audienceBrokerIndex + 1}/${publicAudienceBrokers.length}: ${brokerUrl}`);
+        updateAudienceConnectionBadge(false, 'Conectando à nuvem...');
+
+        try {
+          if (audienceMqttClient) {
+            try { audienceMqttClient.end(true); } catch(e) {}
+          }
+
+          audienceMqttClient = mqtt.connect(brokerUrl, {
+            clientId: 'brain_aud_' + Math.random().toString(16).substring(2, 8),
             clean: true,
-            connectTimeout: 7000,
-            reconnectPeriod: 3000
+            connectTimeout: 5000,
+            reconnectPeriod: 2500
           });
+
+          if (audienceConnectTimeout) clearTimeout(audienceConnectTimeout);
+          audienceConnectTimeout = setTimeout(() => {
+            if (!audienceMqttClient || !audienceMqttClient.connected) {
+              console.warn('Timeout de conexão com o broker:', brokerUrl);
+              switchAudienceBroker();
+            }
+          }, 4500);
+
           audienceMqttClient.on('connect', () => {
-            audienceMqttClient.subscribe(mqttTopic, { qos: 0 });
+            if (audienceConnectTimeout) clearTimeout(audienceConnectTimeout);
+            console.log('📡 Espectador CONECTADO à nuvem global MQTT!');
+            audienceMqttClient.subscribe(audienceMqttTopic, { qos: 0 });
+            audienceMqttClient.subscribe(audienceMqttWebrtcTopic, { qos: 0 });
+            updateAudienceConnectionBadge(true, 'Nuvem Conectada (Ao Vivo)');
+
+            // Se áudio estiver ativo no canal Inglês, solicita áudio da reunião
+            if (isAudioPlaybackActive && currentAudienceLang === 'en-US') {
+              requestAudienceLiveAudioStream();
+            }
           });
+
+          audienceMqttClient.on('error', (err) => {
+            console.warn('MQTT espectador aviso:', err);
+            updateAudienceConnectionBadge(false, 'Reconectando...');
+          });
+
+          audienceMqttClient.on('close', () => {
+            updateAudienceConnectionBadge(false, 'Conectando...');
+          });
+
           audienceMqttClient.on('message', (topic, payload) => {
             try {
               const parsed = JSON.parse(payload.toString());
-              handleAudienceIncomingSubtitle(parsed);
+              if (topic === audienceMqttTopic) {
+                handleAudienceIncomingSubtitle(parsed);
+                updateAudienceConnectionBadge(true, 'Nuvem Conectada (Ao Vivo)');
+              } else if (topic === audienceMqttWebrtcTopic) {
+                handleAudienceWebRtcMessage(parsed);
+              }
             } catch(e) {}
           });
+        } catch(e) {
+          console.warn('Erro ao inicializar MQTT no espectador:', e);
+          switchAudienceBroker();
         }
-      } catch(e) {}
+      }
+
+      function switchAudienceBroker() {
+        audienceBrokerIndex = (audienceBrokerIndex + 1) % publicAudienceBrokers.length;
+        setTimeout(connectAudienceMqtt, 1000);
+      }
+
+      connectAudienceMqtt();
     }
 
     function renderMeetingRoomMonitor(id) {
@@ -2874,51 +3399,218 @@
         subtitleBroadcast = new BroadcastChannel('brain_subtitles_channel');
       } catch(e) {}
 
-      const safeMeetingMqttId = encodeURIComponent(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const safeMeetingMqttId = encodeURIComponent((id || '').toLowerCase().trim()).replace(/[^a-z0-9_-]/g, '_');
       const mqttMeetingTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/subtitles';
-      let mqttPublisherClient = null;
+      const mqttCockpitWebrtcTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/webrtc';
+      const cockpitPeerConnections = new Map(); // viewerId -> RTCPeerConnection
 
-      try {
-        if (typeof mqtt !== 'undefined') {
-          mqttPublisherClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-            clientId: 'brain_cockpit_' + Math.random().toString(16).substring(2, 8),
-            clean: true,
-            connectTimeout: 7000,
-            reconnectPeriod: 3000
-          });
-          mqttPublisherClient.on('connect', () => {
-            console.log('📡 Cockpit conectado à nuvem global para transmissão ao vivo!');
-          });
+      const mqttCockpitBrokers = [
+        'wss://broker.emqx.io:8084/mqtt',
+        'wss://broker.hivemq.com:8884/mqtt'
+      ];
+      let cockpitBrokerIndex = 0;
+      let mqttPublisherClient = null;
+      let pendingMqttSubtitles = [];
+      let cockpitMqttConnectTimeout = null;
+
+      async function setupCockpitWebRtcPeerForViewer(viewerId) {
+        if (!isReceiverAudioCaptureActive || !receiverMediaStream || receiverMediaStream.getAudioTracks().length === 0) {
+          if (mqttPublisherClient && mqttPublisherClient.connected) {
+            mqttPublisherClient.publish(mqttCockpitWebrtcTopic, JSON.stringify({
+              type: 'OPERATOR_NOT_READY',
+              target: viewerId,
+              message: 'O operador ainda não ativou a leitura do receptor no Cockpit'
+            }), { qos: 0 });
+          }
+          return;
         }
-      } catch(e) {
-        console.warn('MQTT pub init warning:', e);
+
+        const oldPc = cockpitPeerConnections.get(viewerId);
+        if (oldPc) {
+          try { oldPc.close(); } catch(e) {}
+        }
+
+        const pc = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        });
+        cockpitPeerConnections.set(viewerId, pc);
+
+        // Injeta faixas de áudio do canal receptor do Google Meet
+        receiverMediaStream.getAudioTracks().forEach(track => {
+          pc.addTrack(track, receiverMediaStream);
+        });
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate && mqttPublisherClient && mqttPublisherClient.connected) {
+            mqttPublisherClient.publish(mqttCockpitWebrtcTopic, JSON.stringify({
+              type: 'ICE_CANDIDATE',
+              target: viewerId,
+              candidate: event.candidate
+            }), { qos: 0 });
+          }
+        };
+
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            try { pc.close(); } catch(e) {}
+            cockpitPeerConnections.delete(viewerId);
+          }
+        };
+
+        try {
+          const offer = await pc.createOffer({
+            offerToReceiveAudio: false,
+            offerToReceiveVideo: false
+          });
+          await pc.setLocalDescription(offer);
+
+          if (mqttPublisherClient && mqttPublisherClient.connected) {
+            mqttPublisherClient.publish(mqttCockpitWebrtcTopic, JSON.stringify({
+              type: 'OFFER',
+              target: viewerId,
+              sdp: pc.localDescription
+            }), { qos: 0 });
+          }
+        } catch(err) {
+          console.error('Erro ao gerar Offer WebRTC para espectador:', viewerId, err);
+        }
       }
 
+      function connectCockpitMqtt() {
+        if (typeof mqtt === 'undefined') {
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js';
+          s.onload = () => { setTimeout(connectCockpitMqtt, 100); };
+          document.head.appendChild(s);
+          return;
+        }
+
+        const brokerUrl = mqttCockpitBrokers[cockpitBrokerIndex];
+        console.log(`📡 Cockpit conectando à nuvem MQTT: ${brokerUrl}`);
+
+        try {
+          if (mqttPublisherClient) {
+            try { mqttPublisherClient.end(true); } catch(e) {}
+          }
+
+          mqttPublisherClient = mqtt.connect(brokerUrl, {
+            clientId: 'brain_cockpit_' + Math.random().toString(16).substring(2, 8),
+            clean: true,
+            connectTimeout: 5000,
+            reconnectPeriod: 2500
+          });
+
+          if (cockpitMqttConnectTimeout) clearTimeout(cockpitMqttConnectTimeout);
+          cockpitMqttConnectTimeout = setTimeout(() => {
+            if (!mqttPublisherClient || !mqttPublisherClient.connected) {
+              console.warn('Timeout MQTT Cockpit no broker:', brokerUrl);
+              cockpitBrokerIndex = (cockpitBrokerIndex + 1) % mqttCockpitBrokers.length;
+              setTimeout(connectCockpitMqtt, 1000);
+            }
+          }, 4500);
+
+          mqttPublisherClient.on('connect', () => {
+            if (cockpitMqttConnectTimeout) clearTimeout(cockpitMqttConnectTimeout);
+            console.log('📡 Cockpit CONECTADO com sucesso à nuvem global para transmissão ao vivo!');
+            
+            // Inscreve no canal de sinalização WebRTC de áudio para responder aos espectadores
+            mqttPublisherClient.subscribe(mqttCockpitWebrtcTopic, { qos: 0 });
+
+            // Esvazia fila pendente de legendas
+            while (pendingMqttSubtitles.length > 0) {
+              const msg = pendingMqttSubtitles.shift();
+              try {
+                mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(msg), { qos: 0, retain: true });
+              } catch(e) {}
+            }
+          });
+
+          mqttPublisherClient.on('message', async (topic, payload) => {
+            if (topic !== mqttCockpitWebrtcTopic) return;
+            try {
+              const msg = JSON.parse(payload.toString());
+              if (!msg || !msg.type) return;
+
+              // Espectador solicitou o áudio ao vivo da reunião
+              if (msg.type === 'VIEWER_REQUEST_STREAM') {
+                const viewerId = msg.viewerId;
+                if (!viewerId) return;
+
+                if (!isReceiverAudioCaptureActive || !receiverMediaStream || receiverMediaStream.getAudioTracks().length === 0) {
+                  mqttPublisherClient.publish(mqttCockpitWebrtcTopic, JSON.stringify({
+                    type: 'OPERATOR_NOT_READY',
+                    target: viewerId,
+                    message: 'Aguardando o operador conectar a leitura do receptor no Cockpit'
+                  }), { qos: 0 });
+                  return;
+                }
+
+                await setupCockpitWebRtcPeerForViewer(viewerId);
+              }
+              // Resposta SDP (Answer) vinda do espectador
+              else if (msg.type === 'ANSWER' && msg.target === 'cockpit' && msg.sender) {
+                const pc = cockpitPeerConnections.get(msg.sender);
+                if (pc && pc.signalingState !== 'closed') {
+                  await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+                }
+              }
+              // Candidato ICE vindo do espectador
+              else if (msg.type === 'ICE_CANDIDATE' && msg.target === 'cockpit' && msg.sender && msg.candidate) {
+                const pc = cockpitPeerConnections.get(msg.sender);
+                if (pc && pc.remoteDescription) {
+                  try {
+                    await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+                  } catch(e) {}
+                }
+              }
+            } catch(e) {
+              console.warn('Erro ao processar mensagem WebRTC no Cockpit:', e);
+            }
+          });
+
+          mqttPublisherClient.on('error', (err) => {
+            console.warn('MQTT cockpit aviso:', err);
+          });
+        } catch(e) {
+          console.warn('MQTT cockpit erro:', e);
+        }
+      }
+
+      connectCockpitMqtt();
+
       function broadcastSubtitleGlobally(channel, text, startSec, endSec) {
+        if (!text || !text.trim()) return;
+        const payload = {
+          type: 'NEW_SUBTITLE',
+          channel,
+          text: text.trim(),
+          sourceLanguage: selectedSourceLanguage || 'pt-BR',
+          targetLanguage: selectedTargetLanguage || 'en-US',
+          startSec,
+          endSec,
+          timestamp: Date.now()
+        };
+
         // 1. Canal Local (OBS / Mesma máquina)
         if (subtitleBroadcast) {
           try {
-            subtitleBroadcast.postMessage({
-              type: 'NEW_SUBTITLE',
-              channel,
-              text: text.trim(),
-              startSec,
-              endSec
-            });
+            subtitleBroadcast.postMessage(payload);
           } catch(e) {}
         }
-        // 2. Nuvem Global (Qualquer computador do time de telão / internet)
+
+        // 2. Nuvem Global (Celular, Tablet e Telão OBS na Internet)
         if (mqttPublisherClient && mqttPublisherClient.connected) {
           try {
-            mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify({
-              type: 'NEW_SUBTITLE',
-              channel,
-              text: text.trim(),
-              startSec,
-              endSec,
-              timestamp: Date.now()
-            }), { qos: 0, retain: true });
-          } catch(e) {}
+            mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 0, retain: true });
+          } catch(e) {
+            pendingMqttSubtitles.push(payload);
+          }
+        } else {
+          pendingMqttSubtitles.push(payload);
+          if (pendingMqttSubtitles.length > 20) pendingMqttSubtitles.shift();
         }
       }
 
@@ -3190,11 +3882,11 @@
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         Gravação Ativa ●
                       </span>
-                      <!-- Indicador de Status do Microfone no Topo (Apenas Leitura / Sem duplicação) -->
-                      <span id="top-mic-status-pill" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-300 dark:border-slate-700 flex items-center gap-1 shadow-2xs">
+                      <!-- Indicador de Status do Microfone no Topo (Ação Rápida para o Operador) -->
+                      <button type="button" id="top-mic-status-pill" onclick="toggleMasterMicCapture()" title="Clique para ativar ou pausar o microfone do transmissor" class="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 flex items-center gap-1 shadow-2xs cursor-pointer transition-all">
                         <span class="w-1.5 h-1.5 rounded-full bg-slate-400" id="top-mic-status-dot"></span>
-                        <span id="top-mic-status-text">Microfone em Espera</span>
-                      </span>
+                        <span id="top-mic-status-text">🎙️ Ativar Microfone</span>
+                      </button>
                     </div>
                     <div class="flex items-center gap-1.5">
                       <button type="button" onclick="injectTestSubtitleSentence()" title="Injetar frase de teste nas legendas" class="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/60 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1">
@@ -3216,8 +3908,11 @@
                   <div id="transmitter-subtitle-box" class="rounded-xl p-3 shadow-inner space-y-1.5 h-[175px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${transSubtitleConfig.bgColor}; color: ${transSubtitleConfig.textColor}; font-size: ${transSubtitleConfig.fontSize};">
                     <div id="transmitter-interim-text" class="min-h-[20px] font-medium opacity-65 pb-1 whitespace-normal break-words transition-all duration-150" style="color: ${transSubtitleConfig.textColor}; font-size: inherit;"></div>
                     <div id="transmitter-transcription-feed" class="flex flex-col w-full ${transSubtitleConfig.fontFamily}">
-                      <div class="placeholder-empty text-slate-500 italic text-xs py-8 text-center">
-                        Aguardando fala do palestrante... O texto completo aparecerá aqui de forma fluida.
+                      <div class="placeholder-empty text-slate-500 italic text-xs py-6 text-center space-y-2">
+                        <p>Aguardando fala do palestrante... O texto completo aparecerá aqui de forma fluida.</p>
+                        <button type="button" onclick="toggleMasterMicCapture()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/90 hover:bg-blue-600 text-white font-bold text-[11px] shadow-sm cursor-pointer not-italic transition-all">
+                          <span>🎙️ Clique aqui para Iniciar Microfone e Transcrição</span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -3271,16 +3966,22 @@
                       </span>
                     </div>
                     <div class="flex items-center gap-1.5">
-                      <button type="button" onclick="injectTestSubtitleSentence()" title="Injetar frase de teste nas legendas" class="px-2.5 py-1 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/60 dark:hover:bg-indigo-800 text-indigo-800 dark:text-indigo-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1">
-                        <span>🧪 Testar Legenda</span>
+                      <button type="button" onclick="injectTestSubtitleSentence()" title="Injetar frase de teste nas legendas" class="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/60 dark:hover:bg-indigo-800 text-indigo-800 dark:text-indigo-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1">
+                        <span>🧪 Testar</span>
                       </button>
-                      <button type="button" onclick="openAudiencePageLocal()" title="Abrir página dedicada ao espectador para ouvir no celular ou tablet" class="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 dark:bg-purple-950/60 dark:hover:bg-purple-900 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-700 rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1">
-                        <span>📱 Página do Espectador ↗</span>
+                      <button type="button" onclick="openAudienceShareModal()" title="Abrir QR Code e links para os espectadores conectarem pelo celular" class="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1">
+                        <span>📱 QR Code Espectadores</span>
                       </button>
-                      <button type="button" id="btn-copy-audience-top" onclick="copyAudienceShareLink()" title="Copiar link para os espectadores ouvirem a tradução no fone" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1">
-                        <span>📋 Copiar Link</span>
+                      <button type="button" id="btn-copy-audience-en-top" onclick="copyAudienceSpecificLink('en')" title="Copiar link do Espectador em Inglês (Áudio ao Vivo Google Meet)" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1">
+                        <span>🇺🇸 Link Inglês</span>
                       </button>
-                      <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Idioma de Saída:</span>
+                      <button type="button" id="btn-copy-audience-es-top" onclick="copyAudienceSpecificLink('es')" title="Copiar link do Espectador em Espanhol (Áudio TTS + Legendas)" class="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1">
+                        <span>🇪🇸 Link Espanhol</span>
+                      </button>
+                      <button type="button" onclick="openAudiencePageLocal('en')" title="Abrir página dedicada ao espectador para ouvir no computador" class="px-2 py-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1">
+                        <span>↗ Ouvir PC</span>
+                      </button>
+                      <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Saída:</span>
                       <select id="receiver-language-select" onchange="changeReceiverTargetLanguage(this.value)" class="text-xs bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-600 rounded-lg px-2 py-0.5 text-indigo-900 dark:text-indigo-100 font-bold outline-none shadow-2xs">
                         <option value="en-US" ${selectedTargetLanguage === 'en-US' ? 'selected' : ''}>Inglês (en-US)</option>
                         <option value="pt-BR" ${selectedTargetLanguage === 'pt-BR' ? 'selected' : ''}>Português (pt-BR)</option>
@@ -3697,6 +4398,80 @@
             </div>
           </div>
 
+          <!-- MODAL DE COMPARTILHAMENTO DA PÁGINA DO ESPECTADOR (CELULAR / TABLET / FONE) -->
+          <div id="share-audience-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl space-y-4 text-slate-800 dark:text-slate-200">
+              <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
+                <div class="flex items-center gap-3">
+                  <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-2xl font-bold shadow-md">
+                    📱
+                  </div>
+                  <div>
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Conectar Celular dos Espectadores</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Áudio traduzido no fone de ouvido & legendas simultâneas ao vivo.</p>
+                  </div>
+                </div>
+                <button onclick="closeAudienceShareModal()" class="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-lg font-bold p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer">✕</button>
+              </div>
+
+              <!-- SELETOR DE ABAS DE IDIOMA (INGLÊS / ESPANHOL) -->
+              <div class="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <button type="button" id="tab-aud-en" onclick="setAudienceModalTab('en')" class="py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer bg-indigo-600 text-white shadow-xs">
+                  <span>🇺🇸 Inglês (Áudio Meet)</span>
+                </button>
+                <button type="button" id="tab-aud-es" onclick="setAudienceModalTab('es')" class="py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
+                  <span>🇪🇸 Espanhol (Áudio TTS)</span>
+                </button>
+              </div>
+
+              <!-- QR Code Grande Centralizado com Acesso Fácil -->
+              <div class="flex flex-col sm:flex-row items-center gap-4 bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/50 rounded-2xl p-4">
+                <div id="audience-qrcode-box" class="bg-white p-2.5 rounded-2xl border border-purple-300 dark:border-purple-700 shadow-sm shrink-0 flex items-center justify-center w-36 h-36"></div>
+                <div class="space-y-2 text-xs flex-1 text-center sm:text-left">
+                  <div class="flex items-center gap-2 justify-center sm:justify-start">
+                    <strong id="audience-modal-tab-title" class="font-bold text-purple-950 dark:text-purple-200 text-sm block">🇺🇸 Canal Inglês — Áudio da Reunião</strong>
+                    <span id="audience-modal-tab-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">Google Meet</span>
+                  </div>
+                  <p id="audience-modal-tab-desc" class="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
+                    Transmissão direta do áudio traduzido do Meet com o timbre e entonação do palestrante, além de legendas em inglês ao vivo.
+                  </p>
+                  <div class="flex flex-wrap items-center gap-2 pt-1 justify-center sm:justify-start">
+                    <button type="button" onclick="testAudienceMqttBroadcast()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5">
+                      <span>🧪 Testar Envio para Celulares</span>
+                    </button>
+                    <button type="button" onclick="openAudiencePageLocal()" class="text-xs font-semibold text-purple-700 dark:text-purple-300 hover:underline flex items-center gap-1 cursor-pointer">
+                      <span>Abrir no PC ↗</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Caixa de Link do Espectador com Botão Copiar -->
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between text-xs">
+                  <label class="font-bold text-slate-700 dark:text-slate-300">Link Direto para Compartilhar:</label>
+                  <span id="audience-modal-lang-hint" class="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold font-mono">Abrirá diretamente em Inglês</span>
+                </div>
+                <div class="flex gap-2">
+                  <input type="text" id="audience-share-link-input" readonly class="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-800 dark:text-slate-200 select-all focus:outline-none">
+                  <button id="btn-copy-audience-modal" onclick="copyAudienceShareModalLink()" class="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
+                    <span>📋 Copiar Link</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Dicas de Conexão no Celular -->
+              <div class="bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 text-xs space-y-1 text-slate-600 dark:text-slate-300">
+                <span class="font-bold text-slate-800 dark:text-slate-200 block">💡 Orientações Importantes:</span>
+                <ul class="list-disc list-inside space-y-1 text-[11px]">
+                  <li>O espectador deve tocar no botão verde <strong>"▶ Ouvir Áudio"</strong> no celular para autorizar o som no fone de ouvido.</li>
+                  <li>Funciona em qualquer navegador de smartphone (iPhone Safari, Android Chrome) sem instalar nenhum aplicativo.</li>
+                  <li>Recomendamos o uso de fones de ouvido Bluetooth ou com fio para garantir silêncio no auditório.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
           <!-- MODAL DE FINALIZAR REUNIÃO, EXPORTAÇÃO MP3 & SALVAR COM EXPLORER -->
           <div id="finish-meeting-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto text-slate-800 dark:text-slate-200">
@@ -3966,6 +4741,178 @@
         }
       };
 
+      // CONTROLE DE IDIOMA E ABAS DO ESPECTADOR (INGLÊS / ESPANHOL)
+      let activeAudienceModalTab = 'en';
+
+      window.setAudienceModalTab = function(tab) {
+        activeAudienceModalTab = tab || 'en';
+        const tabEn = document.getElementById('tab-aud-en');
+        const tabEs = document.getElementById('tab-aud-es');
+
+        if (tabEn && tabEs) {
+          if (activeAudienceModalTab === 'en') {
+            tabEn.className = 'py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer bg-indigo-600 text-white shadow-xs';
+            tabEs.className = 'py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white';
+          } else {
+            tabEs.className = 'py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer bg-amber-600 text-white shadow-xs';
+            tabEn.className = 'py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white';
+          }
+        }
+
+        updateAudienceShareModal();
+      };
+
+      // ABERTURA DA PÁGINA DO ESPECTADOR (LOCAL / PC)
+      window.openAudiencePageLocal = function(forceLang) {
+        const targetLang = forceLang || activeAudienceModalTab || 'en';
+        const audienceUrl = window.location.origin + window.location.pathname + '?meeting=' + encodeURIComponent(id) + '&view=audience&lang=' + targetLang;
+        window.open(audienceUrl, 'BrainAudience_' + id + '_' + targetLang, 'width=480,height=820,menubar=no,toolbar=no,location=no,status=no,resizable=yes');
+        appendSystemLog(`📱 Página do espectador (${targetLang.toUpperCase()}) aberta.`);
+      };
+
+      // CÓPIA DIRETA DE LINK POR IDIOMA ESPECÍFICO (INGLÊS OU ESPANHOL)
+      window.copyAudienceSpecificLink = function(targetLang) {
+        const lang = targetLang || 'en';
+        const baseOrigin = window.location.origin && window.location.origin !== 'null' ? window.location.origin : 'https://brainaudiovisual.com.br';
+        const audienceUrl = baseOrigin + window.location.pathname + '?meeting=' + encodeURIComponent(id) + '&view=audience&lang=' + lang;
+        const btnId = lang === 'en' ? 'btn-copy-audience-en-top' : 'btn-copy-audience-es-top';
+        const btn = document.getElementById(btnId);
+
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(audienceUrl);
+          } else {
+            const tempInput = document.createElement('input');
+            tempInput.value = audienceUrl;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+          }
+          if (btn) {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span>✅ Copiado!</span>';
+            btn.className = 'px-2 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-bold transition-all shadow-2xs flex items-center gap-1';
+            setTimeout(() => {
+              btn.innerHTML = originalHTML;
+              btn.className = lang === 'en' 
+                ? 'px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1'
+                : 'px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1';
+            }, 2500);
+          }
+          appendSystemLog(`📋 Link do Espectador (${lang === 'en' ? 'INGLÊS' : 'ESPANHOL'}) copiado com sucesso!`);
+        } catch(e) {
+          prompt('Copie o link do espectador:', audienceUrl);
+        }
+      };
+
+      window.copyAudienceShareLink = function() {
+        copyAudienceSpecificLink('en');
+      };
+
+      // CONTROLE DO MODAL DE COMPARTILHAMENTO COM ESPECTADORES (QR CODE & TESTE)
+      window.openAudienceShareModal = function() {
+        const modal = document.getElementById('share-audience-modal');
+        if (modal) modal.classList.remove('hidden');
+        updateAudienceShareModal();
+      };
+
+      window.closeAudienceShareModal = function() {
+        const modal = document.getElementById('share-audience-modal');
+        if (modal) modal.classList.add('hidden');
+      };
+
+      window.updateAudienceShareModal = function() {
+        const baseOrigin = window.location.origin && window.location.origin !== 'null' ? window.location.origin : 'https://brainaudiovisual.com.br';
+        const targetLang = activeAudienceModalTab || 'en';
+        const audienceUrl = baseOrigin + window.location.pathname + '?meeting=' + encodeURIComponent(id) + '&view=audience&lang=' + targetLang;
+        
+        const titleEl = document.getElementById('audience-modal-tab-title');
+        const badgeEl = document.getElementById('audience-modal-tab-badge');
+        const descEl = document.getElementById('audience-modal-tab-desc');
+        const hintEl = document.getElementById('audience-modal-lang-hint');
+        const input = document.getElementById('audience-share-link-input');
+
+        if (input) input.value = audienceUrl;
+
+        if (targetLang === 'en') {
+          if (titleEl) titleEl.innerText = '🇺🇸 Canal Inglês — Áudio da Reunião';
+          if (badgeEl) {
+            badgeEl.innerText = 'Google Meet Dubbing';
+            badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700';
+          }
+          if (descEl) descEl.innerText = 'Transmissão direta do áudio traduzido do Meet com a voz clonada do palestrante e timbre original, mais legendas em inglês ao vivo.';
+          if (hintEl) hintEl.innerText = 'Abrirá diretamente em Inglês';
+        } else {
+          if (titleEl) titleEl.innerText = '🇪🇸 Canal Espanhol — Áudio TTS & Legendas';
+          if (badgeEl) {
+            badgeEl.innerText = 'Voz IA Espanhol';
+            badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700';
+          }
+          if (descEl) descEl.innerText = 'Tradução simultânea para espanhol com sintetizador de voz artificial neural e transcrição em tempo real.';
+          if (hintEl) hintEl.innerText = 'Abrirá diretamente em Espanhol';
+        }
+
+        const qrContainer = document.getElementById('audience-qrcode-box');
+        if (qrContainer && typeof QRCode !== 'undefined') {
+          qrContainer.innerHTML = '';
+          try {
+            new QRCode(qrContainer, {
+              text: audienceUrl,
+              width: 128,
+              height: 128,
+              colorDark: targetLang === 'en' ? '#4338ca' : '#b45309',
+              colorLight: '#ffffff',
+              correctLevel: QRCode.CorrectLevel.M
+            });
+          } catch(e) {}
+        }
+      };
+
+      window.copyAudienceShareModalLink = function() {
+        const input = document.getElementById('audience-share-link-input');
+        const btn = document.getElementById('btn-copy-audience-modal');
+        if (!input) return;
+
+        input.select();
+        input.setSelectionRange(0, 99999);
+
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(input.value);
+          } else {
+            document.execCommand('copy');
+          }
+          if (btn) {
+            btn.innerHTML = '<span>✅ Copiado!</span>';
+            btn.className = 'px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm';
+            setTimeout(() => {
+              btn.innerHTML = '<span>📋 Copiar Link</span>';
+              btn.className = 'px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm';
+            }, 2500);
+          }
+        } catch(e) {
+          alert('Link selecionado! Pressione Ctrl+C para copiar.');
+        }
+      };
+
+      window.testAudienceMqttBroadcast = function() {
+        const testPhrasePt = 'Esta é uma frase de teste transmitida via nuvem global para os espectadores.';
+        const testPhraseEn = 'This is a test sentence broadcast globally via cloud to audience mobile devices.';
+        const testPhraseEs = 'Esta es una frase de prueba transmitida a través de la nube para los teléfonos móviles.';
+
+        broadcastSubtitleGlobally('transmitter', testPhrasePt, sessionElapsedSeconds, sessionElapsedSeconds + 4);
+        setTimeout(() => {
+          broadcastSubtitleGlobally('receiver', testPhraseEn, sessionElapsedSeconds, sessionElapsedSeconds + 4);
+        }, 300);
+        setTimeout(() => {
+          broadcastSubtitleGlobally('spanish', testPhraseEs, sessionElapsedSeconds, sessionElapsedSeconds + 4);
+        }, 500);
+
+        appendSystemLog('🚀 Frase de teste enviada para nuvem global MQTT e celulares dos espectadores!');
+        alert('Frase de teste enviada para a nuvem global!\n\nVerifique se o celular conectado recebeu o texto traduzido e reproduziu o áudio no fone.');
+      };
+
       // ========================================================
       // PERSONALIZAÇÃO VISUAL INDEPENDENTE: TRANSMISSOR (PALESTRANTE)
       // ========================================================
@@ -4192,6 +5139,14 @@
 
           isReceiverAudioCaptureActive = true;
 
+          // Notifica os espectadores conectados que o stream de áudio ao vivo do Meet está online
+          if (mqttPublisherClient && mqttPublisherClient.connected) {
+            mqttPublisherClient.publish(mqttCockpitWebrtcTopic, JSON.stringify({
+              type: 'STREAM_ONLINE',
+              message: 'Áudio do receptor conectado no Cockpit'
+            }), { qos: 0 });
+          }
+
           const btn = document.getElementById('btn-toggle-receiver-audio');
           if (btn) {
             btn.innerHTML = '<span>⏹️ Desconectar Leitura</span>';
@@ -4233,6 +5188,20 @@
           receiverAudioContext.close().catch(() => {});
         }
         isReceiverAudioCaptureActive = false;
+
+        // Notifica os espectadores que o stream ao vivo foi pausado
+        if (mqttPublisherClient && mqttPublisherClient.connected) {
+          mqttPublisherClient.publish(mqttCockpitWebrtcTopic, JSON.stringify({
+            type: 'STREAM_OFFLINE',
+            message: 'Áudio do receptor pausado pelo operador'
+          }), { qos: 0 });
+        }
+
+        // Fecha todas as conexões WebRTC ativas com espectadores
+        cockpitPeerConnections.forEach(pc => {
+          try { pc.close(); } catch(e) {}
+        });
+        cockpitPeerConnections.clear();
 
         const btn = document.getElementById('btn-toggle-receiver-audio');
         if (btn) {
@@ -4463,9 +5432,8 @@
         if (bar) bar.style.width = '0%';
         if (text) text.innerText = '0%';
 
-        if (speechRecognizer) {
-          try { speechRecognizer.stop(); } catch(e) {}
-        }
+        safelyDestroySpeechRecognizer();
+        updateSpeechStatusIndicator(false);
 
         appendSystemLog('Microfone desconectado.');
       }
@@ -4491,27 +5459,66 @@
       let speechInterimBuffer = '';
       let lastCommittedSpeechText = '';
       let lastCommittedSpeechTimestamp = 0;
+      let isStartingSpeechRecognition = false;
+      let lastSpeechActivityTimestamp = Date.now();
+      let speechWatchdogInterval = null;
 
-      function scheduleSpeechRecognizerRestart(delay = 250) {
+      function updateSpeechStatusIndicator(isActive) {
+        const topDot = document.getElementById('top-mic-status-dot');
+        const topText = document.getElementById('top-mic-status-text');
+        const topPill = document.getElementById('top-mic-status-pill');
+        if (topDot && topText && topPill) {
+          if (isActive) {
+            topDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse';
+            topText.innerText = 'Microfone & Legendas: Transcrevendo ●';
+            topPill.className = 'text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500 flex items-center gap-1 shadow-2xs cursor-pointer transition-all';
+          } else {
+            topDot.className = 'w-1.5 h-1.5 rounded-full ' + (isRealMicActive ? 'bg-amber-300 animate-pulse' : 'bg-slate-400');
+            topText.innerText = isRealMicActive ? 'Reconectando Legendas...' : '🎙️ Ativar Microfone';
+            topPill.className = 'text-[10px] font-bold px-2.5 py-0.5 rounded-full ' + (isRealMicActive ? 'bg-amber-600 text-white border border-amber-500' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600') + ' flex items-center gap-1 shadow-2xs cursor-pointer transition-all';
+          }
+        }
+      }
+
+      function safelyDestroySpeechRecognizer() {
+        isStartingSpeechRecognition = false;
+        if (!speechRecognizer) return;
+        try {
+          speechRecognizer.onstart = null;
+          speechRecognizer.onaudiostart = null;
+          speechRecognizer.onspeechstart = null;
+          speechRecognizer.onspeechend = null;
+          speechRecognizer.onaudioend = null;
+          speechRecognizer.onresult = null;
+          speechRecognizer.onerror = null;
+          speechRecognizer.onend = null;
+          speechRecognizer.abort();
+        } catch(e) {}
+        speechRecognizer = null;
+      }
+
+      function scheduleSpeechRecognizerRestart(delay = 200) {
         if (speechRecognizerRestartTimeout) clearTimeout(speechRecognizerRestartTimeout);
         speechRecognizerRestartTimeout = setTimeout(() => {
           if (isRealMicActive && !isTimerPaused) {
-            try {
-              if (speechRecognizer) {
-                try {
-                  speechRecognizer.start();
-                } catch(e) {
-                  startContinuousSpeechTranscription();
-                }
-              } else {
-                startContinuousSpeechTranscription();
-              }
-            } catch(e) {
-              startContinuousSpeechTranscription();
-            }
+            startContinuousSpeechTranscription();
           }
         }, delay);
       }
+
+      // Inicia Watchdog de integridade para garantir que a transcrição nunca congele
+      if (speechWatchdogInterval) clearInterval(speechWatchdogInterval);
+      speechWatchdogInterval = setInterval(() => {
+        if (isRealMicActive && !isTimerPaused) {
+          const idleTime = Date.now() - lastSpeechActivityTimestamp;
+          if (!isTranscribingSpeech || idleTime > 16000) {
+            console.log('🔄 Watchdog: revitalizando reconhecimento contínuo de fala...');
+            isStartingSpeechRecognition = false;
+            safelyDestroySpeechRecognizer();
+            startContinuousSpeechTranscription();
+          }
+        }
+      }, 3000);
 
       // Função central de commit de frases reconhecidas (chamada tanto por isFinal quanto por silêncio)
       async function commitSpeechSentence(rawText) {
@@ -4550,96 +5557,128 @@
           return;
         }
 
-        try {
-          if (speechRecognizer) {
-            try { speechRecognizer.abort(); } catch(e) {}
+        if (isStartingSpeechRecognition) return;
+        isStartingSpeechRecognition = true;
+
+        // Watchdog de segurança: se em 2.5s o onstart não disparou, destrava a flag
+        setTimeout(() => {
+          if (isStartingSpeechRecognition) {
+            isStartingSpeechRecognition = false;
           }
-          speechRecognizer = new SpeechRec();
-          speechRecognizer.continuous = true;
-          speechRecognizer.interimResults = true;
-          speechRecognizer.lang = selectedSourceLanguage || 'pt-BR';
-          speechRecognizer.maxAlternatives = 1;
+        }, 2500);
 
-          speechRecognizer.onstart = () => {
-            isTranscribingSpeech = true;
-            appendSystemLog(`🎙️ Reconhecimento de voz ATIVO (${selectedSourceLanguage}). Fale normalmente.`);
-          };
-
-          speechRecognizer.onresult = (event) => {
-            let interim = '';
-            let finalizedInBatch = '';
-
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-              const res = event.results[i];
-              if (!res || !res[0]) continue;
-              const transcript = res[0].transcript;
-              if (res.isFinal) {
-                finalizedInBatch += (finalizedInBatch ? ' ' : '') + transcript;
-              } else {
-                interim += transcript;
-              }
-            }
-
-            // Se o Chrome marcou como finalizado
-            if (finalizedInBatch.trim()) {
-              if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
-              speechInterimBuffer = '';
-              commitSpeechSentence(finalizedInBatch.trim());
-            }
-
-            // Se há fala intermediária (interim)
-            if (interim.trim()) {
-              speechInterimBuffer = interim.trim();
-              const interimEl = document.getElementById('transmitter-interim-text');
-              if (interimEl) {
-                interimEl.innerText = speechInterimBuffer;
-                interimEl.style.color = transSubtitleConfig.textColor;
-              }
-
-              // AUTO-FINALIZAÇÃO POR SILÊNCIO: se houver uma pausa de 1.3s na fala,
-              // commita o texto acumulado sem depender de isFinal tardio do Chrome!
-              if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
-              speechSilenceCommitTimer = setTimeout(() => {
-                if (speechInterimBuffer.trim()) {
-                  const toCommit = speechInterimBuffer.trim();
-                  speechInterimBuffer = '';
-                  commitSpeechSentence(toCommit);
-                }
-              }, 1300);
-            }
-          };
-
-          speechRecognizer.onerror = (e) => {
-            console.warn('Transmitter speechRecognition aviso:', e.error);
-            if (e.error === 'not-allowed') {
-              isRealMicActive = false;
-              stopMasterMicCapture();
-              appendSystemLog('❌ Permissão de microfone negada. Clique no cadeado na barra de endereços do Chrome para permitir o microfone.');
-            } else if (e.error === 'no-speech' || e.error === 'network' || e.error === 'aborted') {
-              scheduleSpeechRecognizerRestart(350);
-            }
-          };
-
-          speechRecognizer.onend = () => {
-            // Se havia buffer acumulado que não virou isFinal antes de fechar a sessão, commita imediatamente
-            if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
-            if (speechInterimBuffer.trim()) {
-              const toCommit = speechInterimBuffer.trim();
-              speechInterimBuffer = '';
-              commitSpeechSentence(toCommit);
-            }
-
-            if (isRealMicActive && !isTimerPaused) {
-              scheduleSpeechRecognizerRestart(150);
-            } else {
-              isTranscribingSpeech = false;
-            }
-          };
-
-          speechRecognizer.start();
-        } catch(e) {
-          scheduleSpeechRecognizerRestart(400);
+        if (speechRecognizerRestartTimeout) {
+          clearTimeout(speechRecognizerRestartTimeout);
+          speechRecognizerRestartTimeout = null;
         }
+
+        safelyDestroySpeechRecognizer();
+
+        setTimeout(() => {
+          try {
+            const recognizer = new SpeechRec();
+            speechRecognizer = recognizer;
+
+            recognizer.continuous = true;
+            recognizer.interimResults = true;
+            recognizer.lang = selectedSourceLanguage || 'pt-BR';
+            recognizer.maxAlternatives = 1;
+
+            recognizer.onstart = () => {
+              isStartingSpeechRecognition = false;
+              isTranscribingSpeech = true;
+              lastSpeechActivityTimestamp = Date.now();
+              updateSpeechStatusIndicator(true);
+              appendSystemLog(`🎙️ Reconhecimento de voz ATIVO (${selectedSourceLanguage}). Fale normalmente.`);
+            };
+
+            recognizer.onaudiostart = () => {
+              lastSpeechActivityTimestamp = Date.now();
+            };
+
+            recognizer.onresult = (event) => {
+              lastSpeechActivityTimestamp = Date.now();
+              let interim = '';
+              let finalizedInBatch = '';
+
+              for (let i = event.resultIndex; i < event.results.length; i++) {
+                const res = event.results[i];
+                if (!res || !res[0]) continue;
+                const transcript = res[0].transcript;
+                if (res.isFinal) {
+                  finalizedInBatch += (finalizedInBatch ? ' ' : '') + transcript;
+                } else {
+                  interim += transcript;
+                }
+              }
+
+              // Se o Chrome marcou como finalizado
+              if (finalizedInBatch.trim()) {
+                if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
+                speechInterimBuffer = '';
+                commitSpeechSentence(finalizedInBatch.trim());
+              }
+
+              // Se há fala intermediária (interim)
+              if (interim.trim()) {
+                speechInterimBuffer = interim.trim();
+                const interimEl = document.getElementById('transmitter-interim-text');
+                if (interimEl) {
+                  interimEl.innerText = speechInterimBuffer;
+                  interimEl.style.color = transSubtitleConfig.textColor;
+                }
+
+                // AUTO-FINALIZAÇÃO POR SILÊNCIO: se houver uma pausa de 1.3s na fala,
+                // commita o texto acumulado sem depender de isFinal tardio do Chrome!
+                if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
+                speechSilenceCommitTimer = setTimeout(() => {
+                  if (speechInterimBuffer.trim()) {
+                    const toCommit = speechInterimBuffer.trim();
+                    speechInterimBuffer = '';
+                    commitSpeechSentence(toCommit);
+                  }
+                }, 1300);
+              }
+            };
+
+            recognizer.onerror = (e) => {
+              isStartingSpeechRecognition = false;
+              console.warn('Transmitter speechRecognition aviso:', e.error);
+              if (e.error === 'not-allowed') {
+                isRealMicActive = false;
+                stopMasterMicCapture();
+                appendSystemLog('❌ Permissão de microfone negada. Clique no cadeado na barra de endereços do Chrome para permitir o microfone.');
+              } else {
+                // Qualquer outro erro transitório (no-speech, network, audio-capture, aborted, etc.)
+                scheduleSpeechRecognizerRestart(300);
+              }
+            };
+
+            recognizer.onend = () => {
+              isStartingSpeechRecognition = false;
+              isTranscribingSpeech = false;
+              updateSpeechStatusIndicator(false);
+
+              // Se havia buffer acumulado que não virou isFinal antes de fechar a sessão, commita imediatamente
+              if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
+              if (speechInterimBuffer.trim()) {
+                const toCommit = speechInterimBuffer.trim();
+                speechInterimBuffer = '';
+                commitSpeechSentence(toCommit);
+              }
+
+              if (isRealMicActive && !isTimerPaused) {
+                scheduleSpeechRecognizerRestart(150);
+              }
+            };
+
+            recognizer.start();
+          } catch(e) {
+            isStartingSpeechRecognition = false;
+            console.warn('Erro ao instanciar SpeechRecognition:', e);
+            scheduleSpeechRecognizerRestart(400);
+          }
+        }, 80);
       }
 
       // ========================================================
@@ -4663,13 +5702,9 @@
         appendSystemLog(`🌐 Idioma de entrada do palestrante alterado para: ${newLang}`);
 
         // Reinicia imediatamente o SpeechRecognition no novo idioma sem travar
-        if (speechRecognizer) {
-          try { speechRecognizer.abort(); } catch(e) {}
-        }
+        safelyDestroySpeechRecognizer();
         if (isRealMicActive && !isTimerPaused) {
-          setTimeout(() => {
-            startContinuousSpeechTranscription();
-          }, 150);
+          scheduleSpeechRecognizerRestart(100);
         }
       };
 
