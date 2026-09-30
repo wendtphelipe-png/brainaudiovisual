@@ -2936,7 +2936,7 @@
                 <span class="font-bold text-slate-800 dark:text-slate-200 text-[11px] block">Arquivos inclusos no pacote ZIP:</span>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                   <div class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center gap-1.5">
-                    <span>🎵</span> <span>Áudio Palestrante (.webm)</span>
+                    <span>🎵</span> <span>Áudio Palestrante (.mp3)</span>
                   </div>
                   ${activeTargetLanguages.map(l => {
                     const info = SUPPORTED_LANG_MAP[l] || { name: l };
@@ -3544,12 +3544,32 @@
       }
 
       async function fetchAudioChunkForExport(targetLang, text) {
+        if (!text || !text.trim()) return null;
+        const clean = text.trim();
         try {
           const targetCode = targetLang.split('-')[0].toLowerCase();
-          const url = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=${targetCode}&client=tw-ob&q=${encodeURIComponent(text)}`;
-          const res = await fetch(url);
-          if (res.ok) {
-            const blob = await res.blob();
+          const encoded = encodeURIComponent(clean);
+          // Roteia via tts.php (mesmo domínio ou absoluto) com cabeçalhos CORS liberados
+          const candidateUrls = [
+            `/tts.php?tl=${targetCode}&q=${encoded}`,
+            `https://brainaudiovisual.com.br/tts.php?tl=${targetCode}&q=${encoded}`
+          ];
+
+          let blob = null;
+          for (const url of candidateUrls) {
+            try {
+              const res = await fetch(url);
+              if (res.ok) {
+                const b = await res.blob();
+                if (b && b.size > 200) {
+                  blob = b;
+                  break;
+                }
+              }
+            } catch(fetchErr) {}
+          }
+
+          if (blob) {
             if (!targetAudioBlobs[targetLang]) targetAudioBlobs[targetLang] = [];
             targetAudioBlobs[targetLang].push(blob);
 
@@ -3559,8 +3579,12 @@
 
             if (!targetAudioBlobsMale[targetLang]) targetAudioBlobsMale[targetLang] = [];
             targetAudioBlobsMale[targetLang].push(blob);
+            return blob;
           }
-        } catch(e) {}
+        } catch(e) {
+          console.warn('Erro ao obter chunk de áudio traduzido:', e);
+        }
+        return null;
       }
 
       // ========================================================
@@ -3788,6 +3812,93 @@
         if (modal) modal.classList.add('hidden');
       };
 
+      // UTILITÁRIOS DE CODIFICAÇÃO E CONVERSÃO PARA MP3 (LAMEJS)
+      function generateValidSilentMp3(seconds = 2) {
+        if (typeof lamejs !== 'undefined') {
+          try {
+            const sampleRate = 44100;
+            const numSamples = Math.round(sampleRate * Math.max(1, seconds));
+            const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
+            const sampleBlockSize = 1152;
+            const silence = new Int16Array(sampleBlockSize);
+            const mp3Data = [];
+
+            for (let i = 0; i < numSamples; i += sampleBlockSize) {
+              const mp3buf = mp3encoder.encodeBuffer(silence);
+              if (mp3buf && mp3buf.length > 0) mp3Data.push(mp3buf);
+            }
+            const endBuf = mp3encoder.flush();
+            if (endBuf && endBuf.length > 0) mp3Data.push(endBuf);
+            return new Blob(mp3Data, { type: 'audio/mp3' });
+          } catch(e) {}
+        }
+        return new Blob([new Uint8Array([0xff, 0xfb, 0x90, 0x64])], { type: 'audio/mp3' });
+      }
+
+      async function convertAudioBlobToMp3(audioBlob) {
+        if (!audioBlob || audioBlob.size === 0) {
+          return generateValidSilentMp3(2);
+        }
+        if (typeof lamejs === 'undefined') {
+          console.warn('lamejs não disponível no navegador');
+          return audioBlob;
+        }
+
+        try {
+          const arrayBuffer = await audioBlob.arrayBuffer();
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+          const numChannels = audioBuffer.numberOfChannels;
+          const sampleRate = audioBuffer.sampleRate;
+          const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, 128);
+          const mp3Data = [];
+
+          if (numChannels === 1) {
+            const samples = audioBuffer.getChannelData(0);
+            const sampleBlockSize = 1152;
+            const sample16 = new Int16Array(samples.length);
+            for (let i = 0; i < samples.length; i++) {
+              const s = Math.max(-1, Math.min(1, samples[i]));
+              sample16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            for (let i = 0; i < sample16.length; i += sampleBlockSize) {
+              const chunk = sample16.subarray(i, i + sampleBlockSize);
+              const mp3buf = mp3encoder.encodeBuffer(chunk);
+              if (mp3buf.length > 0) mp3Data.push(mp3buf);
+            }
+          } else {
+            const left = audioBuffer.getChannelData(0);
+            const right = audioBuffer.getChannelData(1);
+            const sampleBlockSize = 1152;
+            const left16 = new Int16Array(left.length);
+            const right16 = new Int16Array(right.length);
+            for (let i = 0; i < left.length; i++) {
+              const sl = Math.max(-1, Math.min(1, left[i]));
+              const sr = Math.max(-1, Math.min(1, right[i]));
+              left16[i] = sl < 0 ? sl * 0x8000 : sl * 0x7FFF;
+              right16[i] = sr < 0 ? sr * 0x8000 : sr * 0x7FFF;
+            }
+            for (let i = 0; i < left16.length; i += sampleBlockSize) {
+              const leftChunk = left16.subarray(i, i + sampleBlockSize);
+              const rightChunk = right16.subarray(i, i + sampleBlockSize);
+              const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+              if (mp3buf.length > 0) mp3Data.push(mp3buf);
+            }
+          }
+
+          const endBuf = mp3encoder.flush();
+          if (endBuf.length > 0) mp3Data.push(endBuf);
+
+          try { await audioCtx.close(); } catch(e) {}
+
+          return new Blob(mp3Data, { type: 'audio/mp3' });
+        } catch(err) {
+          console.warn('Erro ao converter áudio do palestrante para MP3:', err);
+          return generateValidSilentMp3(2);
+        }
+      }
+
       window.saveZipFileWithExplorer = async function() {
         const btn = document.getElementById('btn-save-zip-explorer');
         const progressWrapper = document.getElementById('finish-progress-wrapper');
@@ -3805,8 +3916,8 @@
         }
 
         try {
-          updateProgress(10, 'Preparando arquivos de áudio...');
-          await new Promise(r => setTimeout(r, 60));
+          updateProgress(5, 'Preparando arquivos para gravação...');
+          await new Promise(r => setTimeout(r, 50));
 
           if (typeof JSZip === 'undefined') {
             throw new Error('Biblioteca JSZip carregando... Tente novamente em 2 segundos.');
@@ -3817,12 +3928,38 @@
           const dateStr = new Date().toISOString().slice(0, 10);
           const zipFileName = `Gravacao_${safeTitle}_${dateStr}.zip`;
 
-          // 1. Áudio do Palestrante (.webm)
-          const rawTransAudio = transmitterRecordedBlob || new Blob(transmitterAudioChunks.length ? transmitterAudioChunks : ['[Audio Palestrante]'], { type: 'audio/webm' });
-          zip.file(`Audio_Palestrante_Original_${safeTitle}.webm`, rawTransAudio);
+          // 1. Garantir que todas as falas traduzidas tenham áudio MP3 gravado
+          updateProgress(15, 'Validando e gravando áudios MP3 de todas as falas traduzidas...');
+          for (const lang of activeTargetLanguages) {
+            const list = targetTranscriptions[lang] || [];
+            if (!targetAudioBlobs[lang]) targetAudioBlobs[lang] = [];
+            if (targetAudioBlobs[lang].length < list.length) {
+              const startIdx = targetAudioBlobs[lang].length;
+              for (let i = startIdx; i < list.length; i++) {
+                const item = list[i];
+                if (item && item.text) {
+                  const langInfo = SUPPORTED_LANG_MAP[lang] || { name: lang };
+                  updateProgress(15 + Math.round(((i + 1) / list.length) * 15), `Gravando áudio MP3 (${langInfo.name}): ${i + 1} de ${list.length}...`);
+                  await fetchAudioChunkForExport(lang, item.text);
+                }
+              }
+            }
+          }
 
-          // 2. Áudios das Traduções (.mp3) - Faixas Feminina e Masculina
-          updateProgress(30, 'Processando faixas de áudio com vozes feminina e masculina...');
+          // 2. Áudio Original do Palestrante convertido em MP3 (128kbps)
+          updateProgress(35, 'Codificando áudio original do palestrante em MP3 (128kbps)...');
+          await new Promise(r => setTimeout(r, 60));
+
+          let rawTransAudio = transmitterRecordedBlob;
+          if (!rawTransAudio && transmitterAudioChunks && transmitterAudioChunks.length > 0) {
+            rawTransAudio = new Blob(transmitterAudioChunks, { type: 'audio/webm' });
+          }
+
+          const speakerMp3Blob = await convertAudioBlobToMp3(rawTransAudio);
+          zip.file(`Audio_Palestrante_Original_${safeTitle}.mp3`, speakerMp3Blob);
+
+          // 3. Áudios das Traduções (.mp3) - Faixas Feminina (Sofia) e Masculina (Arthur)
+          updateProgress(55, 'Processando faixas traduzidas em MP3 (Sofia e Arthur)...');
           await new Promise(r => setTimeout(r, 60));
 
           for (const lang of activeTargetLanguages) {
@@ -3831,15 +3968,15 @@
             const femaleChunks = (targetAudioBlobsFemale[lang] && targetAudioBlobsFemale[lang].length > 0) ? targetAudioBlobsFemale[lang] : chunks;
             const maleChunks = (targetAudioBlobsMale[lang] && targetAudioBlobsMale[lang].length > 0) ? targetAudioBlobsMale[lang] : chunks;
 
-            const langBlobFemale = femaleChunks.length > 0 ? new Blob(femaleChunks, { type: 'audio/mp3' }) : new Blob(['[Audio Traducao Vazio]'], { type: 'audio/mp3' });
-            const langBlobMale = maleChunks.length > 0 ? new Blob(maleChunks, { type: 'audio/mp3' }) : new Blob(['[Audio Traducao Vazio]'], { type: 'audio/mp3' });
+            const langBlobFemale = femaleChunks.length > 0 ? new Blob(femaleChunks, { type: 'audio/mp3' }) : generateValidSilentMp3(3);
+            const langBlobMale = maleChunks.length > 0 ? new Blob(maleChunks, { type: 'audio/mp3' }) : generateValidSilentMp3(3);
 
             zip.file(`Audio_${info.name}_${lang}_Voz_Feminina_Sofia_${safeTitle}.mp3`, langBlobFemale);
             zip.file(`Audio_${info.name}_${lang}_Voz_Masculina_Arthur_${safeTitle}.mp3`, langBlobMale);
           }
 
-          // 3. Legendas .VTT para todos os idiomas (Sem .SRT como pedido)
-          updateProgress(50, 'Gerando legendas VTT com timestamps...');
+          // 4. Legendas .VTT para todos os idiomas
+          updateProgress(70, 'Gerando legendas VTT com sincronismo...');
           await new Promise(r => setTimeout(r, 60));
 
           zip.file(`Legenda_Palestrante_Original_${safeTitle}.vtt`, buildVttString(transmitterTranscriptions, 'Palestrante'));
@@ -3849,13 +3986,13 @@
             zip.file(`Legenda_${info.name}_${lang}_${safeTitle}.vtt`, buildVttString(list, info.name));
           }
 
-          // 4. Log em Texto Completo
+          // 5. Log em Texto Completo
           zip.file(`Transcricao_Completa_${safeTitle}.txt`, buildFullTxtLog());
 
-          // 5. Compactação do ZIP com barra de progresso assíncrona não-bloqueante
-          updateProgress(65, 'Compactando pacote ZIP sem travamentos...');
+          // 6. Compactação do ZIP com barra de progresso assíncrona não-bloqueante
+          updateProgress(80, 'Compactando pacote ZIP sem travamentos...');
           const zipBlob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
-            const p = 65 + (metadata.percent * 0.35);
+            const p = 80 + (metadata.percent * 0.20);
             updateProgress(p, 'Compactando pacote ZIP: ' + Math.round(metadata.percent) + '%');
           });
 
