@@ -1857,7 +1857,8 @@
       window.setAudienceVoicePersona = function(personaId) {
         selectedVoicePersonaId = personaId;
         try { localStorage.setItem('brain_audience_voice_persona', personaId); } catch(e) {}
-        renderAudienceUI();
+        const sel = document.getElementById('audience-voice-persona-select');
+        if (sel && sel.value !== personaId) sel.value = personaId;
       };
 
       function getI18n() {
@@ -2458,10 +2459,7 @@
       let speechWatchdogInterval = null;
       let speechRecognizerRestartTimeout = null;
 
-      // Controle estrito de cortes sem repetição (ponteiro de caracteres já consumidos)
-      let currentResultIndex = -1;
-      let committedCharsForIndex = 0;
-      let recentCommittedPhrases = [];
+      // Estado de Transcrição e Broadcast
 
       // Sincronização Local (BroadcastChannel) e Nuvem (MQTT)
       let subtitleBroadcast = null;
@@ -3160,15 +3158,40 @@
       // ========================================================
       // MOTOR DE TRANSCRIÇÃO CONTÍNUA COM AS DUAS CORREÇÕES
       // ========================================================
-      let speechLongInterimTimer = null;
-      let lastProcessedFinalIndex = -1;
+      // RASTREAMENTO INTELIGENTE DE CORTES CONTÍNUOS POR TEMPO (5S) E PALAVRAS
+      let currentResultIndex = -1;
+      let committedWordOffsetForIndex = 0;
+      let utteranceSegmentStartTime = Date.now();
+
+      function findConvenientBreakIndex(words) {
+        if (!words || words.length <= 6) return words.length;
+        // Prioridade 1: Pontuação (. , ; ! ?) entre a 5ª e a última palavra
+        for (let i = words.length - 1; i >= 5; i--) {
+          const w = words[i];
+          if (/[.,;!?]$/.test(w)) {
+            return i + 1;
+          }
+        }
+        // Prioridade 2: Quebra antes de conjunções / preposições de ligação
+        const breakConjunctions = [
+          'e', 'mas', 'porém', 'contudo', 'todavia', 'que', 'porque', 'onde', 'quando', 'como', 'para', 'com', 'pois', 'então',
+          'and', 'but', 'which', 'that', 'because', 'where', 'when', 'so', 'for', 'with',
+          'y', 'pero', 'que', 'porque', 'donde', 'cuando', 'para', 'con', 'entonces'
+        ];
+        for (let i = words.length - 1; i >= 5; i--) {
+          const cleanW = words[i].toLowerCase().replace(/[^a-zà-ú]/g, '');
+          if (breakConjunctions.includes(cleanW)) {
+            return i;
+          }
+        }
+        // Prioridade 3: Corte natural no limite de palavras
+        return Math.min(words.length, 14);
+      }
 
       function safelyDestroySpeechRecognizer() {
-        if (speechLongInterimTimer) {
-          clearTimeout(speechLongInterimTimer);
-          speechLongInterimTimer = null;
-        }
-        lastProcessedFinalIndex = -1;
+        currentResultIndex = -1;
+        committedWordOffsetForIndex = 0;
+        utteranceSegmentStartTime = Date.now();
 
         if (speechRecognizer) {
           try {
@@ -3249,7 +3272,9 @@
               isStartingSpeechRecognition = false;
               isTranscribingSpeech = true;
               lastSpeechActivityTimestamp = Date.now();
-              lastProcessedFinalIndex = -1;
+              currentResultIndex = -1;
+              committedWordOffsetForIndex = 0;
+              utteranceSegmentStartTime = Date.now();
               updateSpeechStatusIndicator(true);
             };
 
@@ -3260,51 +3285,90 @@
             recognizer.onresult = (event) => {
               lastSpeechActivityTimestamp = Date.now();
               const interimEl = document.getElementById('transmitter-interim-text');
-              let latestInterim = '';
 
               for (let i = event.resultIndex; i < event.results.length; i++) {
                 const res = event.results[i];
                 if (!res || !res[0]) continue;
 
+                // Se mudou de resultado do SpeechRecognition, reinicia os cursores
+                if (i !== currentResultIndex) {
+                  currentResultIndex = i;
+                  committedWordOffsetForIndex = 0;
+                  utteranceSegmentStartTime = Date.now();
+                }
+
+                const fullTranscript = (res[0].transcript || '').trim();
+                if (!fullTranscript) continue;
+
+                const allWords = fullTranscript.split(/\s+/).filter(w => Boolean(w));
+                const uncommittedWords = allWords.slice(committedWordOffsetForIndex);
+                const uncommittedText = uncommittedWords.join(' ').trim();
+
+                // CASO 1: Sentença finalizada nativamente pelo navegador (isFinal = true)
                 if (res.isFinal) {
-                  // Processa estritamente UMA VEZ cada resultado finalizado pelo motor do navegador
-                  if (i > lastProcessedFinalIndex) {
-                    lastProcessedFinalIndex = i;
-                    const finalPhrase = (res[0].transcript || '').trim();
-                    if (finalPhrase) {
-                      commitSpeechSentence(finalPhrase);
+                  if (uncommittedWords.length > 0) {
+                    const toCommit = uncommittedWords.join(' ').trim();
+                    committedWordOffsetForIndex = allWords.length;
+                    if (toCommit) {
+                      commitSpeechSentence(toCommit);
                     }
                   }
-                } else {
-                  latestInterim = (res[0].transcript || '').trim();
-                }
-              }
+                  // Reset para a próxima sentença
+                  currentResultIndex = -1;
+                  committedWordOffsetForIndex = 0;
+                  utteranceSegmentStartTime = Date.now();
 
-              // Exibição provisória em tempo real no terminal do palestrante
-              if (interimEl) {
-                if (latestInterim) {
-                  interimEl.style.display = 'block';
-                  interimEl.innerText = '● ' + latestInterim;
-                  interimEl.style.color = transSubtitleConfig.textColor;
-                } else {
-                  interimEl.innerText = '';
-                  interimEl.style.display = 'none';
+                  if (interimEl) { interimEl.innerText = ''; interimEl.style.display = 'none'; }
                 }
-              }
+                // CASO 2: Fala em andamento contínuo (isFinal = false)
+                else {
+                  const elapsedSec = (Date.now() - utteranceSegmentStartTime) / 1000;
+                  const charCount = uncommittedText.length;
 
-              // GESTÃO INTELIGENTE DE CORTES SEM REPETIÇÃO:
-              // Se o texto acumulado provisório passar de 80 caracteres e houver uma pausa de respiração (> 650ms),
-              // encerramos o recognizer com stop(). Isso força o Chrome a emitir isFinal com a frase limpa
-              // e a reiniciar do zero, garantindo zero repetição de buffer!
-              if (speechLongInterimTimer) clearTimeout(speechLongInterimTimer);
-              if (latestInterim && latestInterim.length > 80) {
-                speechLongInterimTimer = setTimeout(() => {
-                  try {
-                    if (speechRecognizer && isTranscribingSpeech) {
-                      speechRecognizer.stop();
+                  // Atualiza a pré-visualização provisória na tela com o que ainda não foi commitado
+                  if (interimEl) {
+                    if (uncommittedText) {
+                      interimEl.style.display = 'block';
+                      interimEl.innerText = '● ' + uncommittedText;
+                      interimEl.style.color = transSubtitleConfig.textColor;
+                    } else {
+                      interimEl.innerText = '';
+                      interimEl.style.display = 'none';
                     }
-                  } catch(e) {}
-                }, 650);
+                  }
+
+                  // QUEBRA FORÇADA DINÂMICA:
+                  // Se a fala ininterrupta ultrapassar 4.8 a 5.0 segundos OU 130 caracteres:
+                  // quebra a frase no ponto mais conveniente e retoma na palavra seguinte!
+                  const shouldForceBreak = (elapsedSec >= 4.8 && uncommittedWords.length >= 6) || (charCount >= 130 && uncommittedWords.length >= 7);
+
+                  if (shouldForceBreak) {
+                    const cutIdx = findConvenientBreakIndex(uncommittedWords);
+                    if (cutIdx >= 5) {
+                      const wordsToCommit = uncommittedWords.slice(0, cutIdx);
+                      const chunkText = wordsToCommit.join(' ').trim();
+
+                      // Avança o cursor de palavras deste resultado
+                      committedWordOffsetForIndex += cutIdx;
+                      utteranceSegmentStartTime = Date.now();
+
+                      if (chunkText) {
+                        commitSpeechSentence(chunkText);
+                      }
+
+                      // Atualiza a visualização provisória apenas com o restante
+                      const remainingAfterCut = allWords.slice(committedWordOffsetForIndex).join(' ').trim();
+                      if (interimEl) {
+                        if (remainingAfterCut) {
+                          interimEl.innerText = '● ' + remainingAfterCut;
+                        } else {
+                          interimEl.innerText = '';
+                          interimEl.style.display = 'none';
+                        }
+                      }
+                    }
+                  }
+                }
               }
             };
 
