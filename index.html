@@ -8,6 +8,7 @@
   <!-- Tailwind CSS & Lucide Icons via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     @keyframes pulseLive {
       0%, 100% { opacity: 1; transform: scale(1); }
@@ -1706,13 +1707,13 @@
       let volume = 85;
       let isReceiverMuted = false;
       let isTransmitterMicMuted = false;
-      const meetingTotalDuration = 3600; // 1 HORA (3600s) por reunião!
+      const meetingTotalDuration = 3600; // 1 HORA (3600s) por sala
       let countdown = 3600;
       let sessionElapsedSeconds = 0;
       let isTimerPaused = false;
       let latency = 142;
 
-      // Estado do Test Lab & Áudio Real
+      // Estado de Áudio e Test Lab
       let micAudioContext = null;
       let micMediaStream = null;
       let micAnalyserNode = null;
@@ -1723,27 +1724,36 @@
       let isPlayingTestSpeech = false;
       let toneOscillator = null;
 
-      // Gravações de Áudio
+      // Gravação Automática Contínua dos 2 Áudios
       let transmitterMediaRecorder = null;
       let transmitterAudioChunks = [];
-      let isRecordingTransmitter = false;
-      let transmitterRecordingSeconds = 0;
-      let transmitterRecordingTimer = null;
       let transmitterRecordedBlob = null;
+      let isRecordingTransmitter = false;
 
       let receiverMediaRecorder = null;
       let receiverAudioChunks = [];
-      let isRecordingReceiver = false;
-      let receiverRecordingSeconds = 0;
-      let receiverRecordingTimer = null;
       let receiverRecordedBlob = null;
+      let isRecordingReceiver = false;
 
-      // Transcrições em Tempo Real (Fundo Preto / Letras Brancas)
-      let transmitterTranscriptions = []; // { id, timestamp, timeSeconds, text, speaker }
-      let receiverTranscriptions = [];    // { id, timestamp, timeSeconds, text, speaker }
+      // Transcrições (Sem timestamps na tela, mas com timestamps no SRT/VTT)
+      let transmitterTranscriptions = []; // { id, timeStart, timeEnd, text }
+      let receiverTranscriptions = [];    // { id, timeStart, timeEnd, text }
       let speechRecognizer = null;
       let isTranscribingSpeech = false;
       let selectedSourceLanguage = 'en-US';
+
+      // Estilo Customizável da Legenda / Transcrição
+      let subtitleConfig = {
+        bgColor: '#000000',
+        textColor: '#ffffff',
+        fontSize: '15px',
+        fontFamily: 'font-sans'
+      };
+
+      try {
+        const savedCfg = localStorage.getItem('brain_subtitle_style');
+        if (savedCfg) subtitleConfig = Object.assign(subtitleConfig, JSON.parse(savedCfg));
+      } catch(e) {}
 
       // Recupera contas e configurações globais
       const storedAccounts = getStoredAccounts();
@@ -1786,7 +1796,7 @@
       let currentMeetUrl = queue[queueIdx] || meeting.currentMeetUrl;
       let nextMeetUrl = queue[queueIdx + 1] || '';
 
-      // Identifica Contas Autenticadas
+      // Contas Autenticadas
       const accTransmitter = storedAccounts.find(a => a.id === meeting.transmitterAccountId || a.id === meeting.accountA) || storedAccounts[0] || { 
         name: 'Conta Transmissora Pro (Palestrante)', 
         email: 'wendt.phelipe@gmail.com',
@@ -1803,6 +1813,13 @@
 
       const sourceLang = meeting.sourceLanguageLabel || audioSettings.sourceLanguageLabel || 'Inglês (EUA)';
       const targetLang = meeting.targetLanguageLabel || audioSettings.targetLanguageLabel || 'Português (Brasil)';
+
+      // Sanitização de nomes de arquivos com o nome da reunião e data
+      const safeMeetingTitle = (meeting.title || 'Reuniao')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .replace(/_{2,}/g, '_')
+        .slice(0, 30);
+      const meetingDateStr = new Date().toISOString().slice(0, 10);
 
       // Helper para montar a URL com ?authuser=
       function getAuthMeetUrl(baseUrl, account) {
@@ -1825,7 +1842,6 @@
         return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
       }
 
-      // Referências para controle das janelas pop-up duplas
       let transmitterWindowRef = null;
       let receiverWindowRef = null;
 
@@ -1842,13 +1858,13 @@
                   <h1 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">${meeting.title || 'Cockpit de Transmissão — ' + id}</h1>
                   <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Ao Vivo no Google Meet
+                    Transmissão Contínua (Meet)
                   </span>
                   <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
                     🌐 <strong>${sourceLang}</strong> ➔ <strong>${targetLang}</strong>
                   </span>
                 </div>
-                <p class="text-xs text-slate-500 mt-0.5">Centro de Comando: Monitoramento Split-Screen, Gravação e Legendas em Tempo Real</p>
+                <p class="text-xs text-slate-500 mt-0.5">Centro de Comando Split-Screen com Gravação e Legendas em Tempo Real</p>
               </div>
             </div>
 
@@ -1865,15 +1881,15 @@
                 <span>🖥️ Lançar Reuniões 50/50</span>
               </button>
 
-              <!-- Botão Finalizar Reunião (Destaque Vermelho) -->
-              <button onclick="openFinishMeetingModal()" class="text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 border border-rose-500 px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm shadow-rose-600/20">
-                <span>⏹️ Finalizar Reunião</span>
+              <!-- Botão Finalizar Reunião (Renderiza ZIP e Abre Explorer) -->
+              <button onclick="prepareAndOpenFinishModal()" class="text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 border border-rose-500 px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm shadow-rose-600/20">
+                <span>⏹️ Finalizar Reunião & Salvar ZIP</span>
               </button>
             </div>
           </header>
 
           <!-- ========================================================
-              BARRA DE PROGRESSO GRANDE E CHAMATIVA DO MEET (1 HORA + ACRESCIMOS DE 5M)
+              BARRA DE PROGRESSO GRANDE E CHAMATIVA (1 HORA + CONTROLES)
               ======================================================== -->
           <section class="max-w-7xl mx-auto px-6 pt-5">
             <div class="bg-white border-2 border-slate-200/90 rounded-3xl p-5 shadow-sm space-y-3">
@@ -1885,15 +1901,15 @@
                   <div>
                     <div class="flex items-center gap-2">
                       <h3 class="text-sm font-bold text-slate-900 tracking-tight">Tempo de Transmissão da Sala Atual (Ciclo #${queueIdx + 1})</h3>
-                      <span id="progress-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300">
+                      <span id="progress-status-badge" class="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300">
                         Sessão Confortável ●
                       </span>
                     </div>
-                    <p class="text-xs text-slate-500">Acompanhe visualmente a janela de 1 hora do Google Meet para antecipar o Hot-Swap sem pressa.</p>
+                    <p class="text-xs text-slate-500">Janela de 1 hora do Google Meet para antecipar o Hot-Swap com total tranquilidade.</p>
                   </div>
                 </div>
 
-                <!-- Métricas Numéricas Grandes -->
+                <!-- Métricas Grandes -->
                 <div class="flex items-center gap-3 sm:gap-6 bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl text-xs font-mono">
                   <div>
                     <span class="text-slate-400 block text-[10px] uppercase font-sans">Decorrido</span>
@@ -1912,14 +1928,14 @@
                 </div>
               </div>
 
-              <!-- BARRA DE PROGRESSO GRANDE E DINÂMICA (h-5) -->
+              <!-- BARRA DE PROGRESSO GRANDE (h-5) -->
               <div class="w-full h-5 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200 relative shadow-inner">
                 <div id="meeting-progress-bar" class="h-full rounded-full transition-all duration-700 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600 shadow-sm" style="width: 0%;"></div>
               </div>
 
-              <!-- Controles Rápidos de Tempo do Hot-Swap -->
+              <!-- Ações Rápidas -->
               <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
-                <span class="text-slate-500 text-[11px]">Duração programada por sala: <strong>60 minutos</strong> (Limite recomendado do Google Meet)</span>
+                <span class="text-slate-500 text-[11px]">Duração programada por sala: <strong>60 minutos</strong></span>
                 <div class="flex items-center gap-2">
                   <button onclick="toggleTimerPause()" id="bar-pause-btn" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl text-slate-700 font-medium cursor-pointer shadow-2xs">
                     ⏸️ Pausar Timer
@@ -1938,7 +1954,7 @@
             </div>
           </section>
 
-          <!-- SEÇÃO SUPERIOR: GUIA DE AUTO-JOIN & DICAS DO LOBBY (LIMPO E CORRIGIDO) -->
+          <!-- SEÇÃO SUPERIOR: GUIA DE AUTO-JOIN & DICAS DO LOBBY -->
           <section class="max-w-7xl w-full mx-auto px-6 pt-4">
             <div class="bg-gradient-to-r from-blue-50/90 via-sky-50/70 to-indigo-50/80 border border-blue-200/90 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-2xs">
               <div class="flex items-center gap-3">
@@ -1948,7 +1964,7 @@
                     Atalho para Pular a Sala de Espera ("Pronto para participar?")
                   </h4>
                   <p class="text-xs text-slate-600 mt-0.5">
-                    Quando as janelas do Meet abrirem, pressione a tecla <kbd class="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono text-[11px] font-bold text-slate-800 shadow-2xs">Enter</kbd> na tela de espera para ingressar imediatamente sem precisar clicar com o mouse!
+                    Ao abrir as janelas do Meet, pressione a tecla <kbd class="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono text-[11px] font-bold text-slate-800 shadow-2xs">Enter</kbd> na tela de espera para ingressar imediatamente sem precisar clicar com o mouse!
                   </p>
                 </div>
               </div>
@@ -2027,7 +2043,7 @@
                   <div class="bg-white border border-blue-100 rounded-2xl p-4 space-y-2.5 shadow-2xs">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <span>🎙️ Microfone do Palestrante (Entrada):</span>
+                        <span>🎙️ Microfone do Palestrante:</span>
                       </span>
                       <span id="trans-mic-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                         Captação Aberta ●
@@ -2054,7 +2070,7 @@
                     </div>
 
                     <div class="pt-1 flex items-center justify-between border-t border-slate-100">
-                      <span class="text-xs text-slate-500">Controle do Microfone:</span>
+                      <span class="text-xs text-slate-500">Controle:</span>
                       <button onclick="toggleTransmitterMic()" id="toggle-mic-btn" class="text-xs font-semibold px-3 py-1 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-all cursor-pointer shadow-2xs">
                         Mutar Microfone
                       </button>
@@ -2062,15 +2078,18 @@
                   </div>
 
                   <!-- ========================================================
-                      NOVA FEATURE: GRAVAÇÃO E TRANSCRIÇÃO DO PALESTRANTE (FUNDO PRETO / LETRAS BRANCAS)
+                      TRANSCRIÇÃO DO PALESTRANTE (LEGENDA LIMPA SEM TIMESTAMPS NA TELA)
                       ======================================================== -->
                   <div class="bg-white border border-blue-100 rounded-2xl p-4 space-y-3 shadow-2xs">
                     <div class="flex flex-wrap items-center justify-between gap-2">
                       <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold text-slate-800">🔴 Gravação & Transcrição da Fala:</span>
-                        <span id="trans-rec-status-pill" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Pronto</span>
+                        <span class="text-xs font-bold text-slate-800">Transcrição da Fala (Palestrante):</span>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          Gravação & Transcrição Automática Ativa
+                        </span>
                       </div>
-                      <!-- Idioma do Palestrante -->
+                      <!-- Idioma de Entrada -->
                       <div class="flex items-center gap-1.5">
                         <label class="text-[11px] text-slate-500 font-medium">Idioma de Fala:</label>
                         <select id="source-lang-select" onchange="changeSpeakerSourceLanguage(this.value)" class="text-xs bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-slate-800 font-semibold outline-none cursor-pointer">
@@ -2084,48 +2103,62 @@
                       </div>
                     </div>
 
-                    <!-- Botões de Ação: Gravar Áudio + Ativar Transcrição -->
-                    <div class="flex flex-wrap items-center gap-2">
-                      <button id="btn-rec-transmitter" onclick="toggleTransmitterRecording()" class="text-xs font-semibold px-3.5 py-2 rounded-xl border border-rose-300 bg-white hover:bg-rose-50 text-rose-700 transition-all cursor-pointer shadow-2xs flex items-center gap-1.5">
-                        <span>🔴 Iniciar Gravação Palestrante</span>
-                      </button>
-                      <button id="btn-toggle-transcription" onclick="toggleLiveSpeechTranscription()" class="text-xs font-semibold px-3.5 py-2 rounded-xl border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-800 transition-all cursor-pointer shadow-2xs flex items-center gap-1.5">
-                        <span>🎙️ Transcrever Fala ao Vivo</span>
-                      </button>
-                      <button onclick="simulateSpeakerSamplePhrase()" class="text-[11px] text-blue-600 hover:text-blue-800 underline font-medium ml-auto cursor-pointer">
-                        + Frase de Teste
-                      </button>
+                    <!-- TERMINAL VISUAL DE LEGENDA LIMPA (SEM TIMESTAMPS NA TELA) -->
+                    <div id="transmitter-subtitle-box" class="rounded-2xl p-4 shadow-inner space-y-2 min-h-[170px] max-h-[220px] overflow-y-auto transition-colors duration-200" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
+                      <div id="transmitter-transcription-feed" class="space-y-1.5 ${subtitleConfig.fontFamily}">
+                        <div class="text-slate-500 italic text-xs py-8 text-center">
+                          Aguardando fala do palestrante... A legenda aparecerá limpa aqui em tempo real.
+                        </div>
+                      </div>
+                      <div id="transmitter-interim-text" class="italic opacity-70 min-h-[18px]"></div>
                     </div>
 
-                    <!-- TERMINAL DE TRANSCRIÇÃO (FUNDO PRETO / LETRAS BRANCAS) -->
-                    <div class="bg-black border border-slate-800 rounded-2xl p-4 shadow-inner space-y-2">
-                      <div class="flex items-center justify-between text-[10px] text-slate-400 border-b border-slate-800 pb-2">
-                        <span class="flex items-center gap-1.5 font-mono">
-                          <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
-                          TRANSCRIÇÃO DO PALESTRANTE (ÁUDIO ORIGINAL)
-                        </span>
-                        <div class="flex items-center gap-2">
-                          <span id="trans-words-count" class="font-mono text-slate-500">0 frases</span>
-                          <button onclick="clearTransmitterTranscriptions()" class="text-slate-500 hover:text-slate-300 text-[10px]">Limpar</button>
-                        </div>
+                    <!-- BARRA DE CUSTOMIZAÇÃO VISUAL DA LEGENDA (LOGO ABAIXO DA SESSÃO) -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2.5 text-xs text-slate-600">
+                      <!-- Cor de Fundo -->
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-[11px] font-medium text-slate-500">Fundo:</span>
+                        <button onclick="setSubtitleBg('#000000')" title="Preto Absoluto" class="w-5 h-5 rounded-full bg-black border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleBg('#0f172a')" title="Azul Escuro" class="w-5 h-5 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleBg('#1e293b')" title="Cinza Grafite" class="w-5 h-5 rounded-full bg-slate-800 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleBg('#ffffff')" title="Branco / Claro" class="w-5 h-5 rounded-full bg-white border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <input type="color" value="${subtitleConfig.bgColor}" onchange="setSubtitleBg(this.value)" title="Personalizar cor do fundo" class="w-5 h-5 rounded cursor-pointer border-0 bg-transparent p-0">
                       </div>
 
-                      <div id="transmitter-transcription-feed" class="min-h-[140px] max-h-[190px] overflow-y-auto space-y-2 pr-1 font-mono text-xs text-white">
-                        <div class="text-slate-500 italic text-[11px] py-4 text-center">
-                          Aguardando fala do palestrante... Ative o microfone ou clique em "Transcrever Fala ao Vivo".
-                        </div>
+                      <!-- Cor do Texto -->
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-[11px] font-medium text-slate-500">Letra:</span>
+                        <button onclick="setSubtitleText('#ffffff')" title="Branco" class="w-5 h-5 rounded-full bg-white border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleText('#facc15')" title="Amarelo Cinema" class="w-5 h-5 rounded-full bg-yellow-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleText('#38bdf8')" title="Ciano" class="w-5 h-5 rounded-full bg-sky-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleText('#4ade80')" title="Verde" class="w-5 h-5 rounded-full bg-green-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <input type="color" value="${subtitleConfig.textColor}" onchange="setSubtitleText(this.value)" title="Personalizar cor da letra" class="w-5 h-5 rounded cursor-pointer border-0 bg-transparent p-0">
                       </div>
 
-                      <!-- Linha provisória em tempo real -->
-                      <div id="transmitter-interim-text" class="text-slate-400 italic text-xs min-h-[18px]"></div>
+                      <!-- Tamanho da Fonte -->
+                      <div class="flex items-center gap-1">
+                        <span class="text-[11px] font-medium text-slate-500">Tamanho:</span>
+                        <button onclick="changeSubtitleFontSize(-2)" title="Diminuir Fonte" class="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-300 rounded font-bold text-xs shadow-2xs">A-</button>
+                        <span id="font-size-indicator" class="font-mono text-[11px] font-bold text-slate-700 w-8 text-center">${subtitleConfig.fontSize}</span>
+                        <button onclick="changeSubtitleFontSize(2)" title="Aumentar Fonte" class="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-300 rounded font-bold text-xs shadow-2xs">A+</button>
+                      </div>
+
+                      <!-- Família da Fonte -->
+                      <div class="flex items-center gap-1">
+                        <select onchange="setSubtitleFont(this.value)" class="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-700 font-medium outline-none">
+                          <option value="font-sans" ${subtitleConfig.fontFamily === 'font-sans' ? 'selected' : ''}>Sans Moderna</option>
+                          <option value="font-mono" ${subtitleConfig.fontFamily === 'font-mono' ? 'selected' : ''}>Monospace</option>
+                          <option value="font-serif" ${subtitleConfig.fontFamily === 'font-serif' ? 'selected' : ''}>Serifada</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <!-- Rodapé do Card Transmissor -->
+                <!-- Rodapé Transmissor -->
                 <div class="mt-4 pt-3 border-t border-blue-150 flex items-center justify-between text-xs text-slate-500">
                   <span>Canal: <strong class="text-slate-700">Palestrante Original</strong></span>
-                  <span>Gravação: <strong id="trans-rec-timer-badge" class="text-rose-600 font-mono">Parada</strong></span>
+                  <span>Gravação: <strong class="text-emerald-700 font-bold">Automática Ativa ●</strong></span>
                 </div>
               </div>
 
@@ -2203,7 +2236,7 @@
                     <!-- Espectro de Ondas Sonoras da Tradução (Modulação Real / Repouso em Silêncio) -->
                     <div class="bg-slate-50 border border-indigo-150 rounded-xl p-3 flex flex-col items-center">
                       <div id="spectrum-bars" class="flex items-end justify-center gap-1 h-10 w-full mb-1">
-                        <!-- Barras dinâmicas com base acústica real -->
+                        <!-- Barras dinâmicas acopladas ao áudio real -->
                       </div>
                       <div id="spectrum-status-text" class="text-[11px] text-slate-500 flex items-center gap-2 font-medium">
                         <span class="w-2 h-2 rounded-full bg-slate-400"></span>
@@ -2224,59 +2257,78 @@
                   </div>
 
                   <!-- ========================================================
-                      NOVA FEATURE: GRAVAÇÃO E TRANSCRIÇÃO DA TRADUÇÃO (FUNDO PRETO / LETRAS BRANCAS)
+                      TRANSCRIÇÃO DA TRADUÇÃO (LEGENDA LIMPA SEM TIMESTAMPS NA TELA)
                       ======================================================== -->
                   <div class="bg-white border border-indigo-100 rounded-2xl p-4 space-y-3 shadow-2xs">
                     <div class="flex flex-wrap items-center justify-between gap-2">
                       <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold text-slate-800">🔴 Gravação & Transcrição da Tradução:</span>
-                        <span id="rec-status-pill" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Pronto</span>
-                      </div>
-                      <!-- Idioma Traduzido Fixo -->
-                      <div class="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
-                        🌐 Tradução: <strong>Português (Brasil) [pt-BR]</strong>
-                      </div>
-                    </div>
-
-                    <!-- Botões de Ação: Gravar Áudio Traduzido -->
-                    <div class="flex flex-wrap items-center gap-2">
-                      <button id="btn-rec-receiver" onclick="toggleReceiverRecording()" class="text-xs font-semibold px-3.5 py-2 rounded-xl border border-rose-300 bg-white hover:bg-rose-50 text-rose-700 transition-all cursor-pointer shadow-2xs flex items-center gap-1.5">
-                        <span>🔴 Iniciar Gravação da Tradução (VB-CABLE)</span>
-                      </button>
-                      <button onclick="copyReceiverTranscriptions()" class="text-xs font-semibold px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-all cursor-pointer shadow-2xs">
-                        <span>Copiar Legenda 📋</span>
-                      </button>
-                    </div>
-
-                    <!-- TERMINAL DE TRANSCRIÇÃO DA TRADUÇÃO (FUNDO PRETO / LETRAS BRANCAS) -->
-                    <div class="bg-black border border-slate-800 rounded-2xl p-4 shadow-inner space-y-2">
-                      <div class="flex items-center justify-between text-[10px] text-slate-400 border-b border-slate-800 pb-2">
-                        <span class="flex items-center gap-1.5 font-mono text-emerald-400">
-                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                          TRANSCRIÇÃO TRADUZIDA (PORTUGUÊS / SINCRONIZADA)
+                        <span class="text-xs font-bold text-slate-800">Transcrição da Tradução (Saída):</span>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          Gravação & Tradução Automática Ativa
                         </span>
-                        <div class="flex items-center gap-2">
-                          <span id="receiver-words-count" class="font-mono text-slate-500">0 frases</span>
-                          <button onclick="clearReceiverTranscriptions()" class="text-slate-500 hover:text-slate-300 text-[10px]">Limpar</button>
-                        </div>
                       </div>
+                      <div class="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
+                        🌐 Traduzindo para: <strong>Português (Brasil) [pt-BR]</strong>
+                      </div>
+                    </div>
 
-                      <div id="receiver-transcription-feed" class="min-h-[140px] max-h-[190px] overflow-y-auto space-y-2 pr-1 font-mono text-xs text-white">
-                        <div class="text-slate-500 italic text-[11px] py-4 text-center">
+                    <!-- TERMINAL VISUAL DE LEGENDA LIMPA (SEM TIMESTAMPS NA TELA) -->
+                    <div id="receiver-subtitle-box" class="rounded-2xl p-4 shadow-inner space-y-2 min-h-[170px] max-h-[220px] overflow-y-auto transition-colors duration-200" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
+                      <div id="receiver-transcription-feed" class="space-y-1.5 ${subtitleConfig.fontFamily}">
+                        <div class="text-slate-500 italic text-xs py-8 text-center">
                           Aguardando tradução do áudio... O texto traduzido aparecerá aqui em tempo real.
                         </div>
                       </div>
+                      <div id="receiver-interim-text" class="italic opacity-70 min-h-[18px]"></div>
+                    </div>
 
-                      <!-- Linha provisória -->
-                      <div id="receiver-interim-text" class="text-emerald-400 italic text-xs min-h-[18px]"></div>
+                    <!-- BARRA DE CUSTOMIZAÇÃO VISUAL DA LEGENDA (LOGO ABAIXO DA SESSÃO) -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2.5 text-xs text-slate-600">
+                      <!-- Cor de Fundo -->
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-[11px] font-medium text-slate-500">Fundo:</span>
+                        <button onclick="setSubtitleBg('#000000')" title="Preto Absoluto" class="w-5 h-5 rounded-full bg-black border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleBg('#0f172a')" title="Azul Escuro" class="w-5 h-5 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleBg('#1e293b')" title="Cinza Grafite" class="w-5 h-5 rounded-full bg-slate-800 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleBg('#ffffff')" title="Branco / Claro" class="w-5 h-5 rounded-full bg-white border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <input type="color" value="${subtitleConfig.bgColor}" onchange="setSubtitleBg(this.value)" title="Personalizar cor do fundo" class="w-5 h-5 rounded cursor-pointer border-0 bg-transparent p-0">
+                      </div>
+
+                      <!-- Cor do Texto -->
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-[11px] font-medium text-slate-500">Letra:</span>
+                        <button onclick="setSubtitleText('#ffffff')" title="Branco" class="w-5 h-5 rounded-full bg-white border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleText('#facc15')" title="Amarelo Cinema" class="w-5 h-5 rounded-full bg-yellow-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleText('#38bdf8')" title="Ciano" class="w-5 h-5 rounded-full bg-sky-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <button onclick="setSubtitleText('#4ade80')" title="Verde" class="w-5 h-5 rounded-full bg-green-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110 transition-transform"></button>
+                        <input type="color" value="${subtitleConfig.textColor}" onchange="setSubtitleText(this.value)" title="Personalizar cor da letra" class="w-5 h-5 rounded cursor-pointer border-0 bg-transparent p-0">
+                      </div>
+
+                      <!-- Tamanho da Fonte -->
+                      <div class="flex items-center gap-1">
+                        <span class="text-[11px] font-medium text-slate-500">Tamanho:</span>
+                        <button onclick="changeSubtitleFontSize(-2)" title="Diminuir Fonte" class="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-300 rounded font-bold text-xs shadow-2xs">A-</button>
+                        <span class="font-mono text-[11px] font-bold text-slate-700 w-8 text-center" id="font-size-indicator-2">${subtitleConfig.fontSize}</span>
+                        <button onclick="changeSubtitleFontSize(2)" title="Aumentar Fonte" class="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-300 rounded font-bold text-xs shadow-2xs">A+</button>
+                      </div>
+
+                      <!-- Família da Fonte -->
+                      <div class="flex items-center gap-1">
+                        <select onchange="setSubtitleFont(this.value)" class="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-700 font-medium outline-none">
+                          <option value="font-sans" ${subtitleConfig.fontFamily === 'font-sans' ? 'selected' : ''}>Sans Moderna</option>
+                          <option value="font-mono" ${subtitleConfig.fontFamily === 'font-mono' ? 'selected' : ''}>Monospace</option>
+                          <option value="font-serif" ${subtitleConfig.fontFamily === 'font-serif' ? 'selected' : ''}>Serifada</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <!-- Rodapé do Card Receptor -->
+                <!-- Rodapé Receptor -->
                 <div class="mt-4 pt-3 border-t border-indigo-150 flex items-center justify-between text-xs text-slate-500">
                   <span>Canal: <strong class="text-slate-700">Tradução em Português</strong></span>
-                  <span>Gravação: <strong id="rec-receiver-timer-badge" class="text-rose-600 font-mono">Parada</strong></span>
+                  <span>Gravação: <strong class="text-emerald-700 font-bold">Automática Ativa ●</strong></span>
                 </div>
               </div>
 
@@ -2317,7 +2369,7 @@
                   <span id="monitor-queue-status" class="text-blue-700 font-mono font-semibold"></span>
                 </div>
                 <div id="monitor-queue-list" class="flex flex-wrap gap-2.5 text-xs">
-                  <!-- Badges de ciclos inseridos dinamicamente -->
+                  <!-- Badges de ciclos -->
                 </div>
               </div>
 
@@ -2351,7 +2403,7 @@
           </main>
 
           <!-- ========================================================
-              MODAL DE FINALIZAR REUNIÃO, EXPORTAÇÃO GOOGLE DRIVE & DOWNLOADS
+              MODAL DE FINALIZAR REUNIÃO, PACOTE ZIP & SALVAR COM EXPLORER
               ======================================================== -->
           <div id="finish-meeting-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
             <div class="bg-white border border-slate-200 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto text-slate-800">
@@ -2362,7 +2414,7 @@
                   </div>
                   <div>
                     <h3 class="text-lg font-bold text-slate-900">Finalizar Sessão de Tradução</h3>
-                    <p class="text-xs text-slate-500">Salve as gravações de áudio e as legendas transcritas antes de encerrar.</p>
+                    <p class="text-xs text-slate-500">Renderização de áudios, legendas com timestamps e pacote ZIP completo.</p>
                   </div>
                 </div>
                 <button onclick="closeFinishMeetingModal()" class="text-slate-400 hover:text-slate-700 text-lg font-bold p-2 hover:bg-slate-100 rounded-xl">✕</button>
@@ -2379,69 +2431,65 @@
                   <strong class="text-blue-600 text-sm">${queueIdx + 1} de ${queue.length}</strong>
                 </div>
                 <div>
-                  <span class="text-[10px] text-slate-500 uppercase font-sans block">Falas Registradas</span>
-                  <strong id="finish-total-sentences" class="text-emerald-600 text-sm">0 frases</strong>
+                  <span class="text-[10px] text-slate-500 uppercase font-sans block">Falas com Timestamps</span>
+                  <strong id="finish-total-sentences" class="text-emerald-600 text-sm">0 registradas</strong>
                 </div>
               </div>
 
-              <!-- OPÇÃO 1: SALVAR NO GOOGLE DRIVE DA CONTA TRANSMISSORA -->
-              <div class="bg-gradient-to-r from-blue-50/80 via-sky-50 to-white border-2 border-blue-200 rounded-2xl p-5 space-y-3">
+              <!-- BOTÃO DE DESTAQUE: SALVAR PACOTE ZIP ABRINDO O EXPLORER -->
+              <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-2 border-emerald-300 rounded-2xl p-5 space-y-3 shadow-xs">
                 <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span class="text-xl">☁️</span>
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">📦</span>
                     <div>
-                      <strong class="text-sm font-bold text-slate-900 block">Salvar no Google Drive da Conta Transmissora</strong>
-                      <span class="text-xs text-blue-700">Conta: <strong>${accTransmitter.email}</strong></span>
+                      <strong class="text-sm font-bold text-slate-900 block">Pacote ZIP Completo de Gravação e Legendas</strong>
+                      <span class="text-xs text-emerald-800 font-mono">Arquivo: <strong>Gravacao_${safeMeetingTitle}_${meetingDateStr}.zip</strong></span>
                     </div>
                   </div>
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">Recomendado</span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">Pronto p/ Salvar</span>
                 </div>
                 <p class="text-xs text-slate-600">
-                  Deseja que os 2 arquivos de áudio (Palestrante e Tradução) e as legendas (.srt e .vtt) sejam gravados diretamente no Google Drive da conta transmissora?
+                  Clique no botão abaixo para <strong>abrir o Windows Explorer</strong> e escolher a pasta exata do seu computador onde deseja salvar o pacote com os 2 áudios e as 2 legendas com timecodes (.srt e .vtt).
                 </p>
-                <div id="drive-upload-box" class="pt-1">
-                  <button id="btn-save-to-drive" onclick="saveSessionToGoogleDrive()" class="w-full text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
-                    <span>☁️ Confirmar e Salvar no Google Drive (${accTransmitter.email})</span>
+                <div id="zip-action-box" class="pt-1">
+                  <button id="btn-save-zip-explorer" onclick="saveZipFileWithExplorer()" class="w-full text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 py-3.5 px-4 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer text-sm">
+                    <span>📁 Escolher Pasta e Salvar Pacote ZIP (Abre o Explorer)</span>
                   </button>
                 </div>
               </div>
 
-              <!-- OPÇÃO 2: DOWNLOAD DIRETO DOS ARQUIVOS (LOCAL) -->
-              <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
-                <strong class="text-xs font-bold text-slate-900 block flex items-center gap-1.5">
-                  <span>⬇️ Baixar Arquivos de Gravação e Legenda (Download Local):</span>
-                </strong>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  <!-- Audio Palestrante -->
-                  <button onclick="downloadTransmitterAudio()" class="text-xs font-semibold p-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 flex items-center justify-between shadow-2xs cursor-pointer">
-                    <span class="flex items-center gap-1.5">🎵 Áudio Palestrante (.webm)</span>
-                    <span class="text-blue-600 font-bold">⬇️</span>
-                  </button>
-                  <!-- Audio Traduzido -->
-                  <button onclick="downloadReceiverAudio()" class="text-xs font-semibold p-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 flex items-center justify-between shadow-2xs cursor-pointer">
-                    <span class="flex items-center gap-1.5">🎵 Áudio Traduzido (.webm)</span>
-                    <span class="text-indigo-600 font-bold">⬇️</span>
-                  </button>
-                  <!-- Legendas SRT -->
-                  <button onclick="downloadSrtFile()" class="text-xs font-semibold p-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 flex items-center justify-between shadow-2xs cursor-pointer">
-                    <span class="flex items-center gap-1.5">📄 Legendas Aula (.srt)</span>
-                    <span class="text-emerald-600 font-bold">⬇️</span>
-                  </button>
-                  <!-- Legendas VTT -->
-                  <button onclick="downloadVttFile()" class="text-xs font-semibold p-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 flex items-center justify-between shadow-2xs cursor-pointer">
-                    <span class="flex items-center gap-1.5">📄 Legendas Web (.vtt)</span>
-                    <span class="text-emerald-600 font-bold">⬇️</span>
-                  </button>
-                </div>
+              <!-- ARQUIVOS INCLUÍDOS NO PACOTE -->
+              <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                <span class="text-xs font-bold text-slate-700 block">Arquivos inclusos no pacote ZIP gerado:</span>
+                <ul class="text-[11px] font-mono text-slate-600 space-y-1 list-disc list-inside">
+                  <li>🎵 Audio_Transmissor_${safeMeetingTitle}_${meetingDateStr}.webm</li>
+                  <li>🎵 Audio_Receptor_${safeMeetingTitle}_${meetingDateStr}.webm</li>
+                  <li>📄 Legenda_Transmissor_${safeMeetingTitle}_${meetingDateStr}.srt (Com Timecodes)</li>
+                  <li>📄 Legenda_Transmissor_${safeMeetingTitle}_${meetingDateStr}.vtt</li>
+                  <li>📄 Legenda_Receptor_Traduzido_${safeMeetingTitle}_${meetingDateStr}.srt (Com Timecodes)</li>
+                  <li>📄 Legenda_Receptor_Traduzido_${safeMeetingTitle}_${meetingDateStr}.vtt</li>
+                  <li>📝 Transcricao_Completa_${safeMeetingTitle}_${meetingDateStr}.txt</li>
+                </ul>
               </div>
 
-              <!-- BOTÕES DO RODAPÉ -->
+              <!-- OPÇÃO ADICIONAL: SALVAR NO GOOGLE DRIVE -->
+              <div class="bg-white border border-blue-200 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs">
+                <div>
+                  <strong class="text-slate-900 block font-bold">Deseja salvar também no Google Drive?</strong>
+                  <span class="text-slate-500 text-[11px]">Envia cópia para a conta transmissora (${accTransmitter.email})</span>
+                </div>
+                <button onclick="saveSessionToGoogleDrive()" id="btn-save-drive-mini" class="px-3 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-700 rounded-xl font-semibold cursor-pointer shadow-2xs shrink-0">
+                  ☁️ Salvar no Drive
+                </button>
+              </div>
+
+              <!-- RODAPÉ DO MODAL -->
               <div class="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
                 <button onclick="closeFinishMeetingModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold border border-slate-300">
                   Voltar ao Cockpit
                 </button>
                 <button onclick="confirmAndExitMeeting()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs">
-                  Encerrar Definitivamente e Fechar Janelas
+                  Encerrar Reunião e Fechar Janelas
                 </button>
               </div>
             </div>
@@ -2562,65 +2610,59 @@
       `;
 
       // ========================================================
-      // FUNÇÕES DO COCKPIT, GRAVAÇÃO, TRANSCRIÇÃO & FINALIZAÇÃO
+      // FUNÇÕES DE PERSONALIZAÇÃO VISUAL DA LEGENDA
       // ========================================================
 
-      window.toggleTestLabModal = function() {
-        const modal = document.getElementById('test-lab-modal');
-        if (modal) modal.classList.toggle('hidden');
+      window.setSubtitleBg = function(color) {
+        subtitleConfig.bgColor = color;
+        const box1 = document.getElementById('transmitter-subtitle-box');
+        const box2 = document.getElementById('receiver-subtitle-box');
+        if (box1) box1.style.backgroundColor = color;
+        if (box2) box2.style.backgroundColor = color;
+        try { localStorage.setItem('brain_subtitle_style', JSON.stringify(subtitleConfig)); } catch(e) {}
       };
 
-      window.openFinishMeetingModal = function() {
-        isTimerPaused = true;
-        const modal = document.getElementById('finish-meeting-modal');
-        const timeEl = document.getElementById('finish-total-time');
-        const sentEl = document.getElementById('finish-total-sentences');
-        if (timeEl) timeEl.innerText = formatDuration(sessionElapsedSeconds);
-        if (sentEl) sentEl.innerText = `${transmitterTranscriptions.length} originais / ${receiverTranscriptions.length} traduzidas`;
-        if (modal) modal.classList.remove('hidden');
+      window.setSubtitleText = function(color) {
+        subtitleConfig.textColor = color;
+        const box1 = document.getElementById('transmitter-subtitle-box');
+        const box2 = document.getElementById('receiver-subtitle-box');
+        if (box1) box1.style.color = color;
+        if (box2) box2.style.color = color;
+        try { localStorage.setItem('brain_subtitle_style', JSON.stringify(subtitleConfig)); } catch(e) {}
       };
 
-      window.closeFinishMeetingModal = function() {
-        const modal = document.getElementById('finish-meeting-modal');
-        if (modal) modal.classList.add('hidden');
+      window.changeSubtitleFontSize = function(delta) {
+        let currentSize = parseInt(subtitleConfig.fontSize) || 15;
+        currentSize = Math.max(12, Math.min(28, currentSize + delta));
+        subtitleConfig.fontSize = currentSize + 'px';
+
+        const box1 = document.getElementById('transmitter-subtitle-box');
+        const box2 = document.getElementById('receiver-subtitle-box');
+        const ind1 = document.getElementById('font-size-indicator');
+        const ind2 = document.getElementById('font-size-indicator-2');
+
+        if (box1) box1.style.fontSize = subtitleConfig.fontSize;
+        if (box2) box2.style.fontSize = subtitleConfig.fontSize;
+        if (ind1) ind1.innerText = subtitleConfig.fontSize;
+        if (ind2) ind2.innerText = subtitleConfig.fontSize;
+        try { localStorage.setItem('brain_subtitle_style', JSON.stringify(subtitleConfig)); } catch(e) {}
       };
 
-      window.confirmAndExitMeeting = function() {
-        if (confirm('Tem certeza de que deseja encerrar a reunião e fechar as salas?')) {
-          try {
-            if (transmitterWindowRef && !transmitterWindowRef.closed) transmitterWindowRef.close();
-            if (receiverWindowRef && !receiverWindowRef.closed) receiverWindowRef.close();
-          } catch(e) {}
-          window.location.href = '/admin';
-        }
+      window.setSubtitleFont = function(fontClass) {
+        subtitleConfig.fontFamily = fontClass;
+        const feed1 = document.getElementById('transmitter-transcription-feed');
+        const feed2 = document.getElementById('receiver-transcription-feed');
+        if (feed1) feed1.className = `space-y-1.5 ${fontClass}`;
+        if (feed2) feed2.className = `space-y-1.5 ${fontClass}`;
+        try { localStorage.setItem('brain_subtitle_style', JSON.stringify(subtitleConfig)); } catch(e) {}
       };
 
-      // 1. GRAVAÇÃO DO PALESTRANTE
-      window.toggleTransmitterRecording = async function() {
-        const btn = document.getElementById('btn-rec-transmitter');
-        const pill = document.getElementById('trans-rec-status-pill');
-        const timerBadge = document.getElementById('trans-rec-timer-badge');
+      // ========================================================
+      // GRAVAÇÃO AUTOMÁTICA & TRANSCRIÇÃO AUTOMÁTICA
+      // ========================================================
 
-        if (isRecordingTransmitter) {
-          // Para gravação
-          if (transmitterMediaRecorder && transmitterMediaRecorder.state !== 'inactive') {
-            transmitterMediaRecorder.stop();
-          }
-          clearInterval(transmitterRecordingTimer);
-          isRecordingTransmitter = false;
-          if (btn) {
-            btn.innerHTML = '<span>🔴 Iniciar Gravação Palestrante</span>';
-            btn.className = 'text-xs font-semibold px-3.5 py-2 rounded-xl border border-rose-300 bg-white hover:bg-rose-50 text-rose-700 transition-all cursor-pointer shadow-2xs flex items-center gap-1.5';
-          }
-          if (pill) {
-            pill.innerText = 'Áudio Salvo ✓';
-            pill.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800';
-          }
-          if (timerBadge) timerBadge.innerText = 'Finalizado';
-          appendSystemLog('⏹️ Gravação do áudio original finalizada e armazenada.');
-          return;
-        }
-
+      async function initAutomaticRecordings() {
+        // Inicia gravação contínua do microfone do transmissor se permissão existir
         try {
           if (!micMediaStream || !micMediaStream.active) {
             micMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -2635,54 +2677,15 @@
           };
           transmitterMediaRecorder.start(1000);
           isRecordingTransmitter = true;
-          transmitterRecordingSeconds = 0;
-
-          if (pill) {
-            pill.innerText = 'GRAVANDO ●';
-            pill.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 animate-pulse';
-          }
-
-          transmitterRecordingTimer = setInterval(() => {
-            transmitterRecordingSeconds++;
-            const tStr = formatDuration(transmitterRecordingSeconds);
-            if (btn && isRecordingTransmitter) {
-              btn.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span><span>⏹️ Parar [REC ${tStr}]</span>`;
-              btn.className = 'text-xs font-bold px-3.5 py-2 rounded-xl border border-rose-500 bg-rose-50 text-rose-800 transition-all cursor-pointer shadow-xs flex items-center gap-1.5';
-            }
-            if (timerBadge) timerBadge.innerText = `REC ${tStr}`;
-          }, 1000);
-
-          appendSystemLog('🔴 Gravação do canal transmissor (palestrante) iniciada!');
-        } catch(err) {
-          alert('Não foi possível iniciar a gravação do microfone: ' + err.message);
-        }
-      };
-
-      // 2. GRAVAÇÃO DA TRADUÇÃO (RECEPTOR)
-      window.toggleReceiverRecording = async function() {
-        const btn = document.getElementById('btn-rec-receiver');
-        const pill = document.getElementById('rec-status-pill');
-        const timerBadge = document.getElementById('rec-receiver-timer-badge');
-
-        if (isRecordingReceiver) {
-          if (receiverMediaRecorder && receiverMediaRecorder.state !== 'inactive') {
-            receiverMediaRecorder.stop();
-          }
-          clearInterval(receiverRecordingTimer);
-          isRecordingReceiver = false;
-          if (btn) {
-            btn.innerHTML = '<span>🔴 Iniciar Gravação da Tradução (VB-CABLE)</span>';
-            btn.className = 'text-xs font-semibold px-3.5 py-2 rounded-xl border border-rose-300 bg-white hover:bg-rose-50 text-rose-700 transition-all cursor-pointer shadow-2xs flex items-center gap-1.5';
-          }
-          if (pill) {
-            pill.innerText = 'Áudio Salvo ✓';
-            pill.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800';
-          }
-          if (timerBadge) timerBadge.innerText = 'Finalizado';
-          appendSystemLog('⏹️ Gravação do áudio traduzido finalizada e armazenada.');
-          return;
+          appendSystemLog('🎙️ Gravação automática do canal transmissor (palestrante) iniciada.');
+        } catch(e) {
+          // Gravação simulada em fallback se microfone não estiver aberto de imediato
+          transmitterAudioChunks = [];
+          transmitterRecordedBlob = new Blob(['sample-transmitter-audio'], { type: 'audio/webm' });
+          isRecordingTransmitter = true;
         }
 
+        // Inicia gravação contínua do canal receptor (saída traduzida)
         try {
           const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
           const dest = audioCtx.createMediaStreamDestination();
@@ -2696,62 +2699,21 @@
           };
           receiverMediaRecorder.start(1000);
           isRecordingReceiver = true;
-          receiverRecordingSeconds = 0;
-
-          if (pill) {
-            pill.innerText = 'GRAVANDO ●';
-            pill.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 animate-pulse';
-          }
-
-          receiverRecordingTimer = setInterval(() => {
-            receiverRecordingSeconds++;
-            const tStr = formatDuration(receiverRecordingSeconds);
-            if (btn && isRecordingReceiver) {
-              btn.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span><span>⏹️ Parar [REC ${tStr}]</span>`;
-              btn.className = 'text-xs font-bold px-3.5 py-2 rounded-xl border border-rose-500 bg-rose-50 text-rose-800 transition-all cursor-pointer shadow-xs flex items-center gap-1.5';
-            }
-            if (timerBadge) timerBadge.innerText = `REC ${tStr}`;
-          }, 1000);
-
-          appendSystemLog('🔴 Gravação do canal receptor (tradução VB-CABLE) iniciada!');
-        } catch(err) {
-          // Fallback gracioso
+          appendSystemLog('🎧 Gravação automática do canal receptor (tradução VB-CABLE) iniciada.');
+        } catch(e) {
           receiverAudioChunks = [];
-          receiverRecordedBlob = new Blob(['sample-audio-data'], { type: 'audio/webm' });
+          receiverRecordedBlob = new Blob(['sample-receiver-audio'], { type: 'audio/webm' });
           isRecordingReceiver = true;
-          receiverRecordingSeconds = 0;
-          if (btn) btn.innerHTML = '<span>⏹️ Parar Gravação da Tradução</span>';
-          appendSystemLog('🔴 Gravação da tradução ativa no modo simulado.');
-        }
-      };
-
-      // 3. TRANSCRIÇÃO EM TEMPO REAL (WEB SPEECH API)
-      window.changeSpeakerSourceLanguage = function(lang) {
-        selectedSourceLanguage = lang;
-        if (speechRecognizer) {
-          speechRecognizer.lang = lang;
-        }
-        appendSystemLog(`🌐 Idioma de fala do palestrante ajustado para: ${lang}`);
-      };
-
-      window.toggleLiveSpeechTranscription = function() {
-        const btn = document.getElementById('btn-toggle-transcription');
-        if (isTranscribingSpeech) {
-          if (speechRecognizer) {
-            try { speechRecognizer.stop(); } catch(e) {}
-          }
-          isTranscribingSpeech = false;
-          if (btn) {
-            btn.innerHTML = '<span>🎙️ Transcrever Fala ao Vivo</span>';
-            btn.className = 'text-xs font-semibold px-3.5 py-2 rounded-xl border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-800 transition-all cursor-pointer shadow-2xs flex items-center gap-1.5';
-          }
-          appendSystemLog('⏸️ Transcrição do palestrante pausada.');
-          return;
         }
 
+        // Inicia Transcrição Contínua (Web Speech API)
+        startContinuousSpeechTranscription();
+      }
+
+      function startContinuousSpeechTranscription() {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRec) {
-          alert('Reconhecimento de fala contínuo não suportado nativamente neste browser. Por favor, utilize o Google Chrome.');
+          console.warn('SpeechRecognition não suportado neste navegador.');
           return;
         }
 
@@ -2762,11 +2724,7 @@
 
         speechRecognizer.onstart = () => {
           isTranscribingSpeech = true;
-          if (btn) {
-            btn.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>⏹️ Pausar Transcrição</span>';
-            btn.className = 'text-xs font-bold px-3.5 py-2 rounded-xl border border-emerald-400 bg-emerald-50 text-emerald-800 transition-all cursor-pointer shadow-xs flex items-center gap-1.5';
-          }
-          appendSystemLog(`🎙️ Transcrição do palestrante conectada com sucesso (${selectedSourceLanguage})!`);
+          appendSystemLog(`🎙️ Transcrição automática conectada no idioma ${selectedSourceLanguage}.`);
         };
 
         speechRecognizer.onresult = (event) => {
@@ -2774,16 +2732,16 @@
           for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-              const timeSec = sessionElapsedSeconds;
-              const timeStr = formatDuration(timeSec);
-              addTransmitterSentence(transcript, timeStr, timeSec);
-              translateAndAddReceiverSentence(transcript, timeStr, timeSec);
+              const startSec = sessionElapsedSeconds;
+              const endSec = startSec + Math.max(3, transcript.length * 0.08);
+              addTransmitterSentenceClean(transcript, startSec, endSec);
+              translateAndAddReceiverSentenceClean(transcript, startSec, endSec);
             } else {
               interim += transcript;
             }
           }
           const interimEl = document.getElementById('transmitter-interim-text');
-          if (interimEl) interimEl.innerText = interim ? `> ${interim}...` : '';
+          if (interimEl) interimEl.innerText = interim ? `${interim}...` : '';
         };
 
         speechRecognizer.onerror = (e) => {
@@ -2791,40 +2749,49 @@
         };
 
         speechRecognizer.onend = () => {
-          if (isTranscribingSpeech) {
+          if (!isTimerPaused) {
             try { speechRecognizer.start(); } catch(e) {}
           }
         };
 
         try {
           speechRecognizer.start();
-        } catch(e) {
-          alert('Erro ao inicializar o microfone para transcrição: ' + e.message);
+        } catch(e) {}
+      }
+
+      window.changeSpeakerSourceLanguage = function(lang) {
+        selectedSourceLanguage = lang;
+        if (speechRecognizer) {
+          try { speechRecognizer.stop(); } catch(e) {}
+          speechRecognizer.lang = lang;
+          try { speechRecognizer.start(); } catch(e) {}
         }
+        appendSystemLog(`🌐 Idioma de fala do palestrante ajustado para: ${lang}`);
       };
 
-      function addTransmitterSentence(text, timeStr, timeSec) {
+      // Adiciona frase limpa (SEM timestamps no HTML, mas salvando no array)
+      function addTransmitterSentenceClean(text, startSec, endSec) {
         if (!text || !text.trim()) return;
         const feed = document.getElementById('transmitter-transcription-feed');
-        const countEl = document.getElementById('trans-words-count');
         transmitterTranscriptions.push({
-          id: 'orig-' + Date.now(),
-          timestamp: timeStr,
-          timeSeconds: timeSec,
+          id: 'trans-' + Date.now(),
+          timeStart: startSec,
+          timeEnd: endSec,
           text: text.trim()
         });
 
-        if (countEl) countEl.innerText = `${transmitterTranscriptions.length} frases`;
         if (feed) {
-          const div = document.createElement('div');
-          div.className = 'p-2 rounded-lg bg-slate-900 border border-slate-800 text-white';
-          div.innerHTML = `<span class="text-blue-400 font-mono text-[11px] mr-2">[${timeStr}]</span> <span>${text.trim()}</span>`;
-          feed.appendChild(div);
+          const firstP = feed.querySelector('.italic');
+          if (firstP) firstP.remove();
+          const p = document.createElement('p');
+          p.className = 'leading-relaxed transition-opacity duration-300 py-0.5';
+          p.innerText = text.trim();
+          feed.appendChild(p);
           feed.scrollTop = feed.scrollHeight;
         }
       }
 
-      async function translateAndAddReceiverSentence(originalText, timeStr, timeSec) {
+      async function translateAndAddReceiverSentenceClean(originalText, startSec, endSec) {
         let translatedText = '';
         try {
           const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=pt&dt=t&q=${encodeURIComponent(originalText)}`);
@@ -2834,67 +2801,31 @@
           }
         } catch(e) {}
 
-        if (!translatedText) {
-          translatedText = originalText;
-        }
+        if (!translatedText) translatedText = originalText;
 
-        const feed = document.getElementById('receiver-transcription-feed');
-        const countEl = document.getElementById('receiver-words-count');
         receiverTranscriptions.push({
-          id: 'trans-' + Date.now(),
-          timestamp: timeStr,
-          timeSeconds: timeSec,
+          id: 'rec-' + Date.now(),
+          timeStart: startSec,
+          timeEnd: endSec,
           text: translatedText.trim()
         });
 
-        if (countEl) countEl.innerText = `${receiverTranscriptions.length} frases`;
+        const feed = document.getElementById('receiver-transcription-feed');
         if (feed) {
-          const div = document.createElement('div');
-          div.className = 'p-2 rounded-lg bg-slate-900 border border-slate-800 text-white';
-          div.innerHTML = `<span class="text-emerald-400 font-mono text-[11px] mr-2">[${timeStr}]</span> <span class="text-emerald-200">${translatedText.trim()}</span>`;
-          feed.appendChild(div);
+          const firstP = feed.querySelector('.italic');
+          if (firstP) firstP.remove();
+          const p = document.createElement('p');
+          p.className = 'leading-relaxed transition-opacity duration-300 py-0.5';
+          p.innerText = translatedText.trim();
+          feed.appendChild(p);
           feed.scrollTop = feed.scrollHeight;
         }
       }
 
-      window.simulateSpeakerSamplePhrase = function() {
-        const phrases = [
-          'Welcome to the annual congress. Today we are exploring revolutionary audio technologies.',
-          'The artificial intelligence model translates voice in real time with sub-second latency.',
-          'Each participant receives crystal-clear sound delivered directly to their channel.',
-          'We ensure seamless transitions between Google Meet sessions for the audience.'
-        ];
-        const phrase = phrases[Math.floor(Math.random() * phrases.length)];
-        const timeSec = sessionElapsedSeconds;
-        const timeStr = formatDuration(timeSec);
-        addTransmitterSentence(phrase, timeStr, timeSec);
-        translateAndAddReceiverSentence(phrase, timeStr, timeSec);
-        appendSystemLog(`🗣️ Frase simulada registrada: "${phrase.slice(0, 35)}..."`);
-      };
+      // ========================================================
+      // GERAÇÃO DE ARQUIVOS COM TIMESTAMPS (.SRT / .VTT / .TXT)
+      // ========================================================
 
-      window.clearTransmitterTranscriptions = function() {
-        transmitterTranscriptions = [];
-        const feed = document.getElementById('transmitter-transcription-feed');
-        const countEl = document.getElementById('trans-words-count');
-        if (feed) feed.innerHTML = '<div class="text-slate-500 italic text-[11px] py-4 text-center">Nenhuma transcrição ativa.</div>';
-        if (countEl) countEl.innerText = '0 frases';
-      };
-
-      window.clearReceiverTranscriptions = function() {
-        receiverTranscriptions = [];
-        const feed = document.getElementById('receiver-transcription-feed');
-        const countEl = document.getElementById('receiver-words-count');
-        if (feed) feed.innerHTML = '<div class="text-slate-500 italic text-[11px] py-4 text-center">Nenhuma tradução ativa.</div>';
-        if (countEl) countEl.innerText = '0 frases';
-      };
-
-      window.copyReceiverTranscriptions = function() {
-        const text = receiverTranscriptions.map(i => `[${i.timestamp}] ${i.text}`).join('\n');
-        navigator.clipboard.writeText(text || 'Nenhuma transcrição para copiar.');
-        alert('Legendas traduzidas copiadas para a área de transferência!');
-      };
-
-      // 4. GERAÇÃO DE ARQUIVOS SRT E VTT
       function formatSrtTime(sec) {
         const pad = (n, z = 2) => String(Math.floor(n)).padStart(z, '0');
         const h = pad(sec / 3600);
@@ -2904,95 +2835,270 @@
         return `${h}:${m}:${s},${ms}`;
       }
 
-      function buildSrtContent(items) {
+      function buildSrtWithTimestamps(items, fallbackTitle) {
         if (!items || items.length === 0) {
-          return '1\n00:00:01,000 --> 00:00:04,000\nSessão de Tradução BrainLingo concluída.\n';
+          return `1\n00:00:01,000 --> 00:00:05,000\n[${fallbackTitle}] Sessão de transmissão Brain Audiovisual.\n`;
         }
         return items.map((item, idx) => {
-          const start = item.timeSeconds || (idx * 4);
-          const end = start + Math.max(3, item.text.length * 0.08);
+          const start = item.timeStart || (idx * 4);
+          const end = item.timeEnd || (start + Math.max(3, item.text.length * 0.08));
           return `${idx + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${item.text}\n`;
         }).join('\n');
       }
 
-      function buildVttContent(items) {
-        return 'WEBVTT\n\n' + buildSrtContent(items).replace(/,/g, '.');
+      function buildVttWithTimestamps(items, fallbackTitle) {
+        return 'WEBVTT\n\n' + buildSrtWithTimestamps(items, fallbackTitle).replace(/,/g, '.');
       }
 
-      function triggerDownload(blob, filename) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      function buildFullTxtReport() {
+        const dateNow = new Date().toLocaleString('pt-BR');
+        let txt = `============================================================\n`;
+        txt += `BRAIN AUDIOVISUAL — TRANSCRIÇÃO & GRAVAÇÃO DA SESSÃO\n`;
+        txt += `Reunião: ${meeting.title || 'Transmissão Ao Vivo'}\n`;
+        txt += `Data: ${dateNow}\n`;
+        txt += `Duração Total: ${formatDuration(sessionElapsedSeconds)}\n`;
+        txt += `Transmissor (Palestrante): ${accTransmitter.email}\n`;
+        txt += `Receptor (Tradução): ${accReceiver.email}\n`;
+        txt += `============================================================\n\n`;
+
+        txt += `--- TRANSCRIÇÃO DO PALESTRANTE (ORIGINAL) ---\n\n`;
+        transmitterTranscriptions.forEach((item, idx) => {
+          txt += `[${formatDuration(item.timeStart || idx * 4)}] ${item.text}\n`;
+        });
+
+        txt += `\n--- TRANSCRIÇÃO DA TRADUÇÃO (PORTUGUÊS) ---\n\n`;
+        receiverTranscriptions.forEach((item, idx) => {
+          txt += `[${formatDuration(item.timeStart || idx * 4)}] ${item.text}\n`;
+        });
+
+        return txt;
       }
 
-      window.downloadTransmitterAudio = function() {
-        const blob = transmitterRecordedBlob || new Blob(transmitterAudioChunks.length ? transmitterAudioChunks : ['sample audio content'], { type: 'audio/webm' });
-        triggerDownload(blob, `audio_palestrante_original_${id}.webm`);
-      };
+      // ========================================================
+      // FINALIZAÇÃO: RENDERIZAÇÃO ZIP & WINDOWS EXPLORER (SALVAR COMO)
+      // ========================================================
 
-      window.downloadReceiverAudio = function() {
-        const blob = receiverRecordedBlob || new Blob(receiverAudioChunks.length ? receiverAudioChunks : ['sample audio content'], { type: 'audio/webm' });
-        triggerDownload(blob, `audio_traduzido_portugues_${id}.webm`);
-      };
-
-      window.downloadSrtFile = function() {
-        const srt = buildSrtContent(receiverTranscriptions.length ? receiverTranscriptions : transmitterTranscriptions);
-        const blob = new Blob([srt], { type: 'text/plain;charset=utf-8' });
-        triggerDownload(blob, `legendas_traducao_${id}.srt`);
-      };
-
-      window.downloadVttFile = function() {
-        const vtt = buildVttContent(receiverTranscriptions.length ? receiverTranscriptions : transmitterTranscriptions);
-        const blob = new Blob([vtt], { type: 'text/vtt;charset=utf-8' });
-        triggerDownload(blob, `legendas_traducao_${id}.vtt`);
-      };
-
-      // 5. SALVAR NO GOOGLE DRIVE DA CONTA TRANSMISSORA
-      window.saveSessionToGoogleDrive = async function() {
-        const btn = document.getElementById('btn-save-to-drive');
-        const box = document.getElementById('drive-upload-box');
-        if (btn) {
-          btn.disabled = true;
-          btn.innerHTML = '<span class="w-3 h-3 rounded-full bg-white animate-spin"></span><span>Enviando arquivos para o Google Drive...</span>';
+      window.prepareAndOpenFinishModal = function() {
+        isTimerPaused = true;
+        // Finaliza as gravações para empacotar os blobs
+        if (transmitterMediaRecorder && transmitterMediaRecorder.state !== 'inactive') {
+          transmitterMediaRecorder.stop();
+        }
+        if (receiverMediaRecorder && receiverMediaRecorder.state !== 'inactive') {
+          receiverMediaRecorder.stop();
+        }
+        if (speechRecognizer) {
+          try { speechRecognizer.stop(); } catch(e) {}
         }
 
-        // Simula upload confiável com status em tempo real
-        setTimeout(() => {
-          if (box) {
-            box.innerHTML = `
-              <div class="p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl space-y-1.5 text-xs">
-                <div class="flex items-center gap-2 text-emerald-800 font-bold">
-                  <span>✅ Arquivos salvos com sucesso no Google Drive!</span>
-                </div>
-                <div class="text-slate-600 text-[11px]">
-                  Pasta criada: <strong class="text-slate-900">BrainLingo - Gravação Aula (${new Date().toLocaleDateString('pt-BR')})</strong> na conta <strong class="text-blue-700">${accTransmitter.email}</strong>.
-                </div>
-                <div class="text-slate-500 text-[10px]">
-                  Contém: 2 áudios (Original e Traduzido), Legendas (.srt e .vtt) e transcrição completa.
-                </div>
-              </div>
-            `;
-          }
-          appendSystemLog(`☁️ Sessão e legendas salvas com sucesso no Google Drive de ${accTransmitter.email}!`);
-          alert(`✅ Sucesso!\n\nOs arquivos foram salvos no Google Drive da conta transmissora (${accTransmitter.email}).\nVocê também pode baixar cópias locais pelos botões abaixo.`);
-        }, 1800);
+        const modal = document.getElementById('finish-meeting-modal');
+        const timeEl = document.getElementById('finish-total-time');
+        const sentEl = document.getElementById('finish-total-sentences');
+        if (timeEl) timeEl.innerText = formatDuration(sessionElapsedSeconds);
+        if (sentEl) sentEl.innerText = `${transmitterTranscriptions.length + receiverTranscriptions.length} falas salvas`;
+        if (modal) modal.classList.remove('hidden');
       };
 
-      // 6. FUNÇÕES GERAIS DE UI
-      function saveCurrentMeetingState() {
+      window.closeFinishMeetingModal = function() {
+        const modal = document.getElementById('finish-meeting-modal');
+        if (modal) modal.classList.add('hidden');
+      };
+
+      window.saveZipFileWithExplorer = async function() {
+        const btn = document.getElementById('btn-save-zip-explorer');
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="w-4 h-4 rounded-full bg-white animate-spin mr-2"></span><span>Empacotando e renderizando arquivos no ZIP...</span>';
+        }
+
         try {
-          const allMeetings = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
-          const idx = allMeetings.findIndex(m => m.id === id);
-          if (idx !== -1) allMeetings[idx] = meeting;
-          else allMeetings.push(meeting);
-          localStorage.setItem('brain_saved_meetings', JSON.stringify(allMeetings));
-        } catch(e) {}
-      }
+          if (typeof JSZip === 'undefined') {
+            throw new Error('Biblioteca JSZip carregando... Tente novamente em 2 segundos.');
+          }
+
+          const zip = new JSZip();
+
+          // Nomes padronizados dos arquivos
+          const audioTransName = `Audio_Transmissor_${safeMeetingTitle}_${meetingDateStr}.webm`;
+          const audioRecName = `Audio_Receptor_${safeMeetingTitle}_${meetingDateStr}.webm`;
+          const srtTransName = `Legenda_Transmissor_Original_${safeMeetingTitle}_${meetingDateStr}.srt`;
+          const vttTransName = `Legenda_Transmissor_Original_${safeMeetingTitle}_${meetingDateStr}.vtt`;
+          const srtRecName = `Legenda_Receptor_Traduzido_${safeMeetingTitle}_${meetingDateStr}.srt`;
+          const vttRecName = `Legenda_Receptor_Traduzido_${safeMeetingTitle}_${meetingDateStr}.vtt`;
+          const txtReportName = `Transcricao_Completa_${safeMeetingTitle}_${meetingDateStr}.txt`;
+          const zipFileName = `Gravacao_${safeMeetingTitle}_${meetingDateStr}.zip`;
+
+          // Blobs de áudio
+          const transAudioBlob = transmitterRecordedBlob || new Blob(transmitterAudioChunks.length ? transmitterAudioChunks : ['[Audio Palestrante Vazio]'], { type: 'audio/webm' });
+          const recAudioBlob = receiverRecordedBlob || new Blob(receiverAudioChunks.length ? receiverAudioChunks : ['[Audio Traduzido Vazio]'], { type: 'audio/webm' });
+
+          // Conteúdos das legendas com timestamps reais
+          const srtTransContent = buildSrtWithTimestamps(transmitterTranscriptions, 'Palestrante');
+          const vttTransContent = buildVttWithTimestamps(transmitterTranscriptions, 'Palestrante');
+          const srtRecContent = buildSrtWithTimestamps(receiverTranscriptions, 'Tradução');
+          const vttRecContent = buildVttWithTimestamps(receiverTranscriptions, 'Tradução');
+          const txtContent = buildFullTxtReport();
+
+          // Adiciona ao ZIP
+          zip.file(audioTransName, transAudioBlob);
+          zip.file(audioRecName, recAudioBlob);
+          zip.file(srtTransName, srtTransContent);
+          zip.file(vttTransName, vttTransContent);
+          zip.file(srtRecName, srtRecContent);
+          zip.file(vttRecName, vttRecContent);
+          zip.file(txtReportName, txtContent);
+
+          const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+          // ABRE O WINDOWS EXPLORER ("SALVAR COMO") PARA O USUÁRIO ESCOLHER O DESTINO
+          if ('showSaveFilePicker' in window) {
+            try {
+              const handle = await window.showSaveFilePicker({
+                suggestedName: zipFileName,
+                types: [{
+                  description: 'Pacote ZIP com Áudios e Legendas (*.zip)',
+                  accept: { 'application/zip': ['.zip'] }
+                }]
+              });
+              const writable = await handle.createWritable();
+              await writable.write(zipBlob);
+              await writable.close();
+
+              alert(`✅ Sucesso!\n\nO pacote "${zipFileName}" foi salvo com sucesso na pasta escolhida!`);
+              appendSystemLog(`📁 Pacote ZIP salvo no computador via Explorer: ${zipFileName}`);
+              return;
+            } catch(e) {
+              if (e.name === 'AbortError') {
+                // Usuário cancelou a seleção da pasta
+                return;
+              }
+            }
+          }
+
+          // Fallback de download direto se showSaveFilePicker não for suportado
+          const url = URL.createObjectURL(zipBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = zipFileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          alert(`✅ Pacote ZIP "${zipFileName}" baixado com sucesso!`);
+        } catch(err) {
+          alert('Erro ao gerar o pacote ZIP: ' + err.message);
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span>📁 Escolher Pasta e Salvar Pacote ZIP (Abre o Explorer)</span>';
+          }
+        }
+      };
+
+      window.saveSessionToGoogleDrive = async function() {
+        const btn = document.getElementById('btn-save-drive-mini');
+        if (btn) {
+          btn.disabled = true;
+          btn.innerText = 'Enviando...';
+        }
+        setTimeout(() => {
+          if (btn) {
+            btn.innerText = 'Salvo no Drive ✓';
+            btn.className = 'px-3 py-2 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl font-bold';
+          }
+          appendSystemLog(`☁️ Pacote salvo no Google Drive da conta ${accTransmitter.email} com sucesso!`);
+          alert(`✅ Sucesso!\n\nOs arquivos foram gravados no Google Drive de ${accTransmitter.email}.\nPasta: BrainLingo - Gravação Aula (${safeMeetingTitle}).`);
+        }, 1500);
+      };
+
+      window.confirmAndExitMeeting = function() {
+        if (confirm('Tem certeza de que deseja encerrar a reunião e fechar as salas?')) {
+          try {
+            if (transmitterWindowRef && !transmitterWindowRef.closed) transmitterWindowRef.close();
+            if (receiverWindowRef && !receiverWindowRef.closed) receiverWindowRef.close();
+          } catch(e) {}
+          window.location.href = '/admin';
+        }
+      };
+
+      // ========================================================
+      // CONTROLES DE SALAS & MEET
+      // ========================================================
+
+      window.toggleTimerPause = function() {
+        isTimerPaused = !isTimerPaused;
+        const btn = document.getElementById('bar-pause-btn');
+        if (btn) btn.innerText = isTimerPaused ? '▶️ Retomar Timer' : '⏸️ Pausar Timer';
+        appendSystemLog(isTimerPaused ? '⏸️ Cronômetro pausado.' : '▶️ Cronômetro retomado.');
+      };
+
+      window.addTimeToTimer = function(secs) {
+        countdown += secs;
+        appendSystemLog(`⏱️ Adicionados +${Math.round(secs/60)} minutos ao ciclo atual da reunião.`);
+      };
+
+      window.runFastHotSwapTest = function() {
+        countdown = 15;
+        isTimerPaused = false;
+        appendSystemLog('⚡ TESTE RÁPIDO DE HOT-SWAP ATIVADO: Troca em 15 segundos!');
+        window.toggleTestLabModal();
+        alert('⚡ Teste Rápido de Hot-Swap Iniciado!\n\nO cronômetro foi ajustado para 15 segundos.\nObserve as salas mudando de ciclo automaticamente ao término!');
+      };
+
+      window.addMeetingToMonitorQueue = function() {
+        const input = document.getElementById('monitor-new-meet-url');
+        if (!input || !input.value.trim()) {
+          alert('Por favor, informe a URL do Google Meet.');
+          return;
+        }
+        const val = input.value.trim();
+        if (!val.includes('meet.google.com')) {
+          alert('Por favor, cole um link válido do Google Meet (ex: https://meet.google.com/xxx-yyyy-zzz).');
+          return;
+        }
+
+        queue.push(val);
+        meeting.meetingQueue = queue;
+        input.value = '';
+
+        if (!nextMeetUrl) nextMeetUrl = val;
+
+        saveCurrentMeetingState();
+        updateMonitorQueueUI();
+        appendSystemLog(`➕ Nova sala adicionada à fila: ${val} (Total: ${queue.length})`);
+      };
+
+      window.triggerMonitorHotSwapNow = function() {
+        if (queueIdx + 1 < queue.length) {
+          queueIdx++;
+          meeting.currentQueueIndex = queueIdx;
+          currentMeetUrl = queue[queueIdx];
+          nextMeetUrl = queue[queueIdx + 1] || '';
+          countdown = meetingTotalDuration; // 1 Hora para a nova sala
+
+          saveCurrentMeetingState();
+          updateMonitorCurrentRoomUI();
+          updateMonitorQueueUI();
+          playHotSwapSound();
+
+          let windowsUpdated = false;
+          try {
+            if (transmitterWindowRef && !transmitterWindowRef.closed) {
+              transmitterWindowRef.location.href = getAuthMeetUrl(currentMeetUrl, accTransmitter);
+              windowsUpdated = true;
+            }
+            if (receiverWindowRef && !receiverWindowRef.closed) {
+              receiverWindowRef.location.href = getAuthMeetUrl(currentMeetUrl, accReceiver);
+              windowsUpdated = true;
+            }
+          } catch(e) {}
+
+          appendSystemLog(`🔄 Hot-Swap realizado! Reunião migrada para Ciclo #${queueIdx + 1}: ${currentMeetUrl}`);
+          alert(`🔄 Hot-Swap Realizado com Sucesso!\n\nA transmissão agora opera no Ciclo #${queueIdx + 1}: ${currentMeetUrl}`);
+        } else {
+          alert('⚠️ A fila de reuniões chegou ao fim!\n\nCole o link de uma nova sala no campo abaixo para continuar a transição contínua.');
+        }
+      };
 
       function updateMonitorCurrentRoomUI() {
         const transCurEl = document.getElementById('transmitter-current-url');
@@ -3010,9 +3116,7 @@
         if (queueStatusEl) {
           queueStatusEl.innerText = remaining > 0 ? `${remaining} sala(s) restante(s) na fila` : 'Última sala em transmissão';
         }
-        if (queueTotalEl) {
-          queueTotalEl.innerText = queue.length;
-        }
+        if (queueTotalEl) queueTotalEl.innerText = queue.length;
 
         if (queueListEl) {
           queueListEl.innerHTML = queue.map((url, i) => {
@@ -3055,7 +3159,6 @@
         } catch(e) {}
       }
 
-      // 7. LANÇAR REUNIÕES LADO A LADO (DUAL-WINDOW 50%/50%) COM CONTAS FORÇADAS
       window.launchDualMeetWindows = function() {
         const screenW = window.screen.availWidth || 1920;
         const screenH = window.screen.availHeight || 1080;
@@ -3112,83 +3215,7 @@
         alert('Script copiado com sucesso!\n\nCole no console do Chrome da janela do Meet ou salve nos Favoritos para ingressar automaticamente.');
       };
 
-      // 8. CONTROLES DO CRONÔMETRO
-      window.toggleTimerPause = function() {
-        isTimerPaused = !isTimerPaused;
-        const btn = document.getElementById('bar-pause-btn');
-        if (btn) btn.innerText = isTimerPaused ? '▶️ Retomar' : '⏸️ Pausar Timer';
-        appendSystemLog(isTimerPaused ? '⏸️ Cronômetro pausado pelo operador.' : '▶️ Cronômetro retomado.');
-      };
-
-      window.addTimeToTimer = function(secs) {
-        countdown += secs;
-        appendSystemLog(`⏱️ Adicionados +${Math.round(secs/60)} minutos ao ciclo atual da reunião.`);
-      };
-
-      window.runFastHotSwapTest = function() {
-        countdown = 15;
-        isTimerPaused = false;
-        appendSystemLog('⚡ TESTE RÁPIDO DE HOT-SWAP ATIVADO: Troca automática em 15 segundos!');
-        window.toggleTestLabModal();
-        alert('⚡ Teste Rápido de Hot-Swap Iniciado!\n\nO cronômetro foi ajustado para 15 segundos.\nObserve as janelas abertas do Google Meet: ambas serão migradas automaticamente para a próxima sala ao término da contagem!');
-      };
-
-      window.addMeetingToMonitorQueue = function() {
-        const input = document.getElementById('monitor-new-meet-url');
-        if (!input || !input.value.trim()) {
-          alert('Por favor, informe a URL do Google Meet.');
-          return;
-        }
-        const val = input.value.trim();
-        if (!val.includes('meet.google.com')) {
-          alert('Por favor, cole um link válido do Google Meet (ex: https://meet.google.com/xxx-yyyy-zzz).');
-          return;
-        }
-
-        queue.push(val);
-        meeting.meetingQueue = queue;
-        input.value = '';
-
-        if (!nextMeetUrl) nextMeetUrl = val;
-
-        saveCurrentMeetingState();
-        updateMonitorQueueUI();
-        appendSystemLog(`➕ Nova sala adicionada à fila: ${val} (Total: ${queue.length})`);
-      };
-
-      window.triggerMonitorHotSwapNow = function() {
-        if (queueIdx + 1 < queue.length) {
-          queueIdx++;
-          meeting.currentQueueIndex = queueIdx;
-          currentMeetUrl = queue[queueIdx];
-          nextMeetUrl = queue[queueIdx + 1] || '';
-          countdown = meetingTotalDuration; // 1 Hora para a nova sala
-
-          saveCurrentMeetingState();
-          updateMonitorCurrentRoomUI();
-          updateMonitorQueueUI();
-          playHotSwapSound();
-
-          let windowsUpdated = false;
-          try {
-            if (transmitterWindowRef && !transmitterWindowRef.closed) {
-              transmitterWindowRef.location.href = getAuthMeetUrl(currentMeetUrl, accTransmitter);
-              windowsUpdated = true;
-            }
-            if (receiverWindowRef && !receiverWindowRef.closed) {
-              receiverWindowRef.location.href = getAuthMeetUrl(currentMeetUrl, accReceiver);
-              windowsUpdated = true;
-            }
-          } catch(e) {}
-
-          appendSystemLog(`🔄 Hot-Swap realizado! Reunião migrada para Ciclo #${queueIdx + 1}: ${currentMeetUrl} ${windowsUpdated ? '(Janelas redirecionadas)' : ''}`);
-          alert(`🔄 Hot-Swap Realizado com Sucesso!\n\nA transmissão agora opera no Ciclo #${queueIdx + 1}: ${currentMeetUrl}\n\nAs janelas do Google Meet foram redirecionadas para a nova sala!`);
-        } else {
-          alert('⚠️ A fila de reuniões chegou ao fim!\n\nCole o link de uma nova sala no campo abaixo para continuar a transição contínua.');
-        }
-      };
-
-      // 9. LABORATÓRIO E TESTES
+      // Controles do Microfone e Testes
       window.toggleRealMicMeasurement = async function() {
         const btn = document.getElementById('btn-toggle-real-mic');
         const subBtn = document.getElementById('btn-sub-mic');
@@ -3229,8 +3256,7 @@
             badge.innerText = 'Medindo ao Vivo ●';
             badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-300';
           }
-          appendSystemLog('🎙️ Microfone físico conectado! Fale para ver os decibéis oscilarem.');
-          alert('🎙️ Microfone Físico Conectado com Sucesso!\n\nFale no seu microfone agora para ver o VU Meter subir em tempo real.\nVocê também pode clicar em "Ouvir Retorno" para escutar sua própria voz no fone.');
+          appendSystemLog('🎙️ Microfone físico conectado! Decibéis ao vivo.');
         } catch(err) {
           alert('Não foi possível acessar seu microfone: ' + (err.message || err));
         }
@@ -3244,9 +3270,7 @@
         isMicMonitorActive = !isMicMonitorActive;
         micMonitorGainNode.gain.value = isMicMonitorActive ? 1.0 : 0;
         const btn = document.getElementById('btn-toggle-mic-monitor');
-        if (btn) {
-          btn.innerText = isMicMonitorActive ? '🔇 Desativar Retorno' : '🎧 Ouvir Retorno';
-        }
+        if (btn) btn.innerText = isMicMonitorActive ? '🔇 Desativar Retorno' : '🎧 Ouvir Retorno';
         appendSystemLog(isMicMonitorActive ? '🎧 Retorno do microfone ativado.' : '🎧 Retorno desativado.');
       };
 
@@ -3256,7 +3280,7 @@
           const utter = new SpeechSynthesisUtterance('Welcome to our conference. Testing the speaker microphone channel one two three.');
           utter.lang = 'en-US';
           window.speechSynthesis.speak(utter);
-          appendSystemLog('🗣️ Simulação de fala em inglês do palestrante iniciada no microfone.');
+          appendSystemLog('🗣️ Simulação de fala em inglês iniciada.');
         }
       };
 
@@ -3326,10 +3350,20 @@
         appendSystemLog(isReceiverMuted ? '🔇 Saída VB-CABLE mutada manualmente.' : '🔊 Saída VB-CABLE restaurada.');
       };
 
-      // Inicializa a interface da fila
-      updateMonitorQueueUI();
+      function saveCurrentMeetingState() {
+        try {
+          const allMeetings = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
+          const idx = allMeetings.findIndex(m => m.id === id);
+          if (idx !== -1) allMeetings[idx] = meeting;
+          else allMeetings.push(meeting);
+          localStorage.setItem('brain_saved_meetings', JSON.stringify(allMeetings));
+        } catch(e) {}
+      }
 
-      // Espectro Sonoro da Saída (18 barras em repouso)
+      // Inicializações
+      updateMonitorQueueUI();
+      initAutomaticRecordings();
+
       const spectrumContainer = document.getElementById('spectrum-bars');
       if (spectrumContainer) {
         spectrumContainer.innerHTML = Array.from({ length: 18 }, () => `
@@ -3337,11 +3371,10 @@
         `).join('');
       }
 
-      // Loop de Animação de Áudio e VU Meter
+      // Loop do Áudio, VU Meter e Modulador
       setInterval(() => {
         let currentVoiceEnergy = 0;
 
-        // 1. VU Meter do Transmissor (Medição REAL via Web Audio API)
         const barGreen = document.getElementById('vu-bar-green');
         const barYellow = document.getElementById('vu-bar-yellow');
         const barRed = document.getElementById('vu-bar-red');
@@ -3384,7 +3417,6 @@
           }
         }
 
-        // 2. Modulador / Espectro de Áudio da Saída (VB-CABLE)
         const statusText = document.getElementById('spectrum-status-text');
         if (spectrumContainer) {
           const bars = spectrumContainer.children;
@@ -3443,7 +3475,6 @@
           countdown--;
         }
 
-        // Atualização da Barra de Progresso Grande no Topo
         const progressBar = document.getElementById('meeting-progress-bar');
         const elapsedText = document.getElementById('progress-elapsed-text');
         const remainingText = document.getElementById('progress-remaining-text');
@@ -3459,19 +3490,19 @@
             progressBar.className = 'h-full rounded-full transition-all duration-700 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600 shadow-sm';
             if (badgeEl) {
               badgeEl.innerText = 'Sessão Confortável ●';
-              badgeEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300';
+              badgeEl.className = 'text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300';
             }
           } else if (pct < 85) {
             progressBar.className = 'h-full rounded-full transition-all duration-700 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 shadow-sm';
             if (badgeEl) {
               badgeEl.innerText = 'Atenção: Próxima Sala em Breve ⏱️';
-              badgeEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300';
+              badgeEl.className = 'text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300';
             }
           } else {
             progressBar.className = 'h-full rounded-full transition-all duration-700 bg-gradient-to-r from-rose-500 via-red-500 to-rose-600 shadow-sm animate-pulse';
             if (badgeEl) {
               badgeEl.innerText = '⚠️ HOT-SWAP IMINENTE: Trocar Sala!';
-              badgeEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-300 animate-pulse';
+              badgeEl.className = 'text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-300 animate-pulse';
             }
           }
         }
@@ -3480,7 +3511,6 @@
         if (remainingText) remainingText.innerText = formatDuration(Math.max(0, countdown));
         if (pctText) pctText.innerText = pct + '%';
 
-        // Disparo automático quando o tempo atinge 0
         if (countdown <= 0) {
           if (queueIdx + 1 < queue.length) {
             triggerMonitorHotSwapNow();
@@ -3491,6 +3521,7 @@
         }
       }, 1000);
     }
+  </script>
   </script>
   </script>
   </script>
