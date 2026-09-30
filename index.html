@@ -7,6 +7,11 @@
   <link rel="icon" type="image/svg+xml" href="frontend/public/favicon.svg">
   <!-- Tailwind CSS & Lucide Icons via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    };
+  </script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
@@ -21,57 +26,105 @@
       animation: pulseLive 2s infinite;
     }
 
-    /* TEMA CLARO CONFORTÁVEL (Fundo suave anti-reflexo, sem excesso de branco) */
+    /* ========================================================
+       TEMA CLARO CONFORTÁVEL (Fundo suave anti-reflexo, sem excesso de branco)
+       ======================================================== */
     body.light-mode {
       background-color: #f1f5f9 !important;
       color: #0f172a !important;
     }
 
-    /* TEMA ESCURO PROFISSIONAL (Estúdio / Baixa Luminosidade) */
+    /* ========================================================
+       TEMA ESCURO PROFISSIONAL (Estúdio / Baixa Luminosidade - 100% da Página)
+       ======================================================== */
+    html.dark,
+    html.dark body,
+    body.dark,
     body.dark-mode {
       background-color: #0b0f19 !important;
       color: #f1f5f9 !important;
     }
-    body.dark-mode header {
-      background-color: rgba(15, 23, 42, 0.95) !important;
+
+    /* Headers, Topos Congelados e Barras */
+    html.dark header,
+    html.dark .sticky,
+    html.dark [class*="backdrop-blur"] {
+      background-color: rgba(15, 23, 42, 0.96) !important;
       border-color: #334155 !important;
       color: #f8fafc !important;
     }
-    body.dark-mode .bg-white {
-      background-color: #162032 !important;
-      border-color: #334155 !important;
+
+    /* Cards, Seções e Gradients no Dashboard e Cockpit */
+    html.dark section,
+    html.dark .bg-white,
+    html.dark [class*="bg-white"],
+    html.dark [class*="bg-slate-50"],
+    html.dark [class*="bg-slate-100"],
+    html.dark [class*="bg-slate-200"],
+    html.dark [class*="from-blue-50"],
+    html.dark [class*="from-indigo-50"],
+    html.dark [class*="from-emerald-50"] {
+      background-color: #111827 !important;
+      background-image: none !important;
+      border-color: #374151 !important;
       color: #f8fafc !important;
     }
-    body.dark-mode .bg-slate-50, body.dark-mode .bg-slate-100 {
-      background-color: #0f172a !important;
-      border-color: #334155 !important;
+
+    /* Cabeçalhos de Seções e Sub-blocos */
+    html.dark section > div:first-child,
+    html.dark [class*="bg-blue-100"],
+    html.dark [class*="bg-indigo-100"],
+    html.dark [class*="bg-emerald-100"] {
+      background-color: #1e293b !important;
+      border-color: #374151 !important;
+      color: #f8fafc !important;
+    }
+
+    /* Tipografia e Títulos */
+    html.dark .text-slate-900,
+    html.dark .text-slate-800,
+    html.dark .text-slate-700,
+    html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark strong {
+      color: #f8fafc !important;
+    }
+
+    html.dark .text-slate-600,
+    html.dark .text-slate-500 {
       color: #cbd5e1 !important;
     }
-    body.dark-mode .text-slate-900, body.dark-mode .text-slate-800 {
-      color: #f8fafc !important;
-    }
-    body.dark-mode .text-slate-700, body.dark-mode .text-slate-600 {
-      color: #cbd5e1 !important;
-    }
-    body.dark-mode .text-slate-500, body.dark-mode .text-slate-400 {
+
+    html.dark .text-slate-400 {
       color: #94a3b8 !important;
     }
-    body.dark-mode .border-slate-200, body.dark-mode .border-slate-300 {
-      border-color: #334155 !important;
+
+    /* Bordas */
+    html.dark .border-slate-200,
+    html.dark .border-slate-300,
+    html.dark .border-blue-100,
+    html.dark .border-blue-200,
+    html.dark .border-indigo-100,
+    html.dark .border-indigo-200,
+    html.dark .border-emerald-100,
+    html.dark .border-emerald-200 {
+      border-color: #374151 !important;
     }
-    body.dark-mode .border-blue-100, body.dark-mode .border-blue-200 {
-      border-color: rgba(59, 130, 246, 0.35) !important;
-    }
-    body.dark-mode .border-indigo-100, body.dark-mode .border-indigo-200 {
-      border-color: rgba(99, 102, 241, 0.35) !important;
-    }
-    body.dark-mode .border-emerald-100, body.dark-mode .border-emerald-200 {
-      border-color: rgba(16, 185, 129, 0.35) !important;
-    }
-    body.dark-mode input, body.dark-mode select {
+
+    /* Inputs, Selects e Textareas */
+    html.dark input,
+    html.dark select,
+    html.dark textarea {
       background-color: #1e293b !important;
       color: #f8fafc !important;
-      border-color: #475569 !important;
+      border-color: #4b5563 !important;
+    }
+
+    /* Modais */
+    html.dark #share-telao-modal > div,
+    html.dark #finish-meeting-modal > div,
+    html.dark #test-lab-modal > div {
+      background-color: #111827 !important;
+      border-color: #374151 !important;
+      color: #f8fafc !important;
     }
   </style>
 </head>
@@ -96,10 +149,15 @@
       try {
         localStorage.setItem('brain_theme', theme);
       } catch(e) {}
-      if (theme === 'dark') {
-        document.body.classList.remove('light-mode');
+      const isDark = theme === 'dark';
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('dark');
         document.body.classList.add('dark-mode');
+        document.body.classList.remove('light-mode');
       } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
         document.body.classList.remove('dark-mode');
         document.body.classList.add('light-mode');
       }
@@ -209,7 +267,8 @@
     }
     // 2. ROTA: MONITOR DEDICADO DO COCKPIT DA REUNIÃO (?meeting=xyz ou /meeting/xyz)
     else if (meetingId) {
-      document.body.className = "bg-slate-950 text-slate-100 font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
+      document.body.className = "font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
+      setGlobalTheme(getStoredTheme());
       try {
         renderMeetingRoomMonitor(meetingId);
       } catch(err) {
@@ -231,7 +290,8 @@
     } 
     // 2. ROTA: ÁREA ADMINISTRATIVA (/admin ou ?admin=true)
     else if (isAdmin) {
-      document.body.className = "bg-slate-50 text-slate-900 font-sans antialiased m-0 min-h-screen";
+      document.body.className = "font-sans antialiased m-0 min-h-screen";
+      setGlobalTheme(getStoredTheme());
       checkAdminAuthAndRender();
     } 
     // 3. ROTA PADRÃO PÚBLICA: PÁGINA EM CONSTRUÇÃO CLEAN E CLARA (/)
@@ -2414,10 +2474,15 @@
                     <div class="flex items-center gap-2">
                       <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
                       <span class="text-xs font-bold text-slate-900 dark:text-blue-200">Transcrição do Palestrante (Entrada):</span>
-                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1 shadow-2xs">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         Gravação Ativa ●
                       </span>
+                      <!-- BOTÃO INTERATIVO: CONECTAR MICROFONE & TRANSCRIÇÃO AUTOMÁTICA -->
+                      <button onclick="toggleRealMicCapture()" id="top-mic-transcribe-btn" class="mic-transcribe-status-indicator text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1 shadow-2xs cursor-pointer animate-pulse">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        🎙️ Conectar Microfone para Legendas
+                      </button>
                     </div>
                     <div class="flex items-center gap-1.5">
                       <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Idioma de Entrada:</span>
@@ -3171,22 +3236,46 @@
         startContinuousSpeechTranscription();
       }
 
+      let speechRecognizerRestartTimeout = null;
+      function scheduleSpeechRecognizerRestart() {
+        if (speechRecognizerRestartTimeout) clearTimeout(speechRecognizerRestartTimeout);
+        speechRecognizerRestartTimeout = setTimeout(() => {
+          if (isRealMicActive && !isTimerPaused) {
+            try {
+              if (speechRecognizer) {
+                try { speechRecognizer.start(); } catch(e) {
+                  startContinuousSpeechTranscription();
+                }
+              } else {
+                startContinuousSpeechTranscription();
+              }
+            } catch(e) {
+              startContinuousSpeechTranscription();
+            }
+          }
+        }, 300);
+      }
+
       function startContinuousSpeechTranscription() {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRec) return;
+        if (!SpeechRec) {
+          appendSystemLog('⚠️ Reconhecimento de voz não suportado neste navegador. Use Google Chrome ou Edge.');
+          return;
+        }
 
         try {
           if (speechRecognizer) {
-            try { speechRecognizer.stop(); } catch(e) {}
+            try { speechRecognizer.abort(); } catch(e) {}
           }
           speechRecognizer = new SpeechRec();
           speechRecognizer.continuous = true;
           speechRecognizer.interimResults = true;
-          speechRecognizer.lang = selectedSourceLanguage;
+          speechRecognizer.lang = selectedSourceLanguage || 'pt-BR';
 
           speechRecognizer.onstart = () => {
             isTranscribingSpeech = true;
-            appendSystemLog(`🎙️ Transcrição do transmissor conectada no idioma: ${selectedSourceLanguage}`);
+            updateMicStatusBadges(true);
+            appendSystemLog(`🎙️ Reconhecimento de voz ATIVO no microfone (${selectedSourceLanguage}). Fale normalmente.`);
           };
 
           speechRecognizer.onresult = (event) => {
@@ -3195,7 +3284,7 @@
               const transcript = event.results[i][0].transcript;
               if (event.results[i].isFinal) {
                 const startSec = sessionElapsedSeconds;
-                const endSec = startSec + Math.max(2.5, transcript.length * 0.08);
+                const endSec = startSec + Math.max(2.2, transcript.length * 0.08);
 
                 // FRACIONAMENTO HARMONIOSO EM BLOCOS CURTOS (MÁX ~48 CARACTERES)
                 const chunks = splitTextIntoHarmoniousSubtitleChunks(transcript, startSec, endSec, 48);
@@ -3203,30 +3292,40 @@
                   addTransmitterSentenceClean(c.text, c.timeStart, c.timeEnd);
                 });
                 
-                if (!isReceiverListening) {
-                  translateAndAddReceiverSentenceClean(transcript, startSec, endSec);
-                }
+                // Tradução automática e envio para canal receptor e telão
+                translateAndAddReceiverSentenceClean(transcript, startSec, endSec);
               } else {
                 interim += transcript;
               }
             }
             const interimEl = document.getElementById('transmitter-interim-text');
-            if (interimEl) interimEl.innerText = interim ? `${interim}...` : '';
+            if (interimEl) interimEl.innerText = interim ? `💬 ${interim}...` : '';
           };
 
           speechRecognizer.onerror = (e) => {
-            if (e.error === 'no-speech') return;
-            console.warn('Transmitter speechRecognition erro:', e.error);
+            console.warn('Transmitter speechRecognition aviso:', e.error);
+            if (e.error === 'not-allowed') {
+              isRealMicActive = false;
+              updateMicStatusBadges(false);
+              appendSystemLog('❌ Permissão de microfone negada. Clique no ícone de cadeado na barra de endereços do Chrome para permitir o microfone.');
+            } else if (e.error === 'no-speech' || e.error === 'network' || e.error === 'aborted') {
+              scheduleSpeechRecognizerRestart();
+            }
           };
 
           speechRecognizer.onend = () => {
-            if (!isTimerPaused) {
-              try { speechRecognizer.start(); } catch(e) {}
+            if (isRealMicActive && !isTimerPaused) {
+              scheduleSpeechRecognizerRestart();
+            } else {
+              isTranscribingSpeech = false;
+              updateMicStatusBadges(false);
             }
           };
 
           speechRecognizer.start();
-        } catch(e) {}
+        } catch(e) {
+          scheduleSpeechRecognizerRestart();
+        }
 
         startReceiverAudioTranscription();
       }
@@ -3712,6 +3811,19 @@
         if (modal) modal.classList.toggle('hidden');
       };
 
+      function updateMicStatusBadges(isActive) {
+        const btns = document.querySelectorAll('.mic-transcribe-status-indicator');
+        btns.forEach(btn => {
+          if (isActive) {
+            btn.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Microfone & Legendas: Ativo ●';
+            btn.className = 'mic-transcribe-status-indicator text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1 shadow-2xs cursor-pointer';
+          } else {
+            btn.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-500"></span> 🎙️ Conectar Microfone para Legendas';
+            btn.className = 'mic-transcribe-status-indicator text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1 shadow-2xs cursor-pointer animate-pulse';
+          }
+        });
+      }
+
       window.toggleRealMicCapture = async function() {
         const btn = document.getElementById('btn-real-mic-toggle');
         const labBtn = document.getElementById('lab-mic-btn');
@@ -3738,10 +3850,28 @@
               labBtn.innerText = 'Microfone Ativo ●';
               labBtn.className = 'px-3 py-1 bg-emerald-500 text-white rounded-lg font-semibold';
             }
-            appendSystemLog('Microfone físico conectado ao monitor.');
+            updateMicStatusBadges(true);
+            appendSystemLog('🎙️ Microfone físico conectado! Reconhecimento e legendas automáticas ativados.');
             startMicVuMeterLoop();
+
+            // Gravação real do áudio com o microfone ativo
+            try {
+              transmitterAudioChunks = [];
+              transmitterMediaRecorder = new MediaRecorder(micMediaStream);
+              transmitterMediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) transmitterAudioChunks.push(e.data);
+              };
+              transmitterMediaRecorder.onstop = () => {
+                transmitterRecordedBlob = new Blob(transmitterAudioChunks, { type: 'audio/webm' });
+              };
+              transmitterMediaRecorder.start(1000);
+              isRecordingTransmitter = true;
+            } catch(e) {}
+
+            // INICIA IMEDIATAMENTE A TRANSCRIÇÃO DE VOZ EM TEMPO REAL
+            startContinuousSpeechTranscription();
           } catch(err) {
-            alert('Erro ao acessar microfone: ' + err.message);
+            alert('Não foi possível acessar o microfone: ' + err.message + '\n\nCertifique-se de que o navegador tem permissão para usar o microfone.');
           }
         } else {
           if (micMediaStream) micMediaStream.getTracks().forEach(t => t.stop());
@@ -3755,38 +3885,13 @@
             labBtn.innerText = 'Testar Microfone';
             labBtn.className = 'px-3 py-1 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700';
           }
+          updateMicStatusBadges(false);
+          if (speechRecognizer) {
+            try { speechRecognizer.stop(); } catch(e) {}
+          }
           appendSystemLog('Microfone físico desconectado.');
         }
       };
-
-      function startMicVuMeterLoop() {
-        if (!micAnalyserNode) return;
-        const dataArray = new Uint8Array(micAnalyserNode.frequencyBinCount);
-        const vuBar = document.getElementById('mic-vu-bar');
-        const vuText = document.getElementById('mic-vu-text');
-        const labBar = document.getElementById('lab-mic-vu-bar');
-
-        function updateVU() {
-          if (!isRealMicActive) {
-            if (vuBar) vuBar.style.width = '0%';
-            if (vuText) vuText.innerText = '0%';
-            if (labBar) labBar.style.width = '0%';
-            return;
-          }
-          micAnalyserNode.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-          const avg = sum / dataArray.length;
-          const pct = Math.min(100, Math.round((avg / 128) * 100));
-
-          if (vuBar) vuBar.style.width = pct + '%';
-          if (vuText) vuText.innerText = pct + '%';
-          if (labBar) labBar.style.width = pct + '%';
-
-          requestAnimationFrame(updateVU);
-        }
-        updateVU();
-      }
 
       window.toggleMicMonitor = function() {
         const btn = document.getElementById('mic-monitor-btn');
