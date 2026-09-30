@@ -216,15 +216,11 @@
     }
 
     function getStoredAudioLanguageSettings() {
-      try {
-        const raw = localStorage.getItem('brain_audio_lang_settings');
-        if (raw) return JSON.parse(raw);
-      } catch (e) {}
-      return {
-        sourceLanguage: 'en-US',
-        sourceLanguageLabel: 'Inglês (Estados Unidos / Global)',
-        targetLanguage: 'pt-BR',
-        targetLanguageLabel: 'Português (Brasil)',
+      let settings = {
+        sourceLanguage: 'pt-BR',
+        sourceLanguageLabel: 'Português (Brasil)',
+        targetLanguage: 'en-US',
+        targetLanguageLabel: 'Inglês (Estados Unidos / Global)',
         transmitterInputDevice: 'event-line',
         transmitterInputLabel: 'Áudio do Evento (Mesa de Som / Linha)',
         transmitterSpeakerMuted: true,
@@ -233,6 +229,14 @@
         receiverOutputLabel: 'CABLE Output / VB-Audio Virtual Cable (Mesa de Som)',
         cameraDisabled: true
       };
+      try {
+        const raw = localStorage.getItem('brain_audio_lang_settings');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          settings = Object.assign(settings, parsed);
+        }
+      } catch (e) {}
+      return settings;
     }
 
     function saveStoredAudioLanguageSettings(settings) {
@@ -2094,12 +2098,16 @@
           const firstP = feed.querySelector('.italic');
           if (firstP) firstP.remove();
 
-          const p = document.createElement('p');
-          p.className = 'leading-relaxed transition-all duration-300 py-1.5 border-b border-white/10';
+          if (feed.firstElementChild) {
+            feed.firstElementChild.className = 'leading-relaxed transition-all duration-200 py-1 border-b border-white/10 opacity-80 font-normal';
+          }
+
+          const p = document.createElement('div');
+          p.className = 'leading-relaxed transition-all duration-300 py-1.5 px-2 rounded-lg bg-white/15 border-b border-white/20 font-bold shadow-xs';
           p.innerText = data.text;
           feed.prepend(p); // Mais novo sempre no topo!
 
-          while (feed.children.length > 6) {
+          while (feed.children.length > 20) {
             feed.removeChild(feed.lastChild);
           }
         }
@@ -2498,11 +2506,11 @@
                   </div>
 
                   <!-- TERMINAL VISUAL LIMPO (LINHA MAIS NOVA NO TOPO - FRASES CURTAS) -->
-                  <div id="transmitter-subtitle-box" class="rounded-xl p-3 shadow-inner space-y-1.5 h-[165px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
-                    <div id="transmitter-interim-text" class="italic opacity-85 min-h-[16px] font-semibold text-sky-400 pb-1 border-b border-white/10 text-xs"></div>
-                    <div id="transmitter-transcription-feed" class="space-y-1.5 ${subtitleConfig.fontFamily} flex-1 overflow-y-auto">
+                  <div id="transmitter-subtitle-box" class="rounded-xl p-3 shadow-inner space-y-1.5 h-[175px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
+                    <div id="transmitter-interim-text" class="italic opacity-90 min-h-[18px] font-semibold text-sky-400 pb-1 border-b border-white/10 text-xs shrink-0"></div>
+                    <div id="transmitter-transcription-feed" class="space-y-2 ${subtitleConfig.fontFamily} flex flex-col w-full">
                       <div class="placeholder-empty text-slate-500 italic text-xs py-8 text-center">
-                        Aguardando fala do palestrante... As legendas curtas e harmoniosas aparecerão aqui.
+                        Aguardando fala do palestrante... As legendas curtas e harmoniosas aparecerão aqui no topo.
                       </div>
                     </div>
                   </div>
@@ -2568,11 +2576,11 @@
                   </div>
 
                   <!-- TERMINAL VISUAL LIMPO (LINHA MAIS NOVA NO TOPO - FRASES CURTAS) -->
-                  <div id="receiver-subtitle-box" class="rounded-xl p-3 shadow-inner space-y-1.5 h-[165px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
-                    <div id="receiver-interim-text" class="italic opacity-85 min-h-[16px] font-semibold text-emerald-400 pb-1 border-b border-white/10 text-xs"></div>
-                    <div id="receiver-transcription-feed" class="space-y-1.5 ${subtitleConfig.fontFamily} flex-1 overflow-y-auto">
+                  <div id="receiver-subtitle-box" class="rounded-xl p-3 shadow-inner space-y-1.5 h-[175px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
+                    <div id="receiver-interim-text" class="italic opacity-90 min-h-[18px] font-semibold text-emerald-400 pb-1 border-b border-white/10 text-xs shrink-0"></div>
+                    <div id="receiver-transcription-feed" class="space-y-2 ${subtitleConfig.fontFamily} flex flex-col w-full">
                       <div class="placeholder-empty text-slate-500 italic text-xs py-8 text-center">
-                        Aguardando áudio traduzido da reunião receptora... As legendas curtas e harmoniosas aparecerão aqui.
+                        Aguardando áudio traduzido da reunião receptora... As legendas curtas e harmoniosas aparecerão aqui no topo.
                       </div>
                     </div>
                   </div>
@@ -2787,30 +2795,65 @@
                   </div>
                 </div>
 
-                <!-- Painel do VB-CABLE & Modulador de Saída -->
-                <div class="bg-white/90 dark:bg-slate-800/90 border border-indigo-100 dark:border-slate-700 rounded-2xl p-4 space-y-2.5 shadow-2xs">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      <span>🔊 Saída de Áudio Traduzido (Cabo Virtual):</span>
+                <!-- SELETOR DE LEITURA DE SAÍDA / RETORNO DO RECEPTOR (VB-CABLE) & VU METER -->
+                <div class="bg-white/90 dark:bg-slate-800/90 border border-indigo-100 dark:border-slate-700 rounded-2xl p-4 space-y-3 shadow-2xs">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <label for="receiver-audio-select" class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <span>🎧 Dispositivo de Leitura do Receptor (VB-CABLE / Retorno):</span>
+                    </label>
+                    <span id="receiver-audio-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1">
+                      Desconectado ○
                     </span>
-                    <button onclick="playTestSpeechToOutput()" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-300 cursor-pointer shadow-2xs">
-                      🔊 Testar Saída VB-CABLE
+                  </div>
+
+                  <!-- Dropdown de Dispositivos e Botão de Conexão -->
+                  <div class="flex flex-col sm:flex-row gap-2">
+                    <div class="relative flex-1">
+                      <select id="receiver-audio-select" onchange="onReceiverAudioDeviceSelected(this.value)" class="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer">
+                        <option value="default">🎧 Dispositivo Padrão / CABLE Output (VB-Audio)</option>
+                      </select>
+                    </div>
+
+                    <!-- Botão Conectar / Desconectar Leitura do Receptor -->
+                    <button id="btn-toggle-receiver-audio" onclick="toggleReceiverAudioCapture()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap">
+                      <span>🎧 Conectar Leitura da Tradução</span>
                     </button>
                   </div>
 
-                  <div class="text-xs text-indigo-700 dark:text-indigo-300 font-semibold flex items-center gap-1.5">
-                    <span>🔌 CABLE Input / VB-Audio Virtual Cable (Mesa de Som / Rádio)</span>
+                  <!-- Instrução e Teste VB-CABLE -->
+                  <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span class="flex items-center gap-1">
+                      <span>⚡ Selecione o cabo virtual (ex: <strong>CABLE Output</strong>) para ler o áudio que o Meet receptor reproduz</span>
+                    </span>
+                    <button onclick="playTestSpeechToOutput()" class="text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer font-semibold flex items-center gap-0.5">
+                      <span>🔊 Testar Som VB-CABLE</span>
+                    </button>
                   </div>
 
+                  <!-- VU METER REAL DO CANAL RECEPTOR -->
+                  <div class="space-y-1.5 pt-1 border-t border-slate-150 dark:border-slate-700/60">
+                    <div class="flex items-center justify-between text-[11px]">
+                      <span class="text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-slate-400" id="receiver-vu-led"></span>
+                        <span>Nível do Áudio Traduzido (VU Meter Receptor):</span>
+                      </span>
+                      <strong id="receiver-vu-text" class="font-mono text-slate-700 dark:text-slate-200">0%</strong>
+                    </div>
+                    <div class="w-full h-3.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-700 shadow-inner">
+                      <div id="receiver-vu-bar" class="h-full rounded-full transition-all duration-75 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400" style="width: 0%;"></div>
+                    </div>
+                  </div>
+
+                  <!-- Barras Espectrais de Modulação -->
                   <div class="bg-slate-50 dark:bg-slate-900 border border-indigo-150 dark:border-indigo-900/50 rounded-xl p-3 flex flex-col items-center">
                     <div id="spectrum-bars" class="flex items-end justify-center gap-1 h-8 w-full mb-1"></div>
                     <div id="spectrum-status-text" class="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 font-medium">
                       <span class="w-2 h-2 rounded-full bg-slate-400"></span>
-                      Modulador em Repouso (Silêncio no microfone)
+                      Canal Receptor em Repouso (Aguardando fala da reunião)
                     </div>
                   </div>
 
-                  <!-- Volume Master -->
+                  <!-- Volume Master e Mute -->
                   <div class="pt-1 flex items-center justify-between gap-3 text-xs">
                     <div class="flex items-center gap-2">
                       <button id="mute-btn" onclick="toggleReceiverMute()" class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-300 font-bold cursor-pointer hover:bg-slate-100 shadow-2xs">
@@ -3219,6 +3262,7 @@
       // SISTEMA DE ÁUDIO MASTER: GRAVAÇÃO, VU METER & TRANSCRIÇÃO
       // ========================================================
       let selectedMicDeviceId = localStorage.getItem('brain_selected_transmitter_mic') || 'default';
+      let selectedReceiverAudioDeviceId = localStorage.getItem('brain_selected_receiver_audio') || 'default';
       let availableAudioInputDevices = [];
 
       async function refreshAudioDevicesList(showFeedback = false) {
@@ -3226,41 +3270,202 @@
           const devices = await navigator.mediaDevices.enumerateDevices();
           availableAudioInputDevices = devices.filter(d => d.kind === 'audioinput');
           
-          const select = document.getElementById('transmitter-mic-select');
-          if (!select) return;
+          // 1. Canal Transmissor (Microfone)
+          const transSelect = document.getElementById('transmitter-mic-select');
+          if (transSelect) {
+            transSelect.innerHTML = '';
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = 'default';
+            defaultOpt.innerText = '🎙️ Microfone Padrão do Sistema (Windows)';
+            transSelect.appendChild(defaultOpt);
 
-          select.innerHTML = '';
+            let foundSelected = false;
+            availableAudioInputDevices.forEach((dev, idx) => {
+              const opt = document.createElement('option');
+              opt.value = dev.deviceId;
+              const label = dev.label ? dev.label : `Entrada de Áudio ${idx + 1} (${dev.deviceId.slice(0, 6)}...)`;
+              opt.innerText = `🎤 ${label}`;
+              if (dev.deviceId === selectedMicDeviceId) {
+                opt.selected = true;
+                foundSelected = true;
+              }
+              transSelect.appendChild(opt);
+            });
 
-          // Opção Padrão do Sistema
-          const defaultOpt = document.createElement('option');
-          defaultOpt.value = 'default';
-          defaultOpt.innerText = '🎙️ Microfone Padrão do Sistema (Windows)';
-          select.appendChild(defaultOpt);
-
-          let foundSelected = false;
-          availableAudioInputDevices.forEach((dev, idx) => {
-            const opt = document.createElement('option');
-            opt.value = dev.deviceId;
-            const label = dev.label ? dev.label : `Entrada de Áudio ${idx + 1} (${dev.deviceId.slice(0, 6)}...)`;
-            opt.innerText = `🎤 ${label}`;
-            if (dev.deviceId === selectedMicDeviceId) {
-              opt.selected = true;
-              foundSelected = true;
+            if (!foundSelected && selectedMicDeviceId && selectedMicDeviceId !== 'default') {
+              transSelect.value = 'default';
             }
-            select.appendChild(opt);
-          });
+          }
 
-          if (!foundSelected && selectedMicDeviceId && selectedMicDeviceId !== 'default') {
-            select.value = 'default';
+          // 2. Canal Receptor (VB-CABLE / Saída Traduzida)
+          const recSelect = document.getElementById('receiver-audio-select');
+          if (recSelect) {
+            recSelect.innerHTML = '';
+            const defaultRecOpt = document.createElement('option');
+            defaultRecOpt.value = 'default';
+            defaultRecOpt.innerText = '🎧 Dispositivo Padrão / CABLE Output (VB-Audio)';
+            recSelect.appendChild(defaultRecOpt);
+
+            let foundRecSelected = false;
+            let detectedCableDeviceId = null;
+
+            availableAudioInputDevices.forEach((dev, idx) => {
+              const opt = document.createElement('option');
+              opt.value = dev.deviceId;
+              const label = dev.label ? dev.label : `Dispositivo ${idx + 1} (${dev.deviceId.slice(0, 6)}...)`;
+              opt.innerText = `🎧 ${label}`;
+
+              const lower = label.toLowerCase();
+              if (lower.includes('cable') || lower.includes('virtual') || lower.includes('stereo mix') || lower.includes('mixagem')) {
+                detectedCableDeviceId = dev.deviceId;
+              }
+
+              if (dev.deviceId === selectedReceiverAudioDeviceId) {
+                opt.selected = true;
+                foundRecSelected = true;
+              }
+              recSelect.appendChild(opt);
+            });
+
+            if (!foundRecSelected && (!selectedReceiverAudioDeviceId || selectedReceiverAudioDeviceId === 'default') && detectedCableDeviceId) {
+              recSelect.value = detectedCableDeviceId;
+              selectedReceiverAudioDeviceId = detectedCableDeviceId;
+              localStorage.setItem('brain_selected_receiver_audio', detectedCableDeviceId);
+            }
           }
 
           if (showFeedback) {
-            appendSystemLog(`🔄 Lista de microfones atualizada: ${availableAudioInputDevices.length} dispositivos encontrados.`);
+            appendSystemLog(`🔄 Lista de dispositivos atualizada: ${availableAudioInputDevices.length} encontrados.`);
           }
         } catch(e) {
           console.warn('Erro ao enumerar dispositivos de áudio:', e);
         }
       }
+
+      // ESTADO DE ÁUDIO DO CANAL RECEPTOR (LEITURA DO VB-CABLE / RETORNO)
+      let receiverAudioContext = null;
+      let receiverMediaStream = null;
+      let receiverAnalyserNode = null;
+      let isReceiverAudioCaptureActive = false;
+
+      window.toggleReceiverAudioCapture = async function() {
+        if (!isReceiverAudioCaptureActive) {
+          await startReceiverAudioCapture();
+        } else {
+          stopReceiverAudioCapture();
+        }
+      };
+
+      async function startReceiverAudioCapture() {
+        const select = document.getElementById('receiver-audio-select');
+        const targetDeviceId = select ? select.value : selectedReceiverAudioDeviceId;
+
+        const constraints = {
+          audio: (targetDeviceId && targetDeviceId !== 'default') 
+            ? { deviceId: { exact: targetDeviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false } 
+            : { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+        };
+
+        try {
+          if (receiverMediaStream) {
+            receiverMediaStream.getTracks().forEach(t => t.stop());
+          }
+          receiverMediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+          await refreshAudioDevicesList();
+
+          if (!receiverAudioContext || receiverAudioContext.state === 'closed') {
+            receiverAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          if (receiverAudioContext.state === 'suspended') {
+            await receiverAudioContext.resume();
+          }
+
+          const source = receiverAudioContext.createMediaStreamSource(receiverMediaStream);
+          receiverAnalyserNode = receiverAudioContext.createAnalyser();
+          receiverAnalyserNode.fftSize = 256;
+          receiverAnalyserNode.smoothingTimeConstant = 0.4;
+          source.connect(receiverAnalyserNode);
+
+          isReceiverAudioCaptureActive = true;
+
+          const btn = document.getElementById('btn-toggle-receiver-audio');
+          if (btn) {
+            btn.innerHTML = '<span>⏹️ Desconectar Leitura</span>';
+            btn.className = 'px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap';
+          }
+
+          const badge = document.getElementById('receiver-audio-badge');
+          if (badge) {
+            badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Ativo ● Lendo VB-CABLE';
+            badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1 shadow-2xs';
+          }
+
+          appendSystemLog('🎧 Leitura do canal receptor ativada com sucesso! VU Meter e modulação iniciados.');
+
+          // Gravação real do áudio receptor em paralelo
+          try {
+            receiverAudioChunks = [];
+            receiverMediaRecorder = new MediaRecorder(receiverMediaStream);
+            receiverMediaRecorder.ondataavailable = (e) => {
+              if (e.data.size > 0) receiverAudioChunks.push(e.data);
+            };
+            receiverMediaRecorder.onstop = () => {
+              receiverRecordedBlob = new Blob(receiverAudioChunks, { type: 'audio/webm' });
+            };
+            receiverMediaRecorder.start(1000);
+            isRecordingReceiver = true;
+          } catch(e) {}
+
+          // Inicia reconhecimento direto no áudio receptor
+          startReceiverSpeechRecognition();
+        } catch(err) {
+          alert('Erro ao ativar leitura do canal receptor: ' + err.message + '\n\nCertifique-se de que o dispositivo está conectado e que o navegador possui permissão.');
+        }
+      }
+
+      function stopReceiverAudioCapture() {
+        if (receiverMediaStream) {
+          receiverMediaStream.getTracks().forEach(t => t.stop());
+          receiverMediaStream = null;
+        }
+        if (receiverAudioContext && receiverAudioContext.state !== 'closed') {
+          receiverAudioContext.close().catch(() => {});
+        }
+        isReceiverAudioCaptureActive = false;
+
+        const btn = document.getElementById('btn-toggle-receiver-audio');
+        if (btn) {
+          btn.innerHTML = '<span>🎧 Conectar Leitura da Tradução</span>';
+          btn.className = 'px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap';
+        }
+
+        const badge = document.getElementById('receiver-audio-badge');
+        if (badge) {
+          badge.innerHTML = 'Desconectado ○';
+          badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1';
+        }
+
+        const bar = document.getElementById('receiver-vu-bar');
+        const text = document.getElementById('receiver-vu-text');
+        const led = document.getElementById('receiver-vu-led');
+        if (bar) bar.style.width = '0%';
+        if (text) text.innerText = '0%';
+        if (led) led.className = 'w-2 h-2 rounded-full bg-slate-400';
+
+        if (receiverSpeechRecognizer) {
+          try { receiverSpeechRecognizer.stop(); } catch(e) {}
+        }
+
+        appendSystemLog('Leitura do canal receptor desconectada.');
+      }
+
+      window.onReceiverAudioDeviceSelected = function(deviceId) {
+        selectedReceiverAudioDeviceId = deviceId;
+        localStorage.setItem('brain_selected_receiver_audio', deviceId);
+        if (isReceiverAudioCaptureActive) {
+          startReceiverAudioCapture();
+        }
+      };
 
       // Auto-detecção de novos dispositivos conectados via USB ou P2
       if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
@@ -3572,6 +3777,538 @@
         }
       }
 
+      // ========================================================
+      // GERENCIAMENTO DE IDIOMAS & TRANSCRIÇÃO DE VOZ
+      // ========================================================
+      window.changeSpeakerSourceLanguage = function(newLang) {
+        selectedSourceLanguage = newLang;
+        meeting.sourceLanguage = newLang;
+        try {
+          const saved = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
+          const idx = saved.findIndex(m => m.id === meeting.id);
+          if (idx !== -1) {
+            saved[idx].sourceLanguage = newLang;
+            localStorage.setItem('brain_saved_meetings', JSON.stringify(saved));
+          }
+          const audioSettings = getStoredAudioLanguageSettings();
+          audioSettings.sourceLanguage = newLang;
+          saveStoredAudioLanguageSettings(audioSettings);
+        } catch(e) {}
+
+        appendSystemLog(`🌐 Idioma de entrada do palestrante alterado para: ${newLang}`);
+
+        // Reinicia imediatamente o SpeechRecognition no novo idioma sem travar
+        if (speechRecognizer) {
+          try { speechRecognizer.abort(); } catch(e) {}
+        }
+        if (isRealMicActive && !isTimerPaused) {
+          setTimeout(() => {
+            startContinuousSpeechTranscription();
+          }, 150);
+        }
+      };
+
+      window.changeReceiverTargetLanguage = function(newLang) {
+        selectedTargetLanguage = newLang;
+        meeting.targetLanguage = newLang;
+        try {
+          const saved = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
+          const idx = saved.findIndex(m => m.id === meeting.id);
+          if (idx !== -1) {
+            saved[idx].targetLanguage = newLang;
+            localStorage.setItem('brain_saved_meetings', JSON.stringify(saved));
+          }
+          const audioSettings = getStoredAudioLanguageSettings();
+          audioSettings.targetLanguage = newLang;
+          saveStoredAudioLanguageSettings(audioSettings);
+        } catch(e) {}
+
+        const badge = document.getElementById('receiver-listen-badge');
+        if (badge) {
+          badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Ouvindo Saída (${newLang}) ●`;
+        }
+
+        appendSystemLog(`🌐 Idioma da tradução alterado para: ${newLang}`);
+
+        if (receiverSpeechRecognizer) {
+          try { receiverSpeechRecognizer.abort(); } catch(e) {}
+        }
+        if (isReceiverAudioCaptureActive && !isTimerPaused) {
+          setTimeout(() => {
+            startReceiverSpeechRecognition();
+          }, 150);
+        }
+      };
+
+      function startReceiverSpeechRecognition() {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) return;
+
+        try {
+          if (receiverSpeechRecognizer) {
+            try { receiverSpeechRecognizer.abort(); } catch(e) {}
+          }
+          receiverSpeechRecognizer = new SpeechRec();
+          receiverSpeechRecognizer.continuous = true;
+          receiverSpeechRecognizer.interimResults = true;
+          receiverSpeechRecognizer.lang = selectedTargetLanguage || 'en-US';
+
+          receiverSpeechRecognizer.onstart = () => {
+            isReceiverListening = true;
+            appendSystemLog(`🎧 Reconhecedor de fala do canal receptor ATIVO (${selectedTargetLanguage}).`);
+          };
+
+          receiverSpeechRecognizer.onresult = (event) => {
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const transcript = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                const startSec = sessionElapsedSeconds;
+                const endSec = startSec + Math.max(2.2, transcript.length * 0.08);
+                const chunks = splitTextIntoHarmoniousSubtitleChunks(transcript, startSec, endSec, 48);
+                chunks.forEach(c => {
+                  addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, true);
+                });
+              } else {
+                interim += transcript;
+              }
+            }
+            const interimEl = document.getElementById('receiver-interim-text');
+            if (interimEl) interimEl.innerText = interim ? `💬 ${interim}...` : '';
+          };
+
+          receiverSpeechRecognizer.onerror = (e) => {
+            if (isReceiverAudioCaptureActive && !isTimerPaused && e.error !== 'not-allowed') {
+              setTimeout(startReceiverSpeechRecognition, 400);
+            }
+          };
+
+          receiverSpeechRecognizer.onend = () => {
+            if (isReceiverAudioCaptureActive && !isTimerPaused) {
+              setTimeout(startReceiverSpeechRecognition, 400);
+            } else {
+              isReceiverListening = false;
+            }
+          };
+
+          receiverSpeechRecognizer.start();
+        } catch(e) {}
+      }
+
+      // FRACIONAMENTO HARMONIOSO EM BLOCOS CURTOS (MÁX ~48 CARACTERES)
+      function splitTextIntoHarmoniousSubtitleChunks(text, totalStartSec, totalEndSec, maxChars = 48) {
+        if (!text) return [];
+        const trimmed = text.trim();
+        if (trimmed.length <= maxChars) {
+          return [{ text: trimmed, timeStart: totalStartSec, timeEnd: totalEndSec }];
+        }
+
+        const clauses = trimmed.split(/([.,?!;:]+)/).filter(Boolean);
+        let chunks = [];
+        let current = '';
+
+        for (let i = 0; i < clauses.length; i++) {
+          const part = clauses[i];
+          if ((current + part).length <= maxChars) {
+            current += part;
+          } else {
+            if (current.trim()) chunks.push(current.trim());
+            if (part.trim().length > maxChars) {
+              const words = part.trim().split(' ');
+              let wordChunk = '';
+              for (const w of words) {
+                if ((wordChunk + ' ' + w).length <= maxChars) {
+                  wordChunk += (wordChunk ? ' ' : '') + w;
+                } else {
+                  if (wordChunk.trim()) chunks.push(wordChunk.trim());
+                  wordChunk = w;
+                }
+              }
+              if (wordChunk.trim()) current = wordChunk.trim();
+              else current = '';
+            } else {
+              current = part.trim();
+            }
+          }
+        }
+        if (current.trim()) chunks.push(current.trim());
+        if (chunks.length === 0) chunks = [trimmed];
+
+        const totalDuration = Math.max(chunks.length * 2, totalEndSec - totalStartSec);
+        const totalLength = chunks.reduce((sum, c) => sum + c.length, 0) || 1;
+        let runningStart = totalStartSec;
+
+        return chunks.map((chunk, idx) => {
+          const chunkDuration = Math.max(1.8, (chunk.length / totalLength) * totalDuration);
+          const start = runningStart;
+          const end = idx === chunks.length - 1 ? Math.max(start + 1.8, totalEndSec) : start + chunkDuration;
+          runningStart = end + 0.1;
+          return {
+            text: chunk,
+            timeStart: start,
+            timeEnd: end
+          };
+        });
+      }
+
+      // DINÂMICA DO FEED: NOVA FRASE NO TOPO COM DESTAQUE, ANTERIORES DESCENDO E PRESERVADAS
+      function addTransmitterSentenceClean(text, startSec, endSec) {
+        if (!text || !text.trim()) return;
+        const feed = document.getElementById('transmitter-transcription-feed');
+        const clean = text.trim();
+
+        transmitterTranscriptions.unshift({
+          id: 'trans-' + Date.now() + Math.random(),
+          timeStart: startSec,
+          timeEnd: endSec,
+          text: clean
+        });
+
+        if (feed) {
+          const placeholder = feed.querySelector('.placeholder-empty');
+          if (placeholder) placeholder.remove();
+
+          // Ajusta estilo das frases anteriores que vão descendo suavemente
+          if (feed.firstElementChild) {
+            feed.firstElementChild.className = 'transcription-line history-line leading-relaxed transition-all duration-200 py-1.5 px-3 border-b border-white/10 text-slate-200 font-normal opacity-85 flex items-start gap-2 text-sm';
+            const icon = feed.firstElementChild.querySelector('.line-marker');
+            if (icon) {
+              icon.className = 'line-marker text-slate-500 text-xs shrink-0 select-none mt-0.5';
+              icon.innerText = '•';
+            }
+          }
+
+          // Cria a nova frase que assume o TOPO absoluto com destaque
+          const p = document.createElement('div');
+          p.className = 'transcription-line latest-line leading-relaxed transition-all duration-300 py-2 px-3 rounded-xl bg-white/15 dark:bg-white/10 border border-white/20 text-white font-bold shadow-xs flex items-start gap-2 text-sm';
+          p.innerHTML = `<span class="line-marker text-sky-400 font-bold shrink-0 select-none mt-0.5">▶</span><span class="flex-1">${clean}</span>`;
+
+          feed.prepend(p);
+
+          // Mantém amplo histórico (até 120 falas) sem sumir mensagens antigas
+          while (feed.children.length > 120) {
+            feed.removeChild(feed.lastElementChild);
+          }
+
+          const box = document.getElementById('transmitter-subtitle-box');
+          if (box) {
+            box.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }
+
+        const interimEl = document.getElementById('transmitter-interim-text');
+        if (interimEl) interimEl.innerText = '';
+
+        broadcastSubtitleGlobally('transmitter', clean, startSec, endSec);
+      }
+
+      function addReceiverSentenceClean(text, startSec, endSec, isDirectAudio = false) {
+        if (!text || !text.trim()) return;
+        const feed = document.getElementById('receiver-transcription-feed');
+        const clean = text.trim();
+
+        receiverTranscriptions.unshift({
+          id: 'rec-' + Date.now() + Math.random(),
+          timeStart: startSec,
+          timeEnd: endSec,
+          text: clean,
+          isDirectAudio
+        });
+
+        if (feed) {
+          const placeholder = feed.querySelector('.placeholder-empty');
+          if (placeholder) placeholder.remove();
+
+          if (feed.firstElementChild) {
+            feed.firstElementChild.className = 'transcription-line history-line leading-relaxed transition-all duration-200 py-1.5 px-3 border-b border-white/10 text-slate-200 font-normal opacity-85 flex items-start gap-2 text-sm';
+            const icon = feed.firstElementChild.querySelector('.line-marker');
+            if (icon) {
+              icon.className = 'line-marker text-slate-500 text-xs shrink-0 select-none mt-0.5';
+              icon.innerText = '•';
+            }
+          }
+
+          const p = document.createElement('div');
+          p.className = 'transcription-line latest-line leading-relaxed transition-all duration-300 py-2 px-3 rounded-xl bg-white/15 dark:bg-white/10 border border-white/20 text-emerald-300 font-bold shadow-xs flex items-start gap-2 text-sm';
+          p.innerHTML = `<span class="line-marker text-emerald-400 font-bold shrink-0 select-none mt-0.5">▶</span><span class="flex-1">${clean}</span>`;
+
+          feed.prepend(p);
+
+          while (feed.children.length > 120) {
+            feed.removeChild(feed.lastElementChild);
+          }
+
+          const box = document.getElementById('receiver-subtitle-box');
+          if (box) {
+            box.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }
+
+        const interimEl = document.getElementById('receiver-interim-text');
+        if (interimEl) interimEl.innerText = '';
+
+        broadcastSubtitleGlobally('receiver', clean, startSec, endSec);
+      }
+
+      async function translateAndAddReceiverSentenceClean(originalText, startSec, endSec) {
+        let translatedText = '';
+        try {
+          const targetCode = (selectedTargetLanguage || 'en-US').split('-')[0] || 'en';
+          const sourceCode = (selectedSourceLanguage || 'pt-BR').split('-')[0] || 'auto';
+          const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(originalText)}`);
+          const data = await res.json();
+          if (Array.isArray(data) && Array.isArray(data[0])) {
+            translatedText = data[0].map(item => item[0]).join('');
+          }
+        } catch(e) {
+          console.warn('Aviso na tradução do receptor:', e);
+        }
+
+        if (!translatedText) translatedText = originalText;
+        const chunks = splitTextIntoHarmoniousSubtitleChunks(translatedText, startSec, endSec, 48);
+        chunks.forEach(c => {
+          addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, false);
+        });
+      }
+
+      // ========================================================
+      // CONVERSÃO DE ÁUDIO PARA MP3 (LAMEJS) & EXPORTAÇÃO ZIP
+      // ========================================================
+      async function convertAudioBlobToMp3(audioBlob) {
+        if (!audioBlob || audioBlob.size === 0) return audioBlob;
+        if (typeof lamejs === 'undefined') {
+          console.warn('lamejs não disponível, usando blob original.');
+          return audioBlob;
+        }
+
+        try {
+          const arrayBuffer = await audioBlob.arrayBuffer();
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+          const numChannels = audioBuffer.numberOfChannels;
+          const sampleRate = audioBuffer.sampleRate;
+          const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, 128);
+          const mp3Data = [];
+
+          if (numChannels === 1) {
+            const samples = audioBuffer.getChannelData(0);
+            const sampleBlockSize = 1152;
+            const sample16 = new Int16Array(samples.length);
+            for (let i = 0; i < samples.length; i++) {
+              const s = Math.max(-1, Math.min(1, samples[i]));
+              sample16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            for (let i = 0; i < sample16.length; i += sampleBlockSize) {
+              const chunk = sample16.subarray(i, i + sampleBlockSize);
+              const mp3buf = mp3encoder.encodeBuffer(chunk);
+              if (mp3buf.length > 0) mp3Data.push(mp3buf);
+            }
+          } else {
+            const left = audioBuffer.getChannelData(0);
+            const right = audioBuffer.getChannelData(1);
+            const sampleBlockSize = 1152;
+            const left16 = new Int16Array(left.length);
+            const right16 = new Int16Array(right.length);
+            for (let i = 0; i < left.length; i++) {
+              const sl = Math.max(-1, Math.min(1, left[i]));
+              const sr = Math.max(-1, Math.min(1, right[i]));
+              left16[i] = sl < 0 ? sl * 0x8000 : sl * 0x7FFF;
+              right16[i] = sr < 0 ? sr * 0x8000 : sr * 0x7FFF;
+            }
+            for (let i = 0; i < left16.length; i += sampleBlockSize) {
+              const leftChunk = left16.subarray(i, i + sampleBlockSize);
+              const rightChunk = right16.subarray(i, i + sampleBlockSize);
+              const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+              if (mp3buf.length > 0) mp3Data.push(mp3buf);
+            }
+          }
+
+          const endBuf = mp3encoder.flush();
+          if (endBuf.length > 0) mp3Data.push(endBuf);
+
+          return new Blob(mp3Data, { type: 'audio/mp3' });
+        } catch(err) {
+          console.warn('Erro ao converter para MP3, mantendo áudio original:', err);
+          return audioBlob;
+        }
+      }
+
+      function formatSrtTime(sec) {
+        const pad = (n, z = 2) => String(Math.floor(n)).padStart(z, '0');
+        const h = pad(sec / 3600);
+        const m = pad((sec % 3600) / 60);
+        const s = pad(sec % 60);
+        const ms = pad((sec % 1) * 1000, 3);
+        return `${h}:${m}:${s},${ms}`;
+      }
+
+      function buildSrtWithTimestamps(items, fallbackTitle) {
+        if (!items || items.length === 0) {
+          return `1\n00:00:01,000 --> 00:00:04,500\n[${fallbackTitle}] Sessão Brain Audiovisual.\n`;
+        }
+        let refinedItems = [];
+        items.forEach(it => {
+          const sub = splitTextIntoHarmoniousSubtitleChunks(it.text, it.timeStart, it.timeEnd, 48);
+          refinedItems.push(...sub);
+        });
+
+        const sorted = [...refinedItems].sort((a, b) => (a.timeStart || 0) - (b.timeStart || 0));
+        return sorted.map((item, idx) => {
+          const start = item.timeStart || (idx * 3);
+          const end = item.timeEnd || (start + Math.max(2, item.text.length * 0.08));
+          return `${idx + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${item.text}\n`;
+        }).join('\n');
+      }
+
+      function buildVttWithTimestamps(items, fallbackTitle) {
+        return 'WEBVTT\n\n' + buildSrtWithTimestamps(items, fallbackTitle).replace(/,/g, '.');
+      }
+
+      function buildFullTxtReport() {
+        const dateNow = new Date().toLocaleString('pt-BR');
+        let txt = `============================================================\n`;
+        txt += `BRAIN AUDIOVISUAL — TRANSCRIÇÃO & GRAVAÇÃO DA SESSÃO\n`;
+        txt += `Reunião: ${meeting.title || 'Transmissão Ao Vivo'}\n`;
+        txt += `Data: ${dateNow}\n`;
+        txt += `Duração Total: ${formatDuration(sessionElapsedSeconds)}\n`;
+        txt += `Palestrante: ${accTransmitter.email} [${selectedSourceLanguage}]\n`;
+        txt += `Tradução: ${accReceiver.email} [${selectedTargetLanguage}]\n`;
+        txt += `============================================================\n\n`;
+
+        txt += `--- TRANSCRIÇÃO DO PALESTRANTE ---\n`;
+        const sortedTrans = [...transmitterTranscriptions].sort((a, b) => (a.timeStart || 0) - (b.timeStart || 0));
+        sortedTrans.forEach(it => {
+          txt += `[${formatSrtTime(it.timeStart || 0)}] ${it.text}\n`;
+        });
+
+        txt += `\n--- TRANSCRIÇÃO DA TRADUÇÃO ---\n`;
+        const sortedRec = [...receiverTranscriptions].sort((a, b) => (a.timeStart || 0) - (b.timeStart || 0));
+        sortedRec.forEach(it => {
+          txt += `[${formatSrtTime(it.timeStart || 0)}] ${it.text}\n`;
+        });
+
+        return txt;
+      }
+
+      window.prepareAndOpenFinishModal = function() {
+        if (isRealMicActive) stopMasterMicCapture();
+        if (isReceiverAudioCaptureActive) stopReceiverAudioCapture();
+        if (speechRecognizer) {
+          try { speechRecognizer.stop(); } catch(e) {}
+        }
+        if (receiverSpeechRecognizer) {
+          try { receiverSpeechRecognizer.stop(); } catch(e) {}
+        }
+
+        const modal = document.getElementById('finish-meeting-modal');
+        const timeEl = document.getElementById('finish-total-time');
+        const sentEl = document.getElementById('finish-total-sentences');
+        if (timeEl) timeEl.innerText = formatDuration(sessionElapsedSeconds);
+        if (sentEl) sentEl.innerText = `${transmitterTranscriptions.length + receiverTranscriptions.length} falas salvas`;
+        if (modal) modal.classList.remove('hidden');
+      };
+
+      window.closeFinishMeetingModal = function() {
+        const modal = document.getElementById('finish-meeting-modal');
+        if (modal) modal.classList.add('hidden');
+      };
+
+      window.saveZipFileWithExplorer = async function() {
+        const btn = document.getElementById('btn-save-zip-explorer');
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="w-4 h-4 rounded-full bg-white animate-spin mr-2"></span><span>Convertendo canais de áudio para MP3 e gerando ZIP...</span>';
+        }
+
+        try {
+          if (typeof JSZip === 'undefined') {
+            throw new Error('Biblioteca JSZip carregando... Tente novamente em 2 segundos.');
+          }
+
+          const zip = new JSZip();
+          const safeTitle = (meeting.title || 'Reuniao').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const dateStr = new Date().toISOString().slice(0, 10);
+
+          const audioTransName = `Audio_Transmissor_${safeTitle}_${dateStr}.mp3`;
+          const audioRecName = `Audio_Receptor_${safeTitle}_${dateStr}.mp3`;
+          const srtTransName = `Legenda_Transmissor_Original_${safeTitle}_${dateStr}.srt`;
+          const vttTransName = `Legenda_Transmissor_Original_${safeTitle}_${dateStr}.vtt`;
+          const srtRecName = `Legenda_Receptor_Traduzido_${safeTitle}_${dateStr}.srt`;
+          const vttRecName = `Legenda_Receptor_Traduzido_${safeTitle}_${dateStr}.vtt`;
+          const txtReportName = `Transcricao_Completa_${safeTitle}_${dateStr}.txt`;
+          const zipFileName = `Gravacao_${safeTitle}_${dateStr}.zip`;
+
+          const rawTransAudio = transmitterRecordedBlob || new Blob(transmitterAudioChunks.length ? transmitterAudioChunks : ['[Audio Palestrante Vazio]'], { type: 'audio/webm' });
+          const rawRecAudio = receiverRecordedBlob || new Blob(receiverAudioChunks.length ? receiverAudioChunks : ['[Audio Traduzido Vazio]'], { type: 'audio/webm' });
+
+          const transMp3Blob = await convertAudioBlobToMp3(rawTransAudio);
+          const recMp3Blob = await convertAudioBlobToMp3(rawRecAudio);
+
+          const srtTransContent = buildSrtWithTimestamps(transmitterTranscriptions, 'Palestrante');
+          const vttTransContent = buildVttWithTimestamps(transmitterTranscriptions, 'Palestrante');
+          const srtRecContent = buildSrtWithTimestamps(receiverTranscriptions, 'Tradução');
+          const vttRecContent = buildVttWithTimestamps(receiverTranscriptions, 'Tradução');
+          const txtContent = buildFullTxtReport();
+
+          zip.file(audioTransName, transMp3Blob);
+          zip.file(audioRecName, recMp3Blob);
+          zip.file(srtTransName, srtTransContent);
+          zip.file(vttTransName, vttTransContent);
+          zip.file(srtRecName, srtRecContent);
+          zip.file(vttRecName, vttRecContent);
+          zip.file(txtReportName, txtContent);
+
+          const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+          if ('showSaveFilePicker' in window) {
+            try {
+              const handle = await window.showSaveFilePicker({
+                suggestedName: zipFileName,
+                types: [{
+                  description: 'Pacote ZIP com Áudios MP3 e Legendas (*.zip)',
+                  accept: { 'application/zip': ['.zip'] }
+                }]
+              });
+              const writable = await handle.createWritable();
+              await writable.write(zipBlob);
+              await writable.close();
+
+              alert(`✅ Sucesso!\n\nO pacote "${zipFileName}" com áudios em MP3 e legendas curtas foi salvo com sucesso!`);
+              appendSystemLog(`📁 Pacote ZIP salvo no computador: ${zipFileName}`);
+              return;
+            } catch(e) {
+              if (e.name === 'AbortError') return;
+            }
+          }
+
+          const url = URL.createObjectURL(zipBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = zipFileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          alert(`✅ Pacote ZIP "${zipFileName}" com áudios em MP3 baixado com sucesso!`);
+        } catch(err) {
+          alert('Erro ao gerar o pacote ZIP: ' + err.message);
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span>📁 Escolher Pasta e Salvar Pacote ZIP com MP3 (Abre o Explorer)</span>';
+          }
+        }
+      };
+
+      window.confirmAndExitMeeting = function() {
+        if (confirm('Tem certeza de que deseja encerrar a reunião e fechar as janelas do Google Meet?')) {
+          if (transmitterWindowRef && !transmitterWindowRef.closed) transmitterWindowRef.close();
+          if (receiverWindowRef && !receiverWindowRef.closed) receiverWindowRef.close();
+          window.location.href = '/admin';
+        }
+      };
+
       window.toggleTransmitterMicMute = function() {
         const btn = document.getElementById('mic-mute-btn');
         isTransmitterMicMuted = !isTransmitterMicMuted;
@@ -3777,15 +4514,6 @@ setInterval(() => {
         if (disp) disp.innerText = val + '%';
       };
 
-      window.toggleTransmitterMicMute = function() {
-        isTransmitterMicMuted = !isTransmitterMicMuted;
-        const btn = document.getElementById('mic-mute-btn');
-        if (btn) {
-          btn.innerText = isTransmitterMicMuted ? 'MUTADO' : 'MUTAR ENTRADA';
-          btn.className = isTransmitterMicMuted ? 'px-2.5 py-1 rounded-lg bg-rose-600 text-white font-semibold cursor-pointer' : 'px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 shadow-2xs';
-        }
-      };
-
       function appendSystemLog(msg) {
         console.log('[Brain Audiovisual Cockpit]', msg);
       }
@@ -3803,21 +4531,47 @@ setInterval(() => {
         }
       }
 
-      // Loop do Modulador Visual de Saída (Repouso em Silêncio)
+      // Loop do Modulador Visual de Saída & VU Meter do Canal Receptor
       setInterval(() => {
         const container = document.getElementById('spectrum-bars');
         const statusText = document.getElementById('spectrum-status-text');
+        const recVuBar = document.getElementById('receiver-vu-bar');
+        const recVuText = document.getElementById('receiver-vu-text');
+        const recVuLed = document.getElementById('receiver-vu-led');
         if (!container) return;
         const bars = container.children;
         const numBars = bars.length;
 
-        let currentVoiceEnergy = 0;
-        if (isRealMicActive && micAnalyserNode) {
-          const freqData = new Uint8Array(micAnalyserNode.frequencyBinCount);
-          micAnalyserNode.getByteFrequencyData(freqData);
+        let receiverEnergy = 0;
+
+        // Medição em tempo real do sinal que realmente entra/sai do canal receptor
+        if (isReceiverAudioCaptureActive && receiverAnalyserNode) {
+          const freqData = new Uint8Array(receiverAnalyserNode.frequencyBinCount);
+          receiverAnalyserNode.getByteFrequencyData(freqData);
           let sum = 0;
           for (let i = 0; i < freqData.length; i++) sum += freqData[i];
-          currentVoiceEnergy = (sum / freqData.length) * (volume / 100);
+          const avg = sum / freqData.length;
+          receiverEnergy = isReceiverMuted ? 0 : (avg / 115) * 100 * (volume / 100);
+
+          // Animação espectral de frequências reais
+          const step = Math.max(1, Math.floor(freqData.length / numBars));
+          for (let i = 0; i < numBars; i++) {
+            const val = isReceiverMuted ? 0 : freqData[i * step] || 0;
+            const h = Math.max(4, Math.min(100, Math.round((val / 255) * 100 * (volume / 100))));
+            bars[i].style.height = h + '%';
+          }
+        }
+
+        const levelPct = Math.min(100, Math.round(receiverEnergy));
+        if (recVuBar) {
+          recVuBar.style.width = levelPct + '%';
+          if (levelPct > 75) recVuBar.className = 'h-full rounded-full transition-all duration-75 bg-rose-500 shadow-xs';
+          else if (levelPct > 45) recVuBar.className = 'h-full rounded-full transition-all duration-75 bg-amber-400 shadow-xs';
+          else recVuBar.className = 'h-full rounded-full transition-all duration-75 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 shadow-xs';
+        }
+        if (recVuText) recVuText.innerText = levelPct + '%';
+        if (recVuLed) {
+          recVuLed.className = levelPct > 4 ? 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse' : 'w-2 h-2 rounded-full bg-slate-400';
         }
 
         if (isReceiverMuted) {
@@ -3826,35 +4580,43 @@ setInterval(() => {
             statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-500"></span> Saída Silenciada (Mute Ativo)';
             statusText.className = 'text-[11px] text-rose-600 flex items-center gap-2 font-medium';
           }
+        } else if (isPlayingTestSpeech) {
+          for (let i = 0; i < numBars; i++) {
+            const randHeight = Math.floor(Math.random() * 85) + 15;
+            bars[i].style.height = randHeight + '%';
+          }
+          if (statusText) {
+            statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Reproduzindo Teste de Voz Traduzida (VB-CABLE)';
+            statusText.className = 'text-[11px] text-emerald-700 dark:text-emerald-400 flex items-center gap-2 font-medium';
+          }
+        } else if (isPlayingTestTone) {
+          for (let i = 0; i < numBars; i++) {
+            const wave = Math.sin((i / numBars) * Math.PI) * 75 + 10;
+            bars[i].style.height = wave + '%';
+          }
+          if (statusText) {
+            statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span> Tom Senoidal de Calibração (1kHz Ativo)';
+            statusText.className = 'text-[11px] text-indigo-700 dark:text-indigo-400 flex items-center gap-2 font-medium';
+          }
+        } else if (isReceiverAudioCaptureActive && receiverEnergy > 4) {
+          if (statusText) {
+            statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Áudio Traduzido em Reprodução (Sinal Detectado ●)';
+            statusText.className = 'text-[11px] text-emerald-700 dark:text-emerald-400 flex items-center gap-2 font-medium';
+          }
+        } else if (isReceiverAudioCaptureActive) {
+          for (let i = 0; i < numBars; i++) bars[i].style.height = '4%';
+          if (statusText) {
+            statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-400"></span> Canal Receptor em Repouso (Silêncio na reunião)';
+            statusText.className = 'text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 font-medium';
+          }
         } else {
-          if (isPlayingTestSpeech) {
-            for (let i = 0; i < numBars; i++) {
-              const randHeight = Math.floor(Math.random() * 85) + 15;
-              bars[i].style.height = randHeight + '%';
-            }
-            if (statusText) {
-              statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Reproduzindo Teste de Voz Traduzida (VB-CABLE)';
-              statusText.className = 'text-[11px] text-emerald-700 flex items-center gap-2 font-medium';
-            }
-          } else if (isPlayingTestTone) {
-            for (let i = 0; i < numBars; i++) {
-              const wave = Math.sin((i / numBars) * Math.PI) * 75 + 10;
-              bars[i].style.height = wave + '%';
-            }
-            if (statusText) {
-              statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span> Tom Senoidal de Calibração (1kHz Ativo)';
-              statusText.className = 'text-[11px] text-indigo-700 flex items-center gap-2 font-medium';
-            }
-          } else {
-            // Em repouso total quando não há áudio emitido na sala receptora
-            for (let i = 0; i < numBars; i++) bars[i].style.height = '4%';
-            if (statusText) {
-              statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-400"></span> Canal Receptor em Repouso (Aguardando fala da reunião)';
-              statusText.className = 'text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 font-medium';
-            }
+          for (let i = 0; i < numBars; i++) bars[i].style.height = '4%';
+          if (statusText) {
+            statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-500"></span> Conecte a leitura de áudio para monitorar o sinal em tempo real';
+            statusText.className = 'text-[11px] text-amber-700 dark:text-amber-400 flex items-center gap-2 font-medium';
           }
         }
-      }, 150);
+      }, 100);
 
       // Loop do Cronômetro & Barra de Progresso de 1 Hora (60 min)
       setInterval(() => {
