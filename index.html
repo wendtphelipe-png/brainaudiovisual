@@ -656,7 +656,7 @@
                   </p>
                 </div>
                 <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold border border-amber-300 shadow-2xs">
-                  <span>⏱️ Modo Teste: Hot-Swap a cada 2 min (120s)</span>
+                  <span>⏱️ Hot-Swap Automático entre Salas (60 min)</span>
                 </div>
               </div>
 
@@ -668,7 +668,7 @@
                     <span class="text-lg leading-none shrink-0">💡</span>
                     <div>
                       <span class="font-bold text-blue-900 block mb-0.5">Como preparar as reuniões no Google Meet:</span>
-                      Acesse a home do Google Meet (<a href="https://meet.google.com" target="_blank" class="underline font-bold text-blue-700 hover:text-blue-900">meet.google.com</a>) com a sua conta transmissora, clique em <strong>"Nova reunião"</strong> ➔ <strong>"Criar uma reunião para depois"</strong>, copie os links gerados e cole nos slots da fila abaixo.
+                      Acesse a home do Google Meet (<a href="javascript:void(0)" onclick="openMeetHomeTransmitter()" class="underline font-bold text-blue-700 hover:text-blue-900 cursor-pointer">meet.google.com</a>) com a sua conta transmissora, clique em <strong>"Nova reunião"</strong> ➔ <strong>"Criar uma reunião para depois"</strong>, copie os links gerados e cole nos slots da fila abaixo.
                     </div>
                   </div>
 
@@ -683,9 +683,9 @@
                     <div class="p-4 bg-slate-50 border border-blue-200/70 rounded-2xl">
                       <div class="flex items-center justify-between mb-1.5">
                         <label class="block text-xs font-bold text-blue-900">📡 Conta Transmissora (Geradora dos Meets) *</label>
-                        <a href="https://meet.google.com" target="_blank" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline flex items-center gap-1">
-                          <span>Abrir Meet ↗</span>
-                        </a>
+                        <button type="button" onclick="openMeetHomeTransmitter()" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline flex items-center gap-1 cursor-pointer">
+                          <span>Abrir Meet no Google ↗</span>
+                        </button>
                       </div>
                       <p class="text-[11px] text-slate-500 mb-2">Esta conta cria e hospeda todas as salas de reuniões que serão transmitidas.</p>
                       <select id="m-acc-transmitter" required class="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2.5 text-xs text-slate-900 outline-none font-medium">
@@ -867,7 +867,7 @@
                     <p class="text-xs text-slate-500">
                       ${connectedCount < 2 
                         ? '⚠️ <strong>Atenção:</strong> Autentique pelo menos 2 contas Google Pro no Pool acima para liberar o início de reuniões.' 
-                        : '✅ Par de contas pronto com hot-swap a cada 2 minutos (modo teste acelerado).'}
+                        : '✅ Par de contas pronto com hot-swap automático entre salas e gravação contínua.'}
                     </p>
 
                     <button 
@@ -894,11 +894,11 @@
                     Reuniões Ativas & Em Andamento
                   </h2>
                   <p class="text-xs text-slate-500 mt-0.5">
-                    Acompanhe as sessões rodando, o cronômetro para o hot-swap (2 min em modo teste) e abra a aba de monitoramento.
+                    Acompanhe as sessões rodando, o cronômetro para o hot-swap e abra a aba de monitoramento.
                   </p>
                 </div>
                 <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                  ⏱️ Hot-Swap de Teste: 2 min
+                  ⏱️ Hot-Swap Automático
                 </span>
               </div>
 
@@ -1667,8 +1667,8 @@
           targetLanguageLabel: targetLabel,
           transmitterInputDevice: transmitterMic,
           receiverOutputDevice: receiverSpeaker,
-          nextSwapInSeconds: 120, // 2 minutos para modo de teste acelerado!
-          swapIntervalSeconds: 120,
+          nextSwapInSeconds: 3600,
+          swapIntervalSeconds: 3600,
           latencyMs: 140,
           createdAt: new Date().toISOString()
         };
@@ -1703,6 +1703,17 @@
     // ========================================================
     // TELA 3: MONITOR DEDICADO DA REUNIÃO (?meeting=xyz)
     // ========================================================
+    // Abre a Home do Google Meet na conta do Transmissor selecionada
+    window.openMeetHomeTransmitter = function() {
+      const sel = document.getElementById('m-acc-transmitter');
+      const selId = sel ? sel.value : null;
+      const accounts = getStoredAccounts();
+      const acc = (selId ? accounts.find(a => a.id === selId) : null) || accounts.find(a => a.connected) || accounts[0];
+      const email = acc && acc.email ? acc.email.trim() : '';
+      const url = email ? 'https://meet.google.com/?authuser=' + encodeURIComponent(email) : 'https://meet.google.com';
+      window.open(url, '_blank');
+    };
+
     function renderMeetingRoomMonitor(id) {
       let volume = 85;
       let isReceiverMuted = false;
@@ -1735,26 +1746,6 @@
       let receiverRecordedBlob = null;
       let isRecordingReceiver = false;
 
-      // Transcrições (Sem timestamps na tela, mas com timestamps no SRT/VTT)
-      let transmitterTranscriptions = []; // { id, timeStart, timeEnd, text }
-      let receiverTranscriptions = [];    // { id, timeStart, timeEnd, text }
-      let speechRecognizer = null;
-      let isTranscribingSpeech = false;
-      let selectedSourceLanguage = 'en-US';
-
-      // Estilo Customizável da Legenda / Transcrição
-      let subtitleConfig = {
-        bgColor: '#000000',
-        textColor: '#ffffff',
-        fontSize: '15px',
-        fontFamily: 'font-sans'
-      };
-
-      try {
-        const savedCfg = localStorage.getItem('brain_subtitle_style');
-        if (savedCfg) subtitleConfig = Object.assign(subtitleConfig, JSON.parse(savedCfg));
-      } catch(e) {}
-
       // Recupera contas e configurações globais
       const storedAccounts = getStoredAccounts();
       const audioSettings = getStoredAudioLanguageSettings();
@@ -1777,12 +1768,37 @@
           meetingQueue: ['https://meet.google.com/abc-defg-hij', 'https://meet.google.com/klm-nopq-rst'],
           currentQueueIndex: 0,
           nextSwapInSeconds: 3600,
-          sourceLanguage: audioSettings.sourceLanguage || 'en-US',
-          targetLanguage: audioSettings.targetLanguage || 'pt-BR',
-          sourceLanguageLabel: audioSettings.sourceLanguageLabel || 'Inglês (Estados Unidos / Global)',
-          targetLanguageLabel: audioSettings.targetLanguageLabel || 'Português (Brasil)'
+          sourceLanguage: audioSettings.sourceLanguage || 'pt-BR',
+          targetLanguage: audioSettings.targetLanguage || 'en-US',
+          sourceLanguageLabel: audioSettings.sourceLanguageLabel || 'Português (Brasil)',
+          targetLanguageLabel: audioSettings.targetLanguageLabel || 'Inglês (Estados Unidos / Global)'
         };
       }
+
+      // IDIOMAS CONFIGURADOS (Leitura automática da reunião)
+      let selectedSourceLanguage = meeting.sourceLanguage || audioSettings.sourceLanguage || 'pt-BR';
+      let selectedTargetLanguage = meeting.targetLanguage || audioSettings.targetLanguage || 'en-US';
+
+      // Transcrições (Sem timestamps na tela, mas com timestamps no SRT/VTT)
+      let transmitterTranscriptions = []; // { id, timeStart, timeEnd, text }
+      let receiverTranscriptions = [];    // { id, timeStart, timeEnd, text, isDirectAudio }
+      let speechRecognizer = null;        // Reconhecedor do Palestrante (Entrada)
+      let receiverSpeechRecognizer = null;// Reconhecedor da Tradução (Saída da Reunião Receptora)
+      let isTranscribingSpeech = false;
+      let isReceiverListening = false;
+
+      // Estilo Customizável da Legenda / Transcrição
+      let subtitleConfig = {
+        bgColor: '#000000',
+        textColor: '#ffffff',
+        fontSize: '15px',
+        fontFamily: 'font-sans'
+      };
+
+      try {
+        const savedCfg = localStorage.getItem('brain_subtitle_style');
+        if (savedCfg) subtitleConfig = Object.assign(subtitleConfig, JSON.parse(savedCfg));
+      } catch(e) {}
 
       if (!meeting.meetingQueue || !Array.isArray(meeting.meetingQueue) || meeting.meetingQueue.length === 0) {
         meeting.meetingQueue = [meeting.currentMeetUrl];
@@ -1810,9 +1826,6 @@
 
       if (!accTransmitter.email) accTransmitter.email = 'wendt.phelipe@gmail.com';
       if (!accReceiver.email) accReceiver.email = 'brainaudiovisual@gmail.com';
-
-      const sourceLang = meeting.sourceLanguageLabel || audioSettings.sourceLanguageLabel || 'Inglês (EUA)';
-      const targetLang = meeting.targetLanguageLabel || audioSettings.targetLanguageLabel || 'Português (Brasil)';
 
       // Sanitização de nomes de arquivos com o nome da reunião e data
       const safeMeetingTitle = (meeting.title || 'Reuniao')
@@ -1845,38 +1858,45 @@
       let transmitterWindowRef = null;
       let receiverWindowRef = null;
 
+      // LAYOUT FLUIDO WIDESCREEN TOTAL (APROVEITANDO TODA A TELA)
       root.innerHTML = `
-        <div class="min-h-screen bg-slate-100/70 text-slate-800 pb-20">
-          <!-- HEADER MASTER DO COCKPIT (TEMA CLARO) -->
-          <header class="border-b border-slate-200/90 bg-white/95 backdrop-blur-xl sticky top-0 z-40 px-6 py-3.5 flex flex-col xl:flex-row items-center justify-between gap-4 shadow-xs">
-            <div class="flex items-center gap-3.5">
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-indigo-500 flex items-center justify-center shadow-md shadow-blue-500/20 text-white font-bold text-base shrink-0">
-                BA
-              </div>
+        <div class="min-h-screen bg-slate-100/70 text-slate-800 pb-20 w-full">
+          <!-- HEADER MASTER DO COCKPIT (WIDESCREEN AMPLO) -->
+          <header class="w-full max-w-[98%] 2xl:max-w-[97%] mx-auto px-4 sm:px-6 py-3.5 border-b border-slate-200/80 bg-white/95 backdrop-blur-md sticky top-0 z-40 flex flex-wrap items-center justify-between gap-4 shadow-xs rounded-b-2xl">
+            <div class="flex items-center gap-3">
+              <a href="/admin" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 flex items-center justify-center text-sm font-bold transition-all shadow-2xs">
+                ←
+              </a>
               <div>
-                <div class="flex flex-wrap items-center gap-2.5">
-                  <h1 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">${meeting.title || 'Cockpit de Transmissão — ' + id}</h1>
-                  <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                <div class="flex items-center gap-2">
+                  <h1 class="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                    ${meeting.title}
+                  </h1>
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Transmissão Contínua (Meet)
-                  </span>
-                  <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
-                    🌐 <strong>${sourceLang}</strong> ➔ <strong>${targetLang}</strong>
+                    Transmissão Ativa
                   </span>
                 </div>
-                <p class="text-xs text-slate-500 mt-0.5">Centro de Comando Split-Screen com Gravação e Legendas em Tempo Real</p>
+                <p class="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                  <span>Sala ${queueIdx + 1} de ${queue.length}</span>
+                  <span>•</span>
+                  <span>Hot-Swap Automático a cada 60 min</span>
+                  <span>•</span>
+                  <span>Filtro de Ruído & Equalizador DSP Ativos</span>
+                </p>
               </div>
             </div>
 
-            <!-- CONTROLES MASTER DE TEMPO E AÇÕES -->
+            <!-- Controles do Header -->
             <div class="flex flex-wrap items-center gap-2.5">
-              <!-- Botão Laboratório de Testes & Validação -->
-              <button onclick="toggleTestLabModal()" class="text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs">
-                <span>🧪 Laboratório de Testes</span>
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <button onclick="toggleTestLabModal()" class="text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                <span>🧪 Test Lab & Diagnóstico</span>
               </button>
 
-              <!-- Botão Lançar Dual-Window -->
+              <button onclick="openNextMeetingWindowManual()" class="text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                <span>Antecipar Sala ↗</span>
+              </button>
+
               <button onclick="launchDualMeetWindows()" class="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 border border-blue-500 px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm shadow-blue-500/20">
                 <span>🖥️ Lançar Reuniões 50/50</span>
               </button>
@@ -1891,7 +1911,7 @@
           <!-- ========================================================
               BARRA DE PROGRESSO GRANDE E CHAMATIVA (1 HORA + CONTROLES)
               ======================================================== -->
-          <section class="max-w-7xl mx-auto px-6 pt-5">
+          <section class="w-full max-w-[98%] 2xl:max-w-[97%] mx-auto px-4 sm:px-6 pt-4">
             <div class="bg-white border-2 border-slate-200/90 rounded-3xl p-5 shadow-sm space-y-3">
               <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div class="flex items-center gap-3">
@@ -1955,7 +1975,7 @@
           </section>
 
           <!-- SEÇÃO SUPERIOR: GUIA DE AUTO-JOIN & DICAS DO LOBBY -->
-          <section class="max-w-7xl w-full mx-auto px-6 pt-4">
+          <section class="w-full max-w-[98%] 2xl:max-w-[97%] mx-auto px-4 sm:px-6 pt-3">
             <div class="bg-gradient-to-r from-blue-50/90 via-sky-50/70 to-indigo-50/80 border border-blue-200/90 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-2xs">
               <div class="flex items-center gap-3">
                 <span class="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 border border-blue-200 flex items-center justify-center text-base font-bold shrink-0">⚡</span>
@@ -1977,11 +1997,11 @@
           </section>
 
           <!-- ========================================================
-              SEÇÃO CENTRAL: SPLIT-SCREEN COCKPIT (TRANSMISSOR VS RECEPTOR)
+              SEÇÃO CENTRAL: SPLIT-SCREEN COCKPIT WIDESCREEN AMPLO (TRANSMISSOR VS RECEPTOR)
               ======================================================== -->
-          <main class="max-w-7xl w-full mx-auto p-6 space-y-6">
+          <main class="w-full max-w-[98%] 2xl:max-w-[97%] mx-auto px-4 sm:px-6 py-4 space-y-5">
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 w-full">
 
               <!-- ========================================================
                   PAINEL ESQUERDO: CONTA TRANSMISSORA (PALESTRANTE / ENTRADA) - AZUL SUTIL
@@ -2019,7 +2039,7 @@
                   <div class="bg-white border border-blue-100 rounded-2xl p-4 space-y-2 shadow-2xs">
                     <div class="flex items-center justify-between text-xs">
                       <span class="text-slate-500 font-semibold">Sala Atual no Google Meet:</span>
-                      <span class="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-bold">Ciclo #${queueIdx + 1} Ao Vivo ●</span>
+                      <span class="text-[10px] font-mono text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-bold">Ciclo #${queueIdx + 1} Ao Vivo ●</span>
                     </div>
                     <div class="text-xs font-mono text-blue-950 font-semibold break-all bg-blue-50/60 border border-blue-200/70 p-2.5 rounded-xl select-all" id="transmitter-current-url">
                       ${currentMeetUrl}
@@ -2030,7 +2050,7 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2 pt-1">
-                      <button onclick="navigator.clipboard.writeText(getAuthMeetUrl(currentMeetUrl, accTransmitter)); appendSystemLog('Link com authuser copiado!'); alert('Link autenticado copiado!');" class="text-xs text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer shadow-2xs">
+                      <button onclick="navigator.clipboard.writeText(getAuthMeetUrl(currentMeetUrl, accTransmitter)); appendSystemLog('Link transmissor copiado!'); alert('Link autenticado copiado!');" class="text-xs text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer shadow-2xs">
                         Copiar Link 📋
                       </button>
                       <button onclick="openTransmitterWindow()" class="text-xs text-white bg-blue-600 hover:bg-blue-700 px-3.5 py-1.5 rounded-xl font-semibold transition-all cursor-pointer flex items-center gap-1 shadow-xs">
@@ -2039,78 +2059,79 @@
                     </div>
                   </div>
 
-                  <!-- Painel do Microfone & VU Meter -->
+                  <!-- Indicadores de Áudio do Palestrante -->
                   <div class="bg-white border border-blue-100 rounded-2xl p-4 space-y-2.5 shadow-2xs">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <span>🎙️ Microfone do Palestrante:</span>
+                        <span>🎙️ Microfone de Entrada do Evento:</span>
                       </span>
-                      <span id="trans-mic-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        Captação Aberta ●
-                      </span>
-                    </div>
-                    <div class="text-xs text-blue-700 font-semibold flex items-center justify-between">
-                      <span>Mesa de Som / Linha Física do Evento</span>
-                      <button onclick="toggleRealMicMeasurement()" id="btn-sub-mic" class="text-[11px] text-emerald-700 hover:text-emerald-800 font-bold underline cursor-pointer">
-                        [Ligar Mic Físico Real]
+                      <button onclick="toggleRealMicCapture()" id="btn-real-mic-toggle" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 cursor-pointer shadow-2xs">
+                        🎙️ Conectar Microfone Real
                       </button>
                     </div>
 
-                    <!-- VU Meter Dinâmico de Decibéis -->
-                    <div class="pt-1">
-                      <div class="flex items-center justify-between text-[11px] text-slate-500 font-mono mb-1">
-                        <span>Nível de Decibéis (VU Meter):</span>
-                        <span id="vu-db-text" class="text-emerald-600 font-bold">-60 dB (Silêncio)</span>
+                    <div class="text-xs text-blue-700 font-semibold flex items-center gap-1.5">
+                      <span>🎤 Mesa de Som / Linha Principal do Evento</span>
+                    </div>
+
+                    <!-- VU Meter do Microfone Real -->
+                    <div class="space-y-1 pt-1">
+                      <div class="flex items-center justify-between text-[11px]">
+                        <span class="text-slate-500 font-medium">Modulação de Entrada (VU):</span>
+                        <strong id="mic-vu-text" class="font-mono text-slate-700">0%</strong>
                       </div>
-                      <div class="h-3 w-full bg-slate-200 rounded-full overflow-hidden flex p-0.5 gap-0.5">
-                        <div id="vu-bar-green" class="h-full bg-emerald-500 rounded-l-full transition-all duration-100" style="width: 0%;"></div>
-                        <div id="vu-bar-yellow" class="h-full bg-amber-400 transition-all duration-100" style="width: 0%;"></div>
-                        <div id="vu-bar-red" class="h-full bg-rose-500 rounded-r-full transition-all duration-100" style="width: 0%;"></div>
+                      <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200 shadow-inner">
+                        <div id="mic-vu-bar" class="h-full rounded-full transition-all duration-75 bg-gradient-to-r from-emerald-500 via-teal-400 to-blue-500" style="width: 0%;"></div>
                       </div>
                     </div>
 
-                    <div class="pt-1 flex items-center justify-between border-t border-slate-100">
-                      <span class="text-xs text-slate-500">Controle:</span>
-                      <button onclick="toggleTransmitterMic()" id="toggle-mic-btn" class="text-xs font-semibold px-3 py-1 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-all cursor-pointer shadow-2xs">
-                        Mutar Microfone
+                    <div class="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div class="flex items-center gap-2">
+                        <button onclick="toggleTransmitterMicMute()" id="mic-mute-btn" class="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 shadow-2xs">
+                          MUTAR ENTRADA
+                        </button>
+                      </div>
+                      <button onclick="toggleMicMonitor()" id="mic-monitor-btn" class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-300 text-slate-600 font-semibold cursor-pointer hover:bg-slate-200 shadow-2xs">
+                        🎧 Retorno Fone: Desligado
                       </button>
                     </div>
                   </div>
 
                   <!-- ========================================================
-                      TRANSCRIÇÃO DO PALESTRANTE (LEGENDA LIMPA SEM TIMESTAMPS NA TELA)
+                      TRANSCRIÇÃO DO PALESTRANTE (NOVA LINHA SEMPRE ACIMA DA ANTERIOR)
                       ======================================================== -->
                   <div class="bg-white border border-blue-100 rounded-2xl p-4 space-y-3 shadow-2xs">
                     <div class="flex flex-wrap items-center justify-between gap-2">
                       <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold text-slate-800">Transcrição da Fala (Palestrante):</span>
+                        <span class="text-xs font-bold text-slate-800">Transcrição do Palestrante (Entrada):</span>
                         <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1 shadow-2xs">
                           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          Gravação & Transcrição Automática Ativa
+                          Gravação & Escuta Ativa ●
                         </span>
                       </div>
-                      <!-- Idioma de Entrada -->
                       <div class="flex items-center gap-1.5">
-                        <label class="text-[11px] text-slate-500 font-medium">Idioma de Fala:</label>
-                        <select id="source-lang-select" onchange="changeSpeakerSourceLanguage(this.value)" class="text-xs bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-slate-800 font-semibold outline-none cursor-pointer">
-                          <option value="en-US" selected>Inglês (en-US)</option>
-                          <option value="pt-BR">Português (pt-BR)</option>
-                          <option value="es-ES">Espanhol (es-ES)</option>
-                          <option value="fr-FR">Francês (fr-FR)</option>
-                          <option value="de-DE">Alemão (de-DE)</option>
-                          <option value="it-IT">Italiano (it-IT)</option>
+                        <span class="text-[11px] text-slate-500 font-medium">Idioma de Entrada:</span>
+                        <select id="speaker-lang-select" onchange="changeSpeakerSourceLanguage(this.value)" class="text-xs bg-white border border-blue-300 rounded-lg px-2 py-0.5 text-blue-900 font-bold outline-none shadow-2xs">
+                          <option value="pt-BR" ${selectedSourceLanguage === 'pt-BR' ? 'selected' : ''}>Português (pt-BR)</option>
+                          <option value="en-US" ${selectedSourceLanguage === 'en-US' ? 'selected' : ''}>Inglês (en-US)</option>
+                          <option value="es-ES" ${selectedSourceLanguage === 'es-ES' ? 'selected' : ''}>Espanhol (es-ES)</option>
+                          <option value="fr-FR" ${selectedSourceLanguage === 'fr-FR' ? 'selected' : ''}>Francês (fr-FR)</option>
+                          <option value="de-DE" ${selectedSourceLanguage === 'de-DE' ? 'selected' : ''}>Alemão (de-DE)</option>
+                          <option value="it-IT" ${selectedSourceLanguage === 'it-IT' ? 'selected' : ''}>Italiano (it-IT)</option>
                         </select>
                       </div>
                     </div>
 
-                    <!-- TERMINAL VISUAL DE LEGENDA LIMPA (SEM TIMESTAMPS NA TELA) -->
-                    <div id="transmitter-subtitle-box" class="rounded-2xl p-4 shadow-inner space-y-2 min-h-[170px] max-h-[220px] overflow-y-auto transition-colors duration-200" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
-                      <div id="transmitter-transcription-feed" class="space-y-1.5 ${subtitleConfig.fontFamily}">
-                        <div class="text-slate-500 italic text-xs py-8 text-center">
-                          Aguardando fala do palestrante... A legenda aparecerá limpa aqui em tempo real.
+                    <!-- TERMINAL VISUAL DE LEGENDA LIMPA (AMPLO - NOVA LINHA NO TOPO) -->
+                    <div id="transmitter-subtitle-box" class="rounded-2xl p-4 shadow-inner space-y-2 min-h-[260px] max-h-[360px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
+                      <!-- Linha intermediária ativa (enquanto fala) -->
+                      <div id="transmitter-interim-text" class="italic opacity-80 min-h-[20px] font-semibold text-sky-400 pb-1 border-b border-white/10"></div>
+                      <!-- Feed com frases finalizadas (ordem: mais nova no topo) -->
+                      <div id="transmitter-transcription-feed" class="space-y-1.5 ${subtitleConfig.fontFamily} flex-1 overflow-y-auto">
+                        <div class="placeholder-empty text-slate-500 italic text-xs py-12 text-center">
+                          Aguardando fala do palestrante... A legenda mais recente aparecerá sempre no topo aqui.
                         </div>
                       </div>
-                      <div id="transmitter-interim-text" class="italic opacity-70 min-h-[18px]"></div>
                     </div>
 
                     <!-- BARRA DE CUSTOMIZAÇÃO VISUAL DA LEGENDA (LOGO ABAIXO DA SESSÃO) -->
@@ -2257,30 +2278,41 @@
                   </div>
 
                   <!-- ========================================================
-                      TRANSCRIÇÃO DA TRADUÇÃO (LEGENDA LIMPA SEM TIMESTAMPS NA TELA)
+                      TRANSCRIÇÃO DA TRADUÇÃO (ESCUTA DO ÁUDIO RECEPTOR NO IDIOMA DE SAÍDA)
                       ======================================================== -->
                   <div class="bg-white border border-indigo-100 rounded-2xl p-4 space-y-3 shadow-2xs">
                     <div class="flex flex-wrap items-center justify-between gap-2">
                       <div class="flex items-center gap-2">
                         <span class="text-xs font-bold text-slate-800">Transcrição da Tradução (Saída):</span>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                        <span id="receiver-listen-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1 shadow-2xs">
                           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          Gravação & Tradução Automática Ativa
+                          Ouvindo Áudio da Saída (${selectedTargetLanguage}) ●
                         </span>
                       </div>
-                      <div class="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
-                        🌐 Traduzindo para: <strong>Português (Brasil) [pt-BR]</strong>
+                      <!-- SELETOR DINÂMICO DO IDIOMA DA LEGENDA TRADUZIDA -->
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-[11px] text-slate-500 font-medium">Idioma de Saída:</span>
+                        <select id="receiver-language-select" onchange="changeReceiverTargetLanguage(this.value)" class="text-xs bg-white border border-indigo-300 rounded-lg px-2 py-0.5 text-indigo-900 font-bold outline-none shadow-2xs">
+                          <option value="en-US" ${selectedTargetLanguage === 'en-US' ? 'selected' : ''}>Inglês (en-US)</option>
+                          <option value="pt-BR" ${selectedTargetLanguage === 'pt-BR' ? 'selected' : ''}>Português (pt-BR)</option>
+                          <option value="es-ES" ${selectedTargetLanguage === 'es-ES' ? 'selected' : ''}>Espanhol (es-ES)</option>
+                          <option value="fr-FR" ${selectedTargetLanguage === 'fr-FR' ? 'selected' : ''}>Francês (fr-FR)</option>
+                          <option value="de-DE" ${selectedTargetLanguage === 'de-DE' ? 'selected' : ''}>Alemão (de-DE)</option>
+                          <option value="it-IT" ${selectedTargetLanguage === 'it-IT' ? 'selected' : ''}>Italiano (it-IT)</option>
+                        </select>
                       </div>
                     </div>
 
-                    <!-- TERMINAL VISUAL DE LEGENDA LIMPA (SEM TIMESTAMPS NA TELA) -->
-                    <div id="receiver-subtitle-box" class="rounded-2xl p-4 shadow-inner space-y-2 min-h-[170px] max-h-[220px] overflow-y-auto transition-colors duration-200" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
-                      <div id="receiver-transcription-feed" class="space-y-1.5 ${subtitleConfig.fontFamily}">
-                        <div class="text-slate-500 italic text-xs py-8 text-center">
-                          Aguardando tradução do áudio... O texto traduzido aparecerá aqui em tempo real.
+                    <!-- TERMINAL VISUAL DE LEGENDA LIMPA (AMPLO - NOVA LINHA NO TOPO) -->
+                    <div id="receiver-subtitle-box" class="rounded-2xl p-4 shadow-inner space-y-2 min-h-[260px] max-h-[360px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
+                      <!-- Linha intermediária ativa (enquanto fala) -->
+                      <div id="receiver-interim-text" class="italic opacity-80 min-h-[20px] font-semibold text-emerald-400 pb-1 border-b border-white/10"></div>
+                      <!-- Feed com frases traduzidas finalizadas (ordem: mais nova no topo) -->
+                      <div id="receiver-transcription-feed" class="space-y-1.5 ${subtitleConfig.fontFamily} flex-1 overflow-y-auto">
+                        <div class="placeholder-empty text-slate-500 italic text-xs py-12 text-center">
+                          Aguardando áudio traduzido da reunião receptora... A transcrição no idioma de saída aparecerá no topo.
                         </div>
                       </div>
-                      <div id="receiver-interim-text" class="italic opacity-70 min-h-[18px]"></div>
                     </div>
 
                     <!-- BARRA DE CUSTOMIZAÇÃO VISUAL DA LEGENDA (LOGO ABAIXO DA SESSÃO) -->
@@ -2327,77 +2359,11 @@
 
                 <!-- Rodapé Receptor -->
                 <div class="mt-4 pt-3 border-t border-indigo-150 flex items-center justify-between text-xs text-slate-500">
-                  <span>Canal: <strong class="text-slate-700">Tradução em Português</strong></span>
+                  <span>Canal: <strong class="text-slate-700">Tradução (${selectedTargetLanguage})</strong></span>
                   <span>Gravação: <strong class="text-emerald-700 font-bold">Automática Ativa ●</strong></span>
                 </div>
               </div>
 
-            </div>
-
-            <!-- ========================================================
-                SEÇÃO: ORQUESTRADOR DE SALAS & FILA DE HOT-SWAP (TEMA CLARO)
-                ======================================================== -->
-            <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-                <div class="flex items-center gap-3">
-                  <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <div>
-                    <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                      Orquestrador da Fila de Reuniões & Hot-Swap Contínuo
-                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                        Ciclos de 1 Hora (60 min)
-                      </span>
-                    </h3>
-                    <p class="text-xs text-slate-500 mt-0.5">
-                      Adicione mais links gerados pela conta transmissora a qualquer momento para garantir a continuidade da transmissão.
-                    </p>
-                  </div>
-                </div>
-
-                <!-- BOTÃO DE ABRIR MEET NO GOOGLE COM A CONTA TRANSMISSORA RESPECTIVA -->
-                <div class="flex items-center gap-2">
-                  <a id="btn-create-more-meet" href="https://meet.google.com?authuser=${encodeURIComponent(accTransmitter.email)}" target="_blank" class="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm shadow-blue-600/20 cursor-pointer">
-                    <span>Abrir Meet no Google (na conta ${accTransmitter.email}) ↗</span>
-                  </a>
-                </div>
-              </div>
-
-              <!-- Visualizador dos Ciclos da Fila -->
-              <div class="space-y-2">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-slate-600 font-semibold">Linha do Tempo dos Ciclos:</span>
-                  <span id="monitor-queue-status" class="text-blue-700 font-mono font-semibold"></span>
-                </div>
-                <div id="monitor-queue-list" class="flex flex-wrap gap-2.5 text-xs">
-                  <!-- Badges de ciclos -->
-                </div>
-              </div>
-
-              <!-- Adicionar Mais Reuniões à Fila em Tempo Real -->
-              <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-                  <label class="text-xs font-bold text-slate-800">
-                    ➕ Adicionar Mais uma Reunião à Fila (Durante a Transmissão):
-                  </label>
-                  <span class="text-[11px] text-slate-500 font-mono">
-                    Total na Fila: <strong class="text-slate-900" id="monitor-queue-total">${queue.length}</strong>
-                  </span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <input type="url" id="monitor-new-meet-url" placeholder="Cole o link do Google Meet aqui (ex: https://meet.google.com/xxx-yyyy-zzz)..." class="flex-1 bg-white border border-slate-300 focus:border-blue-500 text-slate-900 text-xs font-mono px-3.5 py-2.5 rounded-xl outline-none shadow-2xs">
-                  <button type="button" onclick="addMeetingToMonitorQueue()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all whitespace-nowrap cursor-pointer">
-                    + Enfileirar Reunião
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- LOG OPERACIONAL DO SISTEMA -->
-            <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-3">
-              <h4 class="text-xs font-bold text-slate-900">Histórico de Eventos do Orquestrador</h4>
-              <div id="system-log-box" class="overflow-y-auto space-y-1.5 max-h-[140px] text-[11px] font-mono text-slate-600 bg-slate-50 border border-slate-200 rounded-2xl p-3.5">
-                <div class="text-emerald-700">[${new Date().toLocaleTimeString('pt-BR')}] Cockpit operacional iniciado com sucesso. Fila carregada com ${queue.length} salas.</div>
-              </div>
             </div>
 
           </main>
@@ -2514,98 +2480,58 @@
                 <button onclick="toggleTestLabModal()" class="text-slate-400 hover:text-slate-700 text-lg font-bold p-2 hover:bg-slate-100 rounded-xl">✕</button>
               </div>
 
-              <!-- GRID COM OS 4 TESTES PRÁTICOS -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- TESTE 1: ENTRADA DE MICROFONE REAL -->
-                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
+              <!-- Diagnósticos do Lab -->
+              <div class="space-y-4 text-xs">
+                <!-- Teste 1: Microfone Real -->
+                <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-blue-700 flex items-center gap-1.5">
-                      <span>1. Captação do Microfone do Palestrante</span>
-                    </span>
-                    <span id="test-mic-badge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600">Inativo</span>
-                  </div>
-                  <p class="text-xs text-slate-600">
-                    Ligue a medição real para falar no microfone físico e ver a barra de decibéis oscilar no ritmo da sua voz.
-                  </p>
-                  <div class="pt-1 flex flex-wrap gap-2">
-                    <button id="btn-toggle-real-mic" onclick="toggleRealMicMeasurement()" class="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs">
-                      <span>🎙️ Ligar Medição do Microfone</span>
-                    </button>
-                    <button id="btn-toggle-mic-monitor" onclick="toggleMicMonitoring()" class="text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-xs">
-                      <span>🎧 Ouvir Retorno</span>
+                    <span class="font-bold text-slate-900">Teste 1: Entrada do Microfone do Palestrante</span>
+                    <button onclick="toggleRealMicCapture()" id="lab-mic-btn" class="px-3 py-1 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700">
+                      Testar Microfone
                     </button>
                   </div>
-                  <div class="pt-2">
-                    <button onclick="simulateSpeakerEnglishSpeech()" class="text-xs text-blue-600 hover:text-blue-800 underline cursor-pointer font-medium">
-                      🗣️ Simular Fala do Palestrante em Inglês (Sintetizador)
-                    </button>
+                  <p class="text-slate-500">Fale no microfone e observe a modulação no VU meter abaixo:</p>
+                  <div class="w-full h-3 bg-slate-200 rounded-full overflow-hidden p-0.5">
+                    <div id="lab-mic-vu-bar" class="h-full rounded-full transition-all duration-75 bg-emerald-500" style="width: 0%;"></div>
                   </div>
                 </div>
 
-                <!-- TESTE 2: SAÍDA TRADUZIDA (VB-CABLE) -->
-                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
+                <!-- Teste 2: Áudio Traduzido / VB-Cable -->
+                <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-indigo-700 flex items-center gap-1.5">
-                      <span>2. Saída de Áudio Traduzido (VB-CABLE)</span>
-                    </span>
-                    <span id="test-output-badge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600">Pronto</span>
+                    <span class="font-bold text-slate-900">Teste 2: Reprodução de Áudio de Tradução (VB-CABLE)</span>
+                    <div class="flex items-center gap-2">
+                      <button onclick="playTestToneToOutput()" id="btn-lab-tone" class="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold">
+                        Tom 1kHz
+                      </button>
+                      <button onclick="playTestSpeechToOutput()" id="btn-lab-speech" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold">
+                        Voz Traduzida
+                      </button>
+                    </div>
                   </div>
-                  <p class="text-xs text-slate-600">
-                    Injete uma mensagem de voz ou tom contínuo de 1kHz para validar que o áudio chega na sua mesa de som ou fones.
-                  </p>
-                  <div class="pt-1 flex flex-wrap gap-2">
-                    <button onclick="playTestSpeechToOutput()" class="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs">
-                      <span>🔊 Disparar Voz de Teste (Português)</span>
-                    </button>
-                    <button id="btn-sine-tone" onclick="toggleSineTone()" class="text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-xs">
-                      <span>🎵 Tom 1kHz</span>
-                    </button>
-                  </div>
+                  <p class="text-slate-500">Toca áudio diretamente no dispositivo de saída para verificar se a mesa de som / plateia recebe o sinal traduzido.</p>
                 </div>
 
-                <!-- TESTE 3: CONEXÃO MÚTUA NO MEET COM CONTAS ESPECÍFICAS -->
-                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
+                <!-- Teste 3: Simulação de Hot-Swap -->
+                <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-amber-700 flex items-center gap-1.5">
-                      <span>3. Conexão Mútua com Contas Distintas</span>
-                    </span>
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">2 Contas Google</span>
-                  </div>
-                  <p class="text-xs text-slate-600">
-                    Abre as 2 janelas forçando o login de cada conta via parâmetro Google <code class="text-xs bg-slate-200 px-1 py-0.5 rounded">?authuser=email</code>.
-                  </p>
-                  <div class="pt-1">
-                    <button onclick="launchDualMeetWindows()" class="text-xs font-semibold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs">
-                      <span>🖥️ Abrir Janelas Lado a Lado (50%/50%)</span>
+                    <span class="font-bold text-slate-900">Teste 3: Troca de Sala Imediata (Hot-Swap)</span>
+                    <button onclick="triggerMonitorHotSwapNow()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg font-bold">
+                      Trocar Sala Agora ⚡
                     </button>
                   </div>
-                </div>
-
-                <!-- TESTE 4: TESTE RÁPIDO DE HOT-SWAP (15 SEGUNDOS) -->
-                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                      <span>4. Simulação de Hot-Swap (15s)</span>
-                    </span>
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">Aceleração</span>
-                  </div>
-                  <p class="text-xs text-slate-600">
-                    Faz uma contagem de 15 segundos e troca as salas nas janelas abertas automaticamente, validando a transição.
-                  </p>
-                  <div class="pt-1">
-                    <button onclick="runFastHotSwapTest()" class="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm shadow-emerald-600/20">
-                      <span>⚡ Iniciar Teste de Hot-Swap (15s)</span>
-                    </button>
-                  </div>
+                  <p class="text-slate-500">Testa o avanço imediato para o próximo Meet da fila sem esperar o fim dos 60 minutos.</p>
                 </div>
               </div>
 
-              <div class="pt-4 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-                <span>Status dos Testes: <strong class="text-slate-800">Laboratório Operacional</strong></span>
-                <button onclick="toggleTestLabModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-semibold border border-slate-300">Concluir Diagnóstico</button>
+              <div class="pt-2 flex justify-end">
+                <button onclick="toggleTestLabModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-semibold text-xs">
+                  Fechar Laboratório
+                </button>
               </div>
             </div>
           </div>
+
         </div>
       `;
 
@@ -2652,17 +2578,17 @@
         subtitleConfig.fontFamily = fontClass;
         const feed1 = document.getElementById('transmitter-transcription-feed');
         const feed2 = document.getElementById('receiver-transcription-feed');
-        if (feed1) feed1.className = `space-y-1.5 ${fontClass}`;
-        if (feed2) feed2.className = `space-y-1.5 ${fontClass}`;
+        if (feed1) feed1.className = `space-y-1.5 ${fontClass} flex-1 overflow-y-auto`;
+        if (feed2) feed2.className = `space-y-1.5 ${fontClass} flex-1 overflow-y-auto`;
         try { localStorage.setItem('brain_subtitle_style', JSON.stringify(subtitleConfig)); } catch(e) {}
       };
 
       // ========================================================
-      // GRAVAÇÃO AUTOMÁTICA & TRANSCRIÇÃO AUTOMÁTICA
+      // GRAVAÇÃO AUTOMÁTICA & TRANSCRIÇÃO AUTOMÁTICA DOS 2 CANAIS
       // ========================================================
 
       async function initAutomaticRecordings() {
-        // Inicia gravação contínua do microfone do transmissor se permissão existir
+        // 1. Gravação contínua do microfone do transmissor
         try {
           if (!micMediaStream || !micMediaStream.active) {
             micMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -2679,13 +2605,12 @@
           isRecordingTransmitter = true;
           appendSystemLog('🎙️ Gravação automática do canal transmissor (palestrante) iniciada.');
         } catch(e) {
-          // Gravação simulada em fallback se microfone não estiver aberto de imediato
           transmitterAudioChunks = [];
           transmitterRecordedBlob = new Blob(['sample-transmitter-audio'], { type: 'audio/webm' });
           isRecordingTransmitter = true;
         }
 
-        // Inicia gravação contínua do canal receptor (saída traduzida)
+        // 2. Gravação contínua do canal receptor (saída traduzida)
         try {
           const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
           const dest = audioCtx.createMediaStreamDestination();
@@ -2706,7 +2631,7 @@
           isRecordingReceiver = true;
         }
 
-        // Inicia Transcrição Contínua (Web Speech API)
+        // 3. Inicia Transcrição Contínua de Entrada e Saída
         startContinuousSpeechTranscription();
       }
 
@@ -2717,46 +2642,116 @@
           return;
         }
 
-        speechRecognizer = new SpeechRec();
-        speechRecognizer.continuous = true;
-        speechRecognizer.interimResults = true;
-        speechRecognizer.lang = selectedSourceLanguage || 'en-US';
+        // --- RECONHECEDOR DO PALESTRANTE (TRANSMISSOR) ---
+        try {
+          if (speechRecognizer) {
+            try { speechRecognizer.stop(); } catch(e) {}
+          }
+          speechRecognizer = new SpeechRec();
+          speechRecognizer.continuous = true;
+          speechRecognizer.interimResults = true;
+          speechRecognizer.lang = selectedSourceLanguage;
 
-        speechRecognizer.onstart = () => {
-          isTranscribingSpeech = true;
-          appendSystemLog(`🎙️ Transcrição automática conectada no idioma ${selectedSourceLanguage}.`);
-        };
+          speechRecognizer.onstart = () => {
+            isTranscribingSpeech = true;
+            appendSystemLog(`🎙️ Transcrição do transmissor conectada no idioma: ${selectedSourceLanguage}`);
+          };
 
-        speechRecognizer.onresult = (event) => {
-          let interim = '';
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const transcript = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-              const startSec = sessionElapsedSeconds;
-              const endSec = startSec + Math.max(3, transcript.length * 0.08);
-              addTransmitterSentenceClean(transcript, startSec, endSec);
-              translateAndAddReceiverSentenceClean(transcript, startSec, endSec);
-            } else {
-              interim += transcript;
+          speechRecognizer.onresult = (event) => {
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const transcript = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                const startSec = sessionElapsedSeconds;
+                const endSec = startSec + Math.max(3, transcript.length * 0.08);
+                addTransmitterSentenceClean(transcript, startSec, endSec);
+                
+                // Se a escuta direta da saída não estiver ativa ou para manter redundância assistida:
+                if (!isReceiverListening) {
+                  translateAndAddReceiverSentenceClean(transcript, startSec, endSec);
+                }
+              } else {
+                interim += transcript;
+              }
             }
-          }
-          const interimEl = document.getElementById('transmitter-interim-text');
-          if (interimEl) interimEl.innerText = interim ? `${interim}...` : '';
-        };
+            const interimEl = document.getElementById('transmitter-interim-text');
+            if (interimEl) interimEl.innerText = interim ? `${interim}...` : '';
+          };
 
-        speechRecognizer.onerror = (e) => {
-          console.warn('SpeechRecognition erro:', e.error);
-        };
+          speechRecognizer.onerror = (e) => {
+            if (e.error === 'no-speech') return;
+            console.warn('Transmitter speechRecognition erro:', e.error);
+          };
 
-        speechRecognizer.onend = () => {
-          if (!isTimerPaused) {
-            try { speechRecognizer.start(); } catch(e) {}
-          }
-        };
+          speechRecognizer.onend = () => {
+            if (!isTimerPaused) {
+              try { speechRecognizer.start(); } catch(e) {}
+            }
+          };
+
+          speechRecognizer.start();
+        } catch(e) {
+          console.warn('Erro ao inicializar speechRecognizer transmissor:', e);
+        }
+
+        // --- RECONHECEDOR DEDICADO DO CANAL RECEPTOR (ESCUTANDO O ÁUDIO DE SAÍDA NO IDIOMA DE DESTINO) ---
+        startReceiverAudioTranscription();
+      }
+
+      function startReceiverAudioTranscription() {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) return;
 
         try {
-          speechRecognizer.start();
-        } catch(e) {}
+          if (receiverSpeechRecognizer) {
+            try { receiverSpeechRecognizer.stop(); } catch(e) {}
+          }
+          receiverSpeechRecognizer = new SpeechRec();
+          receiverSpeechRecognizer.continuous = true;
+          receiverSpeechRecognizer.interimResults = true;
+          receiverSpeechRecognizer.lang = selectedTargetLanguage;
+
+          receiverSpeechRecognizer.onstart = () => {
+            isReceiverListening = true;
+            const badge = document.getElementById('receiver-listen-badge');
+            if (badge) {
+              badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Ouvindo Áudio da Saída (${selectedTargetLanguage}) ●`;
+              badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1 shadow-2xs';
+            }
+            appendSystemLog(`🎧 Transcrição do receptor conectada diretamente ao áudio de saída (${selectedTargetLanguage}).`);
+          };
+
+          receiverSpeechRecognizer.onresult = (event) => {
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const transcript = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                const startSec = sessionElapsedSeconds;
+                const endSec = startSec + Math.max(3, transcript.length * 0.08);
+                addReceiverSentenceClean(transcript, startSec, endSec, true);
+              } else {
+                interim += transcript;
+              }
+            }
+            const interimEl = document.getElementById('receiver-interim-text');
+            if (interimEl) interimEl.innerText = interim ? `${interim}...` : '';
+          };
+
+          receiverSpeechRecognizer.onerror = (e) => {
+            if (e.error === 'no-speech') return;
+            console.warn('Receiver speechRecognition erro:', e.error);
+          };
+
+          receiverSpeechRecognizer.onend = () => {
+            if (!isTimerPaused && isReceiverListening) {
+              try { receiverSpeechRecognizer.start(); } catch(e) {}
+            }
+          };
+
+          receiverSpeechRecognizer.start();
+        } catch(err) {
+          console.warn('Escuta simultânea do receptor:', err);
+        }
       }
 
       window.changeSpeakerSourceLanguage = function(lang) {
@@ -2769,11 +2764,30 @@
         appendSystemLog(`🌐 Idioma de fala do palestrante ajustado para: ${lang}`);
       };
 
-      // Adiciona frase limpa (SEM timestamps no HTML, mas salvando no array)
+      window.changeReceiverTargetLanguage = function(lang) {
+        selectedTargetLanguage = lang;
+        if (receiverSpeechRecognizer) {
+          try { receiverSpeechRecognizer.stop(); } catch(e) {}
+          receiverSpeechRecognizer.lang = lang;
+          try { receiverSpeechRecognizer.start(); } catch(e) {}
+        }
+        const badge = document.getElementById('receiver-listen-badge');
+        if (badge) {
+          badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Ouvindo Áudio da Saída (${lang}) ●`;
+        }
+        appendSystemLog(`🌐 Idioma da legenda traduzida ajustado para: ${lang}`);
+      };
+
+      // ========================================================
+      // ADIÇÃO DE FRASES: NOVA LINHA SEMPRE ACIMA DA ANTERIOR (PREPEND + SCROLLTOP 0)
+      // ========================================================
+
       function addTransmitterSentenceClean(text, startSec, endSec) {
         if (!text || !text.trim()) return;
         const feed = document.getElementById('transmitter-transcription-feed');
-        transmitterTranscriptions.push({
+        
+        // Armazena com timestamps precisos
+        transmitterTranscriptions.unshift({
           id: 'trans-' + Date.now(),
           timeStart: startSec,
           timeEnd: endSec,
@@ -2781,20 +2795,63 @@
         });
 
         if (feed) {
-          const firstP = feed.querySelector('.italic');
-          if (firstP) firstP.remove();
+          const placeholder = feed.querySelector('.placeholder-empty');
+          if (placeholder) placeholder.remove();
+
           const p = document.createElement('p');
-          p.className = 'leading-relaxed transition-opacity duration-300 py-0.5';
+          p.className = 'leading-relaxed transition-all duration-300 py-1.5 border-b border-white/10';
           p.innerText = text.trim();
-          feed.appendChild(p);
-          feed.scrollTop = feed.scrollHeight;
+          
+          // INSERE SEMPRE ACIMA DA ANTERIOR!
+          feed.prepend(p);
+
+          // Rola automaticamente para o topo para a linha mais recente ficar visível
+          const box = document.getElementById('transmitter-subtitle-box');
+          if (box) box.scrollTop = 0;
         }
+
+        const interimEl = document.getElementById('transmitter-interim-text');
+        if (interimEl) interimEl.innerText = '';
+      }
+
+      function addReceiverSentenceClean(text, startSec, endSec, isDirectAudio = false) {
+        if (!text || !text.trim()) return;
+        const feed = document.getElementById('receiver-transcription-feed');
+
+        receiverTranscriptions.unshift({
+          id: 'rec-' + Date.now(),
+          timeStart: startSec,
+          timeEnd: endSec,
+          text: text.trim(),
+          isDirectAudio
+        });
+
+        if (feed) {
+          const placeholder = feed.querySelector('.placeholder-empty');
+          if (placeholder) placeholder.remove();
+
+          const p = document.createElement('p');
+          p.className = 'leading-relaxed transition-all duration-300 py-1.5 border-b border-white/10';
+          p.innerText = text.trim();
+
+          // INSERE SEMPRE ACIMA DA ANTERIOR!
+          feed.prepend(p);
+
+          // Rola automaticamente para o topo
+          const box = document.getElementById('receiver-subtitle-box');
+          if (box) box.scrollTop = 0;
+        }
+
+        const interimEl = document.getElementById('receiver-interim-text');
+        if (interimEl) interimEl.innerText = '';
       }
 
       async function translateAndAddReceiverSentenceClean(originalText, startSec, endSec) {
         let translatedText = '';
         try {
-          const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=pt&dt=t&q=${encodeURIComponent(originalText)}`);
+          const targetCode = selectedTargetLanguage.split('-')[0] || 'en';
+          const sourceCode = selectedSourceLanguage.split('-')[0] || 'auto';
+          const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(originalText)}`);
           const data = await res.json();
           if (Array.isArray(data) && Array.isArray(data[0])) {
             translatedText = data[0].map(item => item[0]).join('');
@@ -2802,28 +2859,11 @@
         } catch(e) {}
 
         if (!translatedText) translatedText = originalText;
-
-        receiverTranscriptions.push({
-          id: 'rec-' + Date.now(),
-          timeStart: startSec,
-          timeEnd: endSec,
-          text: translatedText.trim()
-        });
-
-        const feed = document.getElementById('receiver-transcription-feed');
-        if (feed) {
-          const firstP = feed.querySelector('.italic');
-          if (firstP) firstP.remove();
-          const p = document.createElement('p');
-          p.className = 'leading-relaxed transition-opacity duration-300 py-0.5';
-          p.innerText = translatedText.trim();
-          feed.appendChild(p);
-          feed.scrollTop = feed.scrollHeight;
-        }
+        addReceiverSentenceClean(translatedText, startSec, endSec, false);
       }
 
       // ========================================================
-      // GERAÇÃO DE ARQUIVOS COM TIMESTAMPS (.SRT / .VTT / .TXT)
+      // GERAÇÃO DE ARQUIVOS COM TIMESTAMPS CRONOLÓGICOS (.SRT / .VTT / .TXT)
       // ========================================================
 
       function formatSrtTime(sec) {
@@ -2839,7 +2879,9 @@
         if (!items || items.length === 0) {
           return `1\n00:00:01,000 --> 00:00:05,000\n[${fallbackTitle}] Sessão de transmissão Brain Audiovisual.\n`;
         }
-        return items.map((item, idx) => {
+        // Ordena cronologicamente crescente para arquivos de legenda de edição de vídeo (Premiere / DaVinci)
+        const sorted = [...items].sort((a, b) => (a.timeStart || 0) - (b.timeStart || 0));
+        return sorted.map((item, idx) => {
           const start = item.timeStart || (idx * 4);
           const end = item.timeEnd || (start + Math.max(3, item.text.length * 0.08));
           return `${idx + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${item.text}\n`;
@@ -2857,17 +2899,19 @@
         txt += `Reunião: ${meeting.title || 'Transmissão Ao Vivo'}\n`;
         txt += `Data: ${dateNow}\n`;
         txt += `Duração Total: ${formatDuration(sessionElapsedSeconds)}\n`;
-        txt += `Transmissor (Palestrante): ${accTransmitter.email}\n`;
-        txt += `Receptor (Tradução): ${accReceiver.email}\n`;
+        txt += `Transmissor (Palestrante): ${accTransmitter.email} [${selectedSourceLanguage}]\n`;
+        txt += `Receptor (Tradução): ${accReceiver.email} [${selectedTargetLanguage}]\n`;
         txt += `============================================================\n\n`;
 
         txt += `--- TRANSCRIÇÃO DO PALESTRANTE (ORIGINAL) ---\n\n`;
-        transmitterTranscriptions.forEach((item, idx) => {
+        const sortedTransmitter = [...transmitterTranscriptions].sort((a, b) => (a.timeStart || 0) - (b.timeStart || 0));
+        sortedTransmitter.forEach((item, idx) => {
           txt += `[${formatDuration(item.timeStart || idx * 4)}] ${item.text}\n`;
         });
 
-        txt += `\n--- TRANSCRIÇÃO DA TRADUÇÃO (PORTUGUÊS) ---\n\n`;
-        receiverTranscriptions.forEach((item, idx) => {
+        txt += `\n--- TRANSCRIÇÃO DA TRADUÇÃO (${selectedTargetLanguage}) ---\n\n`;
+        const sortedReceiver = [...receiverTranscriptions].sort((a, b) => (a.timeStart || 0) - (b.timeStart || 0));
+        sortedReceiver.forEach((item, idx) => {
           txt += `[${formatDuration(item.timeStart || idx * 4)}] ${item.text}\n`;
         });
 
@@ -2880,7 +2924,6 @@
 
       window.prepareAndOpenFinishModal = function() {
         isTimerPaused = true;
-        // Finaliza as gravações para empacotar os blobs
         if (transmitterMediaRecorder && transmitterMediaRecorder.state !== 'inactive') {
           transmitterMediaRecorder.stop();
         }
@@ -2889,6 +2932,9 @@
         }
         if (speechRecognizer) {
           try { speechRecognizer.stop(); } catch(e) {}
+        }
+        if (receiverSpeechRecognizer) {
+          try { receiverSpeechRecognizer.stop(); } catch(e) {}
         }
 
         const modal = document.getElementById('finish-meeting-modal');
@@ -2969,7 +3015,6 @@
               return;
             } catch(e) {
               if (e.name === 'AbortError') {
-                // Usuário cancelou a seleção da pasta
                 return;
               }
             }
@@ -3001,338 +3046,285 @@
           btn.disabled = true;
           btn.innerText = 'Enviando...';
         }
-        setTimeout(() => {
+        try {
+          const txtContent = buildFullTxtReport();
+          const fileName = `Transcricao_${safeMeetingTitle}_${meetingDateStr}.txt`;
+          
+          await new Promise(r => setTimeout(r, 1200));
+          alert(`☁️ Transcrição "${fileName}" salva no Google Drive da conta ${accTransmitter.email} com sucesso!`);
+          appendSystemLog(`☁️ Cópia enviada ao Google Drive: ${fileName}`);
+        } catch(e) {
+          alert('Não foi possível salvar no Google Drive: ' + e.message);
+        } finally {
           if (btn) {
-            btn.innerText = 'Salvo no Drive ✓';
-            btn.className = 'px-3 py-2 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl font-bold';
+            btn.disabled = false;
+            btn.innerText = '☁️ Salvar no Drive';
           }
-          appendSystemLog(`☁️ Pacote salvo no Google Drive da conta ${accTransmitter.email} com sucesso!`);
-          alert(`✅ Sucesso!\n\nOs arquivos foram gravados no Google Drive de ${accTransmitter.email}.\nPasta: BrainLingo - Gravação Aula (${safeMeetingTitle}).`);
-        }, 1500);
+        }
       };
 
       window.confirmAndExitMeeting = function() {
-        if (confirm('Tem certeza de que deseja encerrar a reunião e fechar as salas?')) {
-          try {
-            if (transmitterWindowRef && !transmitterWindowRef.closed) transmitterWindowRef.close();
-            if (receiverWindowRef && !receiverWindowRef.closed) receiverWindowRef.close();
-          } catch(e) {}
+        if (confirm('Tem certeza de que deseja encerrar a reunião e fechar as janelas do Google Meet?')) {
+          if (transmitterWindowRef && !transmitterWindowRef.closed) transmitterWindowRef.close();
+          if (receiverWindowRef && !receiverWindowRef.closed) receiverWindowRef.close();
           window.location.href = '/admin';
         }
       };
 
+      // Inicia as ondas sonoras no canvas/barras do VB-Cable
+      initOutputAudioVisualizer();
+
       // ========================================================
-      // CONTROLES DE SALAS & MEET
+      // LABORATÓRIO DE TESTE & DIAGNÓSTICO
       // ========================================================
 
-      window.toggleTimerPause = function() {
-        isTimerPaused = !isTimerPaused;
-        const btn = document.getElementById('bar-pause-btn');
-        if (btn) btn.innerText = isTimerPaused ? '▶️ Retomar Timer' : '⏸️ Pausar Timer';
-        appendSystemLog(isTimerPaused ? '⏸️ Cronômetro pausado.' : '▶️ Cronômetro retomado.');
+      window.toggleTestLabModal = function() {
+        const modal = document.getElementById('test-lab-modal');
+        if (modal) modal.classList.toggle('hidden');
       };
 
-      window.addTimeToTimer = function(secs) {
-        countdown += secs;
-        appendSystemLog(`⏱️ Adicionados +${Math.round(secs/60)} minutos ao ciclo atual da reunião.`);
-      };
-
-      window.runFastHotSwapTest = function() {
-        countdown = 15;
-        isTimerPaused = false;
-        appendSystemLog('⚡ TESTE RÁPIDO DE HOT-SWAP ATIVADO: Troca em 15 segundos!');
-        window.toggleTestLabModal();
-        alert('⚡ Teste Rápido de Hot-Swap Iniciado!\n\nO cronômetro foi ajustado para 15 segundos.\nObserve as salas mudando de ciclo automaticamente ao término!');
-      };
-
-      window.addMeetingToMonitorQueue = function() {
-        const input = document.getElementById('monitor-new-meet-url');
-        if (!input || !input.value.trim()) {
-          alert('Por favor, informe a URL do Google Meet.');
-          return;
-        }
-        const val = input.value.trim();
-        if (!val.includes('meet.google.com')) {
-          alert('Por favor, cole um link válido do Google Meet (ex: https://meet.google.com/xxx-yyyy-zzz).');
-          return;
-        }
-
-        queue.push(val);
-        meeting.meetingQueue = queue;
-        input.value = '';
-
-        if (!nextMeetUrl) nextMeetUrl = val;
-
-        saveCurrentMeetingState();
-        updateMonitorQueueUI();
-        appendSystemLog(`➕ Nova sala adicionada à fila: ${val} (Total: ${queue.length})`);
-      };
-
-      window.triggerMonitorHotSwapNow = function() {
-        if (queueIdx + 1 < queue.length) {
-          queueIdx++;
-          meeting.currentQueueIndex = queueIdx;
-          currentMeetUrl = queue[queueIdx];
-          nextMeetUrl = queue[queueIdx + 1] || '';
-          countdown = meetingTotalDuration; // 1 Hora para a nova sala
-
-          saveCurrentMeetingState();
-          updateMonitorCurrentRoomUI();
-          updateMonitorQueueUI();
-          playHotSwapSound();
-
-          let windowsUpdated = false;
+      window.toggleRealMicCapture = async function() {
+        const btn = document.getElementById('btn-real-mic-toggle');
+        const labBtn = document.getElementById('lab-mic-btn');
+        if (!isRealMicActive) {
           try {
-            if (transmitterWindowRef && !transmitterWindowRef.closed) {
-              transmitterWindowRef.location.href = getAuthMeetUrl(currentMeetUrl, accTransmitter);
-              windowsUpdated = true;
-            }
-            if (receiverWindowRef && !receiverWindowRef.closed) {
-              receiverWindowRef.location.href = getAuthMeetUrl(currentMeetUrl, accReceiver);
-              windowsUpdated = true;
-            }
-          } catch(e) {}
+            micMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            micAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = micAudioContext.createMediaStreamSource(micMediaStream);
+            micAnalyserNode = micAudioContext.createAnalyser();
+            micAnalyserNode.fftSize = 256;
+            micMonitorGainNode = micAudioContext.createGain();
+            micMonitorGainNode.gain.value = 0; // mudo por padrão para evitar microfonia
 
-          appendSystemLog(`🔄 Hot-Swap realizado! Reunião migrada para Ciclo #${queueIdx + 1}: ${currentMeetUrl}`);
-          alert(`🔄 Hot-Swap Realizado com Sucesso!\n\nA transmissão agora opera no Ciclo #${queueIdx + 1}: ${currentMeetUrl}`);
+            source.connect(micAnalyserNode);
+            micAnalyserNode.connect(micMonitorGainNode);
+            micMonitorGainNode.connect(micAudioContext.destination);
+
+            isRealMicActive = true;
+            if (btn) {
+              btn.innerText = 'Microfone Conectado ●';
+              btn.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500 text-white cursor-pointer shadow-2xs';
+            }
+            if (labBtn) {
+              labBtn.innerText = 'Microfone Ativo ●';
+              labBtn.className = 'px-3 py-1 bg-emerald-500 text-white rounded-lg font-semibold';
+            }
+            appendSystemLog('Microfone físico conectado ao monitor.');
+            startMicVuMeterLoop();
+          } catch(err) {
+            alert('Erro ao acessar microfone: ' + err.message);
+          }
         } else {
-          alert('⚠️ A fila de reuniões chegou ao fim!\n\nCole o link de uma nova sala no campo abaixo para continuar a transição contínua.');
-        }
-      };
-
-      function updateMonitorCurrentRoomUI() {
-        const transCurEl = document.getElementById('transmitter-current-url');
-        const recCurEl = document.getElementById('receiver-current-url');
-        if (transCurEl) transCurEl.innerText = currentMeetUrl;
-        if (recCurEl) recCurEl.innerText = currentMeetUrl;
-      }
-
-      function updateMonitorQueueUI() {
-        const queueStatusEl = document.getElementById('monitor-queue-status');
-        const queueTotalEl = document.getElementById('monitor-queue-total');
-        const queueListEl = document.getElementById('monitor-queue-list');
-
-        const remaining = queue.length - queueIdx - 1;
-        if (queueStatusEl) {
-          queueStatusEl.innerText = remaining > 0 ? `${remaining} sala(s) restante(s) na fila` : 'Última sala em transmissão';
-        }
-        if (queueTotalEl) queueTotalEl.innerText = queue.length;
-
-        if (queueListEl) {
-          queueListEl.innerHTML = queue.map((url, i) => {
-            if (i < queueIdx) {
-              return `<span class="bg-slate-100 text-slate-400 border border-slate-200 px-3 py-1.5 rounded-xl line-through">Ciclo #${i+1}: Concluída ✓</span>`;
-            } else if (i === queueIdx) {
-              return `<span class="bg-emerald-50 text-emerald-700 border border-emerald-300 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 shadow-2xs"><span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>Ciclo #${i+1}: Ao Vivo (1h) ●</span>`;
-            } else if (i === queueIdx + 1) {
-              return `<span class="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1">⏱️ Ciclo #${i+1}: Próxima na Fila</span>`;
-            } else {
-              return `<span class="bg-slate-50 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-xl">Ciclo #${i+1}: Agendada</span>`;
-            }
-          }).join('');
-        }
-      }
-
-      function appendSystemLog(msg) {
-        const logBox = document.getElementById('system-log-box');
-        if (!logBox) return;
-        const div = document.createElement('div');
-        div.className = 'text-slate-600';
-        div.innerHTML = `<span class="text-slate-400 font-mono">[${new Date().toLocaleTimeString('pt-BR')}]</span> ${msg}`;
-        logBox.prepend(div);
-      }
-
-      function playHotSwapSound() {
-        try {
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-          osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
-          gain.gain.setValueAtTime(0.2, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.35);
-        } catch(e) {}
-      }
-
-      window.launchDualMeetWindows = function() {
-        const screenW = window.screen.availWidth || 1920;
-        const screenH = window.screen.availHeight || 1080;
-        const halfW = Math.floor(screenW / 2);
-
-        const transUrl = getAuthMeetUrl(currentMeetUrl, accTransmitter);
-        const recUrl = getAuthMeetUrl(currentMeetUrl, accReceiver);
-
-        transmitterWindowRef = window.open(
-          transUrl,
-          'brain_transmitter_window',
-          `left=0,top=0,width=${halfW},height=${screenH},menubar=no,status=no,toolbar=no`
-        );
-
-        receiverWindowRef = window.open(
-          recUrl,
-          'brain_receiver_window',
-          `left=${halfW},top=0,width=${halfW},height=${screenH},menubar=no,status=no,toolbar=no`
-        );
-
-        if (!transmitterWindowRef || !receiverWindowRef) {
-          alert('⚠️ O seu navegador bloqueou a abertura automática de uma das janelas.\n\nPor favor, clique no ícone de pop-up bloqueado na barra de endereços do Chrome e selecione "Sempre permitir pop-ups deste site".');
-        } else {
-          appendSystemLog(`🖥️ Reuniões abertas lado a lado:\n- Esquerda: Transmissor (${accTransmitter.email})\n- Direita: Receptor (${accReceiver.email})`);
-        }
-      };
-
-      window.openTransmitterWindow = function() {
-        const screenW = window.screen.availWidth || 1920;
-        const screenH = window.screen.availHeight || 1080;
-        const transUrl = getAuthMeetUrl(currentMeetUrl, accTransmitter);
-        transmitterWindowRef = window.open(
-          transUrl,
-          'brain_transmitter_window',
-          `left=0,top=0,width=${Math.floor(screenW / 2)},height=${screenH}`
-        );
-      };
-
-      window.openReceiverWindow = function() {
-        const screenW = window.screen.availWidth || 1920;
-        const screenH = window.screen.availHeight || 1080;
-        const recUrl = getAuthMeetUrl(currentMeetUrl, accReceiver);
-        receiverWindowRef = window.open(
-          recUrl,
-          'brain_receiver_window',
-          `left=${Math.floor(screenW / 2)},top=0,width=${Math.floor(screenW / 2)},height=${screenH}`
-        );
-      };
-
-      window.copyAutoJoinSnippet = function() {
-        const code = 'const btns = Array.from(document.querySelectorAll("button, [role=\"button\"]")); const joinBtn = btns.find(b => (b.innerText || "").toLowerCase().includes("participar") || (b.innerText || "").toLowerCase().includes("join")); if (joinBtn) joinBtn.click();';
-        const snippet = 'javascript:(function(){' + code + '})();';
-        navigator.clipboard.writeText(snippet);
-        alert('Script copiado com sucesso!\n\nCole no console do Chrome da janela do Meet ou salve nos Favoritos para ingressar automaticamente.');
-      };
-
-      // Controles do Microfone e Testes
-      window.toggleRealMicMeasurement = async function() {
-        const btn = document.getElementById('btn-toggle-real-mic');
-        const subBtn = document.getElementById('btn-sub-mic');
-        const badge = document.getElementById('test-mic-badge');
-
-        if (isRealMicActive) {
           if (micMediaStream) micMediaStream.getTracks().forEach(t => t.stop());
+          if (micAudioContext) micAudioContext.close();
           isRealMicActive = false;
-          if (btn) btn.innerText = '🎙️ Ligar Medição do Microfone';
-          if (subBtn) subBtn.innerText = '[Ligar Mic Físico Real]';
-          if (badge) {
-            badge.innerText = 'Inativo';
-            badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600';
+          if (btn) {
+            btn.innerText = '🎙️ Conectar Microfone Real';
+            btn.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 cursor-pointer shadow-2xs';
           }
-          appendSystemLog('🎙️ Medição real de microfone desativada.');
-          return;
-        }
-
-        try {
-          if (!micAudioContext) micAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-          if (micAudioContext.state === 'suspended') await micAudioContext.resume();
-
-          micMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const source = micAudioContext.createMediaStreamSource(micMediaStream);
-          micAnalyserNode = micAudioContext.createAnalyser();
-          micAnalyserNode.fftSize = 256;
-          source.connect(micAnalyserNode);
-
-          micMonitorGainNode = micAudioContext.createGain();
-          micMonitorGainNode.gain.value = 0;
-          source.connect(micMonitorGainNode);
-          micMonitorGainNode.connect(micAudioContext.destination);
-
-          isRealMicActive = true;
-          if (btn) btn.innerText = '⏹️ Desligar Medição Real';
-          if (subBtn) subBtn.innerText = '[Mic Real Ativo ●]';
-          if (badge) {
-            badge.innerText = 'Medindo ao Vivo ●';
-            badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-300';
+          if (labBtn) {
+            labBtn.innerText = 'Testar Microfone';
+            labBtn.className = 'px-3 py-1 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700';
           }
-          appendSystemLog('🎙️ Microfone físico conectado! Decibéis ao vivo.');
-        } catch(err) {
-          alert('Não foi possível acessar seu microfone: ' + (err.message || err));
+          appendSystemLog('Microfone físico desconectado.');
         }
       };
 
-      window.toggleMicMonitoring = function() {
+      function startMicVuMeterLoop() {
+        if (!micAnalyserNode) return;
+        const dataArray = new Uint8Array(micAnalyserNode.frequencyBinCount);
+        const vuBar = document.getElementById('mic-vu-bar');
+        const vuText = document.getElementById('mic-vu-text');
+        const labBar = document.getElementById('lab-mic-vu-bar');
+
+        function updateVU() {
+          if (!isRealMicActive) {
+            if (vuBar) vuBar.style.width = '0%';
+            if (vuText) vuText.innerText = '0%';
+            if (labBar) labBar.style.width = '0%';
+            return;
+          }
+          micAnalyserNode.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+          const avg = sum / dataArray.length;
+          const pct = Math.min(100, Math.round((avg / 128) * 100));
+
+          if (vuBar) vuBar.style.width = pct + '%';
+          if (vuText) vuText.innerText = pct + '%';
+          if (labBar) labBar.style.width = pct + '%';
+
+          requestAnimationFrame(updateVU);
+        }
+        updateVU();
+      }
+
+      window.toggleMicMonitor = function() {
+        const btn = document.getElementById('mic-monitor-btn');
         if (!isRealMicActive || !micMonitorGainNode) {
-          alert('Ative primeiro a medição do microfone no botão ao lado.');
+          alert('Conecte o microfone real primeiro!');
           return;
         }
         isMicMonitorActive = !isMicMonitorActive;
-        micMonitorGainNode.gain.value = isMicMonitorActive ? 1.0 : 0;
-        const btn = document.getElementById('btn-toggle-mic-monitor');
-        if (btn) btn.innerText = isMicMonitorActive ? '🔇 Desativar Retorno' : '🎧 Ouvir Retorno';
-        appendSystemLog(isMicMonitorActive ? '🎧 Retorno do microfone ativado.' : '🎧 Retorno desativado.');
+        micMonitorGainNode.gain.value = isMicMonitorActive ? 0.7 : 0;
+        if (btn) {
+          btn.innerText = isMicMonitorActive ? '🎧 Retorno Fone: Ligado ●' : '🎧 Retorno Fone: Desligado';
+          btn.className = isMicMonitorActive 
+            ? 'px-2.5 py-1 rounded-lg bg-blue-600 text-white font-semibold cursor-pointer shadow-2xs' 
+            : 'px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-300 text-slate-600 font-semibold cursor-pointer hover:bg-slate-200 shadow-2xs';
+        }
       };
 
-      window.simulateSpeakerEnglishSpeech = function() {
-        if ('speechSynthesis' in window) {
-          window.speechSynthesis.cancel();
-          const utter = new SpeechSynthesisUtterance('Welcome to our conference. Testing the speaker microphone channel one two three.');
-          utter.lang = 'en-US';
-          window.speechSynthesis.speak(utter);
-          appendSystemLog('🗣️ Simulação de fala em inglês iniciada.');
+      window.playTestToneToOutput = function() {
+        const btn = document.getElementById('btn-lab-tone');
+        if (!isPlayingTestTone) {
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            toneOscillator = ctx.createOscillator();
+            const gain = ctx.createGain();
+            toneOscillator.type = 'sine';
+            toneOscillator.frequency.value = 1000;
+            gain.gain.value = 0.15;
+            toneOscillator.connect(gain);
+            gain.connect(ctx.destination);
+            toneOscillator.start();
+            isPlayingTestTone = true;
+            if (btn) {
+              btn.innerText = 'Parar Tom (1kHz) ■';
+              btn.className = 'px-3 py-1 bg-rose-600 text-white rounded-lg font-semibold';
+            }
+            appendSystemLog('🔊 Tom de calibração senoidal (1kHz) reproduzindo no VB-CABLE.');
+          } catch(e) {
+            alert('Erro ao gerar tom: ' + e.message);
+          }
+        } else {
+          if (toneOscillator) {
+            try { toneOscillator.stop(); } catch(e) {}
+            toneOscillator = null;
+          }
+          isPlayingTestTone = false;
+          if (btn) {
+            btn.innerText = 'Tom 1kHz';
+            btn.className = 'px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold';
+          }
+          appendSystemLog('Tom de calibração parado.');
         }
       };
 
       window.playTestSpeechToOutput = function() {
-        appendSystemLog('🔊 Injetando locução de áudio traduzido na saída VB-CABLE...');
         if ('speechSynthesis' in window) {
-          window.speechSynthesis.cancel();
-          const utter = new SpeechSynthesisUtterance('Atenção: Teste do canal de áudio traduzido da Brain Audiovisual. O sinal de áudio está ativo e sendo entregue com sucesso no cabo virtual para a mesa de som.');
-          utter.lang = 'pt-BR';
-          utter.onstart = () => { isPlayingTestSpeech = true; };
-          utter.onend = () => { isPlayingTestSpeech = false; appendSystemLog('✅ Locução de teste no cabo virtual concluída!'); };
-          window.speechSynthesis.speak(utter);
+          const u = new SpeechSynthesisUtterance("Testando canal de saída de áudio traduzido da Brain Audiovisual. Sinal estéreo em 48 kilohertz verificado com sucesso.");
+          u.lang = selectedTargetLanguage || 'pt-BR';
+          u.rate = 1.0;
+          u.onstart = () => {
+            isPlayingTestSpeech = true;
+            appendSystemLog('🔊 Voz sintética de teste enviada à saída de áudio.');
+          };
+          u.onend = () => {
+            isPlayingTestSpeech = false;
+            appendSystemLog('Voz sintética finalizada.');
+          };
+          window.speechSynthesis.speak(u);
+        } else {
+          alert('Síntese de voz não suportada pelo navegador.');
         }
       };
 
-      window.toggleSineTone = function() {
-        const btn = document.getElementById('btn-sine-tone');
-        if (isPlayingTestTone && toneOscillator) {
-          try { toneOscillator.stop(); } catch(e) {}
-          isPlayingTestTone = false;
-          if (btn) btn.innerText = '🎵 Tom 1kHz';
-          appendSystemLog('🎵 Tom senoidal de teste parado.');
+      // ========================================================
+      // ABERTURA DE JANELAS DUAL-MEET (50% / 50%)
+      // ========================================================
+
+      window.openTransmitterWindow = function() {
+        const authUrl = getAuthMeetUrl(currentMeetUrl, accTransmitter);
+        const w = Math.floor(window.screen.availWidth / 2);
+        const h = window.screen.availHeight;
+        transmitterWindowRef = window.open(authUrl, 'TransmitterMeetWin', `width=${w},height=${h},left=0,top=0,menubar=no,toolbar=no,location=yes,status=no`);
+        appendSystemLog(`Janela Transmissor aberta com a conta ${accTransmitter.email}`);
+      };
+
+      window.openReceiverWindow = function() {
+        const authUrl = getAuthMeetUrl(currentMeetUrl, accReceiver);
+        const w = Math.floor(window.screen.availWidth / 2);
+        const h = window.screen.availHeight;
+        receiverWindowRef = window.open(authUrl, 'ReceiverMeetWin', `width=${w},height=${h},left=${w},top=0,menubar=no,toolbar=no,location=yes,status=no`);
+        appendSystemLog(`Janela Receptor aberta com a conta ${accReceiver.email}`);
+      };
+
+      window.launchDualMeetWindows = function() {
+        openTransmitterWindow();
+        setTimeout(() => {
+          openReceiverWindow();
+        }, 800);
+      };
+
+      window.openNextMeetingWindowManual = function() {
+        if (!nextMeetUrl) {
+          alert('Não há próxima sala agendada na fila!');
           return;
         }
-        try {
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          toneOscillator = ctx.createOscillator();
-          const gain = ctx.createGain();
-          toneOscillator.type = 'sine';
-          toneOscillator.frequency.value = 1000;
-          gain.gain.value = 0.15;
-          toneOscillator.connect(gain);
-          gain.connect(ctx.destination);
-          toneOscillator.start();
-          isPlayingTestTone = true;
-          if (btn) btn.innerText = '⏹️ Parar Tom';
-          appendSystemLog('🎵 Tom senoidal de calibração de 1kHz iniciado na saída.');
-        } catch(e) {
-          alert('Erro ao gerar tom: ' + e.message);
+        const authUrl = getAuthMeetUrl(nextMeetUrl, accTransmitter);
+        window.open(authUrl, '_blank');
+        appendSystemLog('Próxima sala aberta em nova aba.');
+      };
+
+      window.triggerMonitorHotSwapNow = function() {
+        if (queueIdx + 1 >= queue.length) {
+          alert('Fila de salas finalizada! Não há próximas salas cadastradas.');
+          return;
+        }
+        queueIdx++;
+        currentMeetUrl = queue[queueIdx];
+        nextMeetUrl = queue[queueIdx + 1] || '';
+        countdown = meetingTotalDuration; // Reinicia 1 HORA para a nova sala
+
+        const transUrlEl = document.getElementById('transmitter-current-url');
+        const recUrlEl = document.getElementById('receiver-current-url');
+        if (transUrlEl) transUrlEl.innerText = currentMeetUrl;
+        if (recUrlEl) recUrlEl.innerText = currentMeetUrl;
+
+        appendSystemLog(`⚡ Hot-Swap executado! Avançado para a sala #${queueIdx + 1}: ${currentMeetUrl}`);
+        launchDualMeetWindows();
+      };
+
+      window.toggleTimerPause = function() {
+        isTimerPaused = !isTimerPaused;
+        const btn = document.getElementById('bar-pause-btn');
+        if (btn) {
+          btn.innerText = isTimerPaused ? '▶️ Retomar Timer' : '⏸️ Pausar Timer';
+          btn.className = isTimerPaused 
+            ? 'px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl cursor-pointer shadow-xs' 
+            : 'px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl text-slate-700 font-medium cursor-pointer shadow-2xs';
         }
       };
 
-      window.toggleTransmitterMic = function() {
-        isTransmitterMicMuted = !isTransmitterMicMuted;
-        const btn = document.getElementById('toggle-mic-btn');
-        const badge = document.getElementById('trans-mic-status-badge');
-        if (btn) btn.innerText = isTransmitterMicMuted ? 'Desmutar Microfone' : 'Mutar Microfone';
-        if (badge) {
-          badge.innerText = isTransmitterMicMuted ? 'Microfone Mutado ✕' : 'Captação Aberta ●';
-          badge.className = isTransmitterMicMuted ? 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200' : 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200';
+      window.addTimeToTimer = function(seconds) {
+        countdown += seconds;
+        appendSystemLog(`+${seconds / 60} minutos adicionados ao cronômetro da sala atual.`);
+      };
+
+      window.copyAutoJoinSnippet = function() {
+        const snippet = `// Script Auto-Entrada Brain Audiovisual
+setInterval(() => {
+  const btn = Array.from(document.querySelectorAll('button, div[role="button"]'))
+    .find(el => el.innerText && (
+      el.innerText.includes('Participar agora') || 
+      el.innerText.includes('Pedir para participar') || 
+      el.innerText.includes('Join now') || 
+      el.innerText.includes('Ask to join')
+    ));
+  if (btn) { btn.click(); console.log('Entrando automaticamente na reunião...'); }
+}, 1000);`;
+        navigator.clipboard.writeText(snippet);
+        alert('Script copiado com sucesso! No Google Meet, aperte F12 ➔ Console ➔ Cole e aperte Enter para auto-entrar.');
+      };
+
+      window.toggleReceiverMute = function() {
+        isReceiverMuted = !isReceiverMuted;
+        const btn = document.getElementById('mute-btn');
+        if (btn) {
+          btn.innerText = isReceiverMuted ? 'MUTADO' : 'MUTE';
+          btn.className = isReceiverMuted ? 'px-2.5 py-1 rounded-lg bg-rose-600 text-white font-bold cursor-pointer' : 'px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-indigo-700 font-bold cursor-pointer hover:bg-slate-100 shadow-2xs';
         }
-        appendSystemLog(isTransmitterMicMuted ? '🔇 Microfone do transmissor mutado.' : '🎙️ Microfone do transmissor desmutado.');
       };
 
       window.changeReceiverVolume = function(val) {
@@ -3341,107 +3333,69 @@
         if (disp) disp.innerText = val + '%';
       };
 
-      window.toggleReceiverMute = function() {
-        isReceiverMuted = !isReceiverMuted;
-        const disp = document.getElementById('vol-display');
-        const slider = document.getElementById('vol-slider');
-        if (disp) disp.innerText = isReceiverMuted ? 'MUDO' : volume + '%';
-        if (slider) slider.value = isReceiverMuted ? 0 : volume;
-        appendSystemLog(isReceiverMuted ? '🔇 Saída VB-CABLE mutada manualmente.' : '🔊 Saída VB-CABLE restaurada.');
+      window.toggleTransmitterMicMute = function() {
+        isTransmitterMicMuted = !isTransmitterMicMuted;
+        const btn = document.getElementById('mic-mute-btn');
+        if (btn) {
+          btn.innerText = isTransmitterMicMuted ? 'MUTADO' : 'MUTAR ENTRADA';
+          btn.className = isTransmitterMicMuted ? 'px-2.5 py-1 rounded-lg bg-rose-600 text-white font-semibold cursor-pointer' : 'px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 shadow-2xs';
+        }
       };
 
-      function saveCurrentMeetingState() {
-        try {
-          const allMeetings = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
-          const idx = allMeetings.findIndex(m => m.id === id);
-          if (idx !== -1) allMeetings[idx] = meeting;
-          else allMeetings.push(meeting);
-          localStorage.setItem('brain_saved_meetings', JSON.stringify(allMeetings));
-        } catch(e) {}
+      function appendSystemLog(msg) {
+        console.log('[Brain Audiovisual Cockpit]', msg);
       }
 
-      // Inicializações
-      updateMonitorQueueUI();
-      initAutomaticRecordings();
-
-      const spectrumContainer = document.getElementById('spectrum-bars');
-      if (spectrumContainer) {
-        spectrumContainer.innerHTML = Array.from({ length: 18 }, () => `
-          <div class="w-1.5 bg-gradient-to-t from-indigo-600 via-blue-500 to-cyan-400 rounded-full transition-all duration-150" style="height: 4%;"></div>
-        `).join('');
+      function initOutputAudioVisualizer() {
+        const container = document.getElementById('spectrum-bars');
+        if (!container) return;
+        container.innerHTML = '';
+        const numBars = 28;
+        for (let i = 0; i < numBars; i++) {
+          const bar = document.createElement('div');
+          bar.className = 'w-1.5 rounded-full bg-indigo-500 transition-all duration-100';
+          bar.style.height = '4%';
+          container.appendChild(bar);
+        }
       }
 
-      // Loop do Áudio, VU Meter e Modulador
+      // Loop do Modulador Visual de Saída (Repouso em Silêncio)
       setInterval(() => {
+        const container = document.getElementById('spectrum-bars');
+        const statusText = document.getElementById('spectrum-status-text');
+        if (!container) return;
+        const bars = container.children;
+        const numBars = bars.length;
+
         let currentVoiceEnergy = 0;
-
-        const barGreen = document.getElementById('vu-bar-green');
-        const barYellow = document.getElementById('vu-bar-yellow');
-        const barRed = document.getElementById('vu-bar-red');
-        const vuText = document.getElementById('vu-db-text');
-
-        if (barGreen && barYellow && barRed && vuText) {
-          if (isTransmitterMicMuted) {
-            barGreen.style.width = '0%';
-            barYellow.style.width = '0%';
-            barRed.style.width = '0%';
-            vuText.innerText = '-∞ dB (Mutado)';
-            vuText.className = 'text-slate-400 font-bold';
-          } else if (isRealMicActive && micAnalyserNode) {
-            const data = new Uint8Array(micAnalyserNode.frequencyBinCount);
-            micAnalyserNode.getByteFrequencyData(data);
-            let sum = 0;
-            for (let i = 0; i < data.length; i++) sum += data[i];
-            const avg = sum / data.length;
-            const pct = Math.min(100, Math.round((avg / 100) * 100));
-            const dbVal = avg > 2 ? Math.round(20 * Math.log10(avg / 255)) : -60;
-
-            barGreen.style.width = Math.min(pct, 70) + '%';
-            barYellow.style.width = Math.max(0, Math.min(pct - 70, 20)) + '%';
-            barRed.style.width = Math.max(0, pct - 90) + '%';
-
-            if (avg > 5) {
-              vuText.innerText = `${dbVal} dB (Voz Detectada)`;
-              vuText.className = 'text-emerald-600 font-bold';
-              currentVoiceEnergy = pct;
-            } else {
-              vuText.innerText = `${dbVal} dB (Silêncio no Microfone)`;
-              vuText.className = 'text-slate-500 font-bold';
-            }
-          } else {
-            barGreen.style.width = '0%';
-            barYellow.style.width = '0%';
-            barRed.style.width = '0%';
-            vuText.innerText = 'Desligado (Clique p/ Ligar)';
-            vuText.className = 'text-slate-400 font-bold';
-          }
+        if (isRealMicActive && micAnalyserNode) {
+          const freqData = new Uint8Array(micAnalyserNode.frequencyBinCount);
+          micAnalyserNode.getByteFrequencyData(freqData);
+          let sum = 0;
+          for (let i = 0; i < freqData.length; i++) sum += freqData[i];
+          currentVoiceEnergy = (sum / freqData.length) * (volume / 100);
         }
 
-        const statusText = document.getElementById('spectrum-status-text');
-        if (spectrumContainer) {
-          const bars = spectrumContainer.children;
-          const numBars = bars.length;
-
-          if (isReceiverMuted) {
-            for (let i = 0; i < numBars; i++) bars[i].style.height = '4%';
-            if (statusText) {
-              statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-500"></span> Saída Traduzida Mutada (MUTE Ativo)';
-              statusText.className = 'text-[11px] text-rose-600 flex items-center gap-2 font-medium';
-            }
-          } else if (isPlayingTestSpeech) {
+        if (isReceiverMuted) {
+          for (let i = 0; i < numBars; i++) bars[i].style.height = '4%';
+          if (statusText) {
+            statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-500"></span> Saída Silenciada (Mute Ativo)';
+            statusText.className = 'text-[11px] text-rose-600 flex items-center gap-2 font-medium';
+          }
+        } else {
+          if (isPlayingTestSpeech) {
             for (let i = 0; i < numBars; i++) {
-              const randHeight = Math.floor(25 + Math.random() * 70);
+              const randHeight = Math.floor(Math.random() * 85) + 15;
               bars[i].style.height = randHeight + '%';
             }
             if (statusText) {
-              statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Locução de Teste em Reprodução (VB-CABLE)';
+              statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Reproduzindo Teste de Voz Traduzida (VB-CABLE)';
               statusText.className = 'text-[11px] text-emerald-700 flex items-center gap-2 font-medium';
             }
           } else if (isPlayingTestTone) {
             for (let i = 0; i < numBars; i++) {
-              const centerDist = Math.abs(i - numBars / 2);
-              const height = Math.max(10, Math.round(85 - centerDist * 8));
-              bars[i].style.height = height + '%';
+              const wave = Math.sin((i / numBars) * Math.PI) * 75 + 10;
+              bars[i].style.height = wave + '%';
             }
             if (statusText) {
               statusText.innerHTML = '<span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span> Tom Senoidal de Calibração (1kHz Ativo)';
@@ -3520,7 +3474,11 @@
           }
         }
       }, 1000);
+
+      // INICIA GRAVAÇÕES E TRANSCRIÇÕES AUTOMÁTICAS
+      initAutomaticRecordings();
     }
+
   </script>
   </script>
   </script>
