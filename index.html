@@ -2264,52 +2264,55 @@
       }
 
       // ROTEAMENTO DE LEGENDAS TRADUZIDAS PARA O ESPECTADOR
-      const audienceSeenSubtitles = new Set();
+      // ROTEAMENTO DE LEGENDAS TRADUZIDAS PARA O ESPECTADOR
+      const audienceSeenSubtitles = new Map();
       async function handleAudienceIncomingSubtitle(data) {
         if (!data || data.type !== 'NEW_SUBTITLE' || !data.text) return;
         const text = data.text.trim();
-        const dedupeKey = data.channel + '_' + text;
-        if (audienceSeenSubtitles.has(dedupeKey)) return;
-        audienceSeenSubtitles.add(dedupeKey);
-        if (audienceSeenSubtitles.size > 200) {
-          const first = audienceSeenSubtitles.values().next().value;
-          audienceSeenSubtitles.delete(first);
-        }
-
         const currentLangPrefix = (currentAudienceLang || 'en').split('-')[0].toLowerCase();
-        let targetText = '';
+        const dataChan = (data.channel || '').toLowerCase();
 
-        if (currentLangPrefix === 'en') {
-          if (data.channel === 'receiver') targetText = text;
-        } else if (currentLangPrefix === 'es') {
-          if (data.channel === 'spanish') targetText = text;
-        } else if (data.channel === currentLangPrefix || data.channel === currentAudienceLang) {
-          targetText = text;
+        let isForThisAudience = false;
+        if (currentLangPrefix === 'en' && (dataChan === 'en' || dataChan === 'receiver' || dataChan === 'en-us')) isForThisAudience = true;
+        else if (currentLangPrefix === 'es' && (dataChan === 'es' || dataChan === 'spanish' || dataChan === 'es-es')) isForThisAudience = true;
+        else if (dataChan === currentLangPrefix || dataChan === currentAudienceLang.toLowerCase()) isForThisAudience = true;
+
+        if (!isForThisAudience) return;
+
+        // Desduplicação universal por texto e janela temporal de 15 segundos
+        const now = Date.now();
+        const textLower = text.toLowerCase();
+        if (audienceSeenSubtitles.has(textLower)) {
+          const lastTime = audienceSeenSubtitles.get(textLower);
+          if (now - lastTime < 15000) return;
+        }
+        audienceSeenSubtitles.set(textLower, now);
+
+        if (audienceSeenSubtitles.size > 200) {
+          const oldestKey = audienceSeenSubtitles.keys().next().value;
+          audienceSeenSubtitles.delete(oldestKey);
         }
 
-        // Se a legenda recebida pertence ao canal atual do espectador
-        if (targetText && targetText.trim()) {
-          const feed = document.getElementById('audience-subtitles-feed');
-          if (feed) {
-            const emptyP = feed.querySelector('.placeholder-empty');
-            if (emptyP) emptyP.remove();
+        const feed = document.getElementById('audience-subtitles-feed');
+        if (feed) {
+          const emptyP = feed.querySelector('.placeholder-empty');
+          if (emptyP) emptyP.remove();
 
-            if (feed.lastElementChild) {
-              feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-2 whitespace-normal break-words opacity-70';
-            }
-
-            const p = document.createElement('p');
-            p.className = 'leading-relaxed transition-all duration-300 mb-2 font-bold whitespace-normal break-words opacity-100 text-slate-900 dark:text-white';
-            p.innerText = targetText.trim();
-            feed.appendChild(p);
-
-            while (feed.children.length > 30) feed.removeChild(feed.firstChild);
-            feed.scrollTop = feed.scrollHeight;
+          if (feed.lastElementChild) {
+            feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-2 whitespace-normal break-words opacity-70';
           }
 
-          // Envia a fala para a voz humanizada
-          queueAudienceSpeech(targetText.trim());
+          const p = document.createElement('p');
+          p.className = 'leading-relaxed transition-all duration-300 mb-2 font-bold whitespace-normal break-words opacity-100 text-slate-900 dark:text-white';
+          p.innerText = text;
+          feed.appendChild(p);
+
+          while (feed.children.length > 30) feed.removeChild(feed.firstChild);
+          feed.scrollTop = feed.scrollHeight;
         }
+
+        // Envia a fala para a voz humanizada
+        queueAudienceSpeech(text);
       }
 
       // 1. SINCRONIZAÇÃO LOCAL (BroadcastChannel)
@@ -3157,13 +3160,15 @@
       // ========================================================
       // MOTOR DE TRANSCRIÇÃO CONTÍNUA COM AS DUAS CORREÇÕES
       // ========================================================
+      let speechLongInterimTimer = null;
+      let lastProcessedFinalIndex = -1;
+
       function safelyDestroySpeechRecognizer() {
-        if (speechSilenceCommitTimer) {
-          clearTimeout(speechSilenceCommitTimer);
-          speechSilenceCommitTimer = null;
+        if (speechLongInterimTimer) {
+          clearTimeout(speechLongInterimTimer);
+          speechLongInterimTimer = null;
         }
-        currentResultIndex = -1;
-        committedCharsForIndex = 0;
+        lastProcessedFinalIndex = -1;
 
         if (speechRecognizer) {
           try {
@@ -3206,17 +3211,17 @@
         }, delay);
       }
 
-      // Watchdog de integridade: reinicia recognizer se travar sem evento por 15 segundos
+      // Watchdog de integridade: reinicia recognizer apenas se inativo por mais de 20s
       if (speechWatchdogInterval) clearInterval(speechWatchdogInterval);
       speechWatchdogInterval = setInterval(() => {
         if (isRealMicActive && !isTimerPaused) {
           const idleTime = Date.now() - lastSpeechActivityTimestamp;
-          if (!isTranscribingSpeech || idleTime > 15000) {
+          if (!isTranscribingSpeech || idleTime > 20000) {
             safelyDestroySpeechRecognizer();
             startContinuousSpeechTranscription();
           }
         }
-      }, 3000);
+      }, 5000);
 
       function startContinuousSpeechTranscription() {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -3227,7 +3232,7 @@
 
         if (isStartingSpeechRecognition) return;
         isStartingSpeechRecognition = true;
-        setTimeout(() => { isStartingSpeechRecognition = false; }, 2500);
+        setTimeout(() => { isStartingSpeechRecognition = false; }, 2000);
 
         safelyDestroySpeechRecognizer();
 
@@ -3244,6 +3249,7 @@
               isStartingSpeechRecognition = false;
               isTranscribingSpeech = true;
               lastSpeechActivityTimestamp = Date.now();
+              lastProcessedFinalIndex = -1;
               updateSpeechStatusIndicator(true);
             };
 
@@ -3253,91 +3259,52 @@
 
             recognizer.onresult = (event) => {
               lastSpeechActivityTimestamp = Date.now();
+              const interimEl = document.getElementById('transmitter-interim-text');
+              let latestInterim = '';
 
               for (let i = event.resultIndex; i < event.results.length; i++) {
                 const res = event.results[i];
                 if (!res || !res[0]) continue;
 
-                // Quando muda o resultado corrente no Web Speech API, inicializa o rastreador
-                if (i !== currentResultIndex) {
-                  currentResultIndex = i;
-                  committedCharsForIndex = 0;
-                }
-
-                const fullTranscript = (res[0].transcript || '').trimStart();
-                // Apenas a porção que AINDA NÃO FOI PROCESSADA E COMMITADA deste resultado
-                const uncommitted = fullTranscript.substring(committedCharsForIndex);
-
-                // CASO 1: Sentença finalizada pelo navegador (isFinal = true)
                 if (res.isFinal) {
-                  if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
-                  const toCommit = uncommitted.trim();
-                  committedCharsForIndex = fullTranscript.length;
-
-                  const interimEl = document.getElementById('transmitter-interim-text');
-                  if (interimEl) { interimEl.innerText = ''; interimEl.style.display = 'none'; }
-
-                  if (toCommit) {
-                    commitSpeechSentence(toCommit);
+                  // Processa estritamente UMA VEZ cada resultado finalizado pelo motor do navegador
+                  if (i > lastProcessedFinalIndex) {
+                    lastProcessedFinalIndex = i;
+                    const finalPhrase = (res[0].transcript || '').trim();
+                    if (finalPhrase) {
+                      commitSpeechSentence(finalPhrase);
+                    }
                   }
-                  // Reset para a próxima sentença
-                  currentResultIndex = -1;
-                  committedCharsForIndex = 0;
+                } else {
+                  latestInterim = (res[0].transcript || '').trim();
                 }
-                // CASO 2: Reconhecimento provisório em andamento contínuo (isFinal = false)
-                else {
-                  const interimEl = document.getElementById('transmitter-interim-text');
-                  if (interimEl) {
-                    interimEl.style.display = uncommitted.trim() ? 'block' : 'none';
-                    interimEl.innerText = uncommitted.trim() ? ('● ' + uncommitted.trim()) : '';
-                    interimEl.style.color = transSubtitleConfig.textColor;
-                  }
+              }
 
-                  // CORREÇÃO CRÍTICA DE TAMANHO SEM REPETIÇÃO:
-                  // Limita cada trecho a ~90-120 caracteres para fala contínua sem pausas
-                  // Corta no último espaço ou pontuação natural
-                  if (uncommitted.length >= 100) {
-                    let cutIndex = -1;
-                    const maxSearch = Math.min(uncommitted.length - 1, 135);
-                    for (let idx = Math.min(maxSearch, 120); idx >= 60; idx--) {
-                      const ch = uncommitted[idx];
-                      if (ch === '.' || ch === ',' || ch === '!' || ch === '?' || ch === ';' || ch === ' ') {
-                        cutIndex = idx;
-                        break;
-                      }
-                    }
-
-                    if (cutIndex !== -1 && cutIndex >= 45) {
-                      const chunk = uncommitted.substring(0, cutIndex + 1).trim();
-                      // AVANÇA O CURSOR: Essa porção NUNCA mais será reprocessada
-                      committedCharsForIndex += (cutIndex + 1);
-
-                      if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
-                      if (chunk) {
-                        commitSpeechSentence(chunk);
-                      }
-
-                      // Atualiza a exibição provisória apenas com o trecho restante
-                      const remainingNow = fullTranscript.substring(committedCharsForIndex).trim();
-                      if (interimEl) {
-                        interimEl.innerText = remainingNow ? ('● ' + remainingNow) : '';
-                        if (!remainingNow) interimEl.style.display = 'none';
-                      }
-                    }
-                  }
-
-                  // Finalização por silêncio natural (pausa de 1.1s na respiração)
-                  if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
-                  speechSilenceCommitTimer = setTimeout(() => {
-                    const remainingAfterSilence = fullTranscript.substring(committedCharsForIndex).trim();
-                    if (remainingAfterSilence) {
-                      committedCharsForIndex = fullTranscript.length;
-                      const el = document.getElementById('transmitter-interim-text');
-                      if (el) { el.innerText = ''; el.style.display = 'none'; }
-                      commitSpeechSentence(remainingAfterSilence);
-                    }
-                  }, 1100);
+              // Exibição provisória em tempo real no terminal do palestrante
+              if (interimEl) {
+                if (latestInterim) {
+                  interimEl.style.display = 'block';
+                  interimEl.innerText = '● ' + latestInterim;
+                  interimEl.style.color = transSubtitleConfig.textColor;
+                } else {
+                  interimEl.innerText = '';
+                  interimEl.style.display = 'none';
                 }
+              }
+
+              // GESTÃO INTELIGENTE DE CORTES SEM REPETIÇÃO:
+              // Se o texto acumulado provisório passar de 80 caracteres e houver uma pausa de respiração (> 650ms),
+              // encerramos o recognizer com stop(). Isso força o Chrome a emitir isFinal com a frase limpa
+              // e a reiniciar do zero, garantindo zero repetição de buffer!
+              if (speechLongInterimTimer) clearTimeout(speechLongInterimTimer);
+              if (latestInterim && latestInterim.length > 80) {
+                speechLongInterimTimer = setTimeout(() => {
+                  try {
+                    if (speechRecognizer && isTranscribingSpeech) {
+                      speechRecognizer.stop();
+                    }
+                  } catch(e) {}
+                }, 650);
               }
             };
 
@@ -3356,13 +3323,11 @@
               isStartingSpeechRecognition = false;
               isTranscribingSpeech = false;
               updateSpeechStatusIndicator(false);
-
-              if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
-              currentResultIndex = -1;
-              committedCharsForIndex = 0;
+              const interimEl = document.getElementById('transmitter-interim-text');
+              if (interimEl) { interimEl.innerText = ''; interimEl.style.display = 'none'; }
 
               if (isRealMicActive && !isTimerPaused) {
-                scheduleSpeechRestart(120);
+                scheduleSpeechRestart(80);
               }
             };
 
@@ -3371,7 +3336,7 @@
             isStartingSpeechRecognition = false;
             scheduleSpeechRestart(400);
           }
-        }, 80);
+        }, 60);
       }
 
       window.changeSpeakerSourceLanguage = function(newLang) {
@@ -3396,35 +3361,91 @@
       };
 
       // COMMIT DE SENTENÇA E TRADUÇÃO MULTILÍNGUE PARALELA
+      let committedHistory = [];
+
       async function commitSpeechSentence(rawText) {
         if (!rawText || !rawText.trim()) return;
-        const clean = rawText.trim();
-        const cleanLower = clean.toLowerCase();
+        let clean = rawText.trim().replace(/\s+/g, ' ');
+        if (clean.length < 2) return;
+
         const now = Date.now();
+        const cleanLower = clean.toLowerCase();
 
-        // Evita duplicatas idênticas imediatas ou fragmentos já transmitidos recentemente
-        if (cleanLower === lastCommittedSpeechText.toLowerCase() && (now - lastCommittedSpeechTimestamp < 2500)) {
+        // 1. Limpa histórico com mais de 20 segundos
+        committedHistory = committedHistory.filter(h => now - h.time < 20000);
+
+        // 2. Se for IDÊNTICA a qualquer frase dita nos últimos 20 segundos: descarta
+        if (committedHistory.some(h => h.text === cleanLower)) {
           return;
         }
-        if (recentCommittedPhrases.some(p => p === cleanLower || (cleanLower.length > 20 && p.endsWith(cleanLower)))) {
+
+        // 3. Se a frase for uma repetição de prefixo da frase anterior, extrai somente a novidade
+        if (committedHistory.length > 0) {
+          const lastEntry = committedHistory[committedHistory.length - 1];
+          if (cleanLower.startsWith(lastEntry.text) && cleanLower.length > lastEntry.text.length) {
+            clean = clean.substring(lastEntry.text.length).trim();
+          } else {
+            // Verifica sobreposição de palavras (ex: últimas 2 ou 3 palavras da anterior repetidas no início desta)
+            const prevWords = lastEntry.text.split(' ');
+            const currWords = clean.toLowerCase().split(' ');
+            for (let w = Math.min(5, prevWords.length, currWords.length); w >= 2; w--) {
+              const prevTail = prevWords.slice(-w).join(' ');
+              const currHead = currWords.slice(0, w).join(' ');
+              if (prevTail === currHead) {
+                clean = clean.split(' ').slice(w).join(' ').trim();
+                break;
+              }
+            }
+          }
+        }
+
+        if (!clean || clean.length < 2) return;
+
+        // Se após remoção de sobreposição ainda constar no histórico recente, descarta
+        if (committedHistory.some(h => h.text === clean.toLowerCase())) {
           return;
         }
-        recentCommittedPhrases.push(cleanLower);
-        if (recentCommittedPhrases.length > 30) recentCommittedPhrases.shift();
 
-        lastCommittedSpeechText = clean;
-        lastCommittedSpeechTimestamp = now;
+        committedHistory.push({ text: clean.toLowerCase(), time: now });
+        if (committedHistory.length > 25) committedHistory.shift();
 
-        const startSec = sessionElapsedSeconds;
-        const endSec = startSec + Math.max(2.2, clean.length * 0.08);
+        // Quebra frases muito longas (> 110 caracteres) em orações naturais por pontuação
+        const sentenceParts = splitLongSentenceNaturally(clean);
 
-        // 1. Registra no terminal do Palestrante
-        addTransmitterSentenceClean(clean, startSec, endSec);
+        for (const part of sentenceParts) {
+          if (!part || !part.trim()) continue;
+          const trimmedPart = part.trim();
+          const startSec = sessionElapsedSeconds;
+          const endSec = startSec + Math.max(2.0, trimmedPart.length * 0.08);
 
-        // 2. Dispara tradução em paralelo para cada idioma de saída da reunião
-        activeTargetLanguages.forEach(targetLang => {
-          translateAndDispatchTargetSentence(clean, targetLang, startSec, endSec);
-        });
+          // 1. Registra no terminal do Palestrante (sem timestamps na tela)
+          addTransmitterSentenceClean(trimmedPart, startSec, endSec);
+
+          // 2. Dispara tradução em paralelo para cada idioma de saída da reunião
+          activeTargetLanguages.forEach(targetLang => {
+            translateAndDispatchTargetSentence(trimmedPart, targetLang, startSec, endSec);
+          });
+        }
+      }
+
+      function splitLongSentenceNaturally(text) {
+        if (!text || text.length <= 110) return [text];
+        const regex = /([^.,;!?]+[.,;!?]+|[^.,;!?]+$)/g;
+        const matches = text.match(regex);
+        if (!matches || matches.length <= 1) return [text];
+
+        let result = [];
+        let currentChunk = '';
+        for (const m of matches) {
+          if ((currentChunk + ' ' + m).trim().length > 100 && currentChunk) {
+            result.push(currentChunk.trim());
+            currentChunk = m;
+          } else {
+            currentChunk = currentChunk ? (currentChunk + ' ' + m) : m;
+          }
+        }
+        if (currentChunk.trim()) result.push(currentChunk.trim());
+        return result.length > 0 ? result : [text];
       }
 
       function addTransmitterSentenceClean(text, startSec, endSec) {
@@ -3439,7 +3460,8 @@
           const div = document.createElement('div');
           div.className = 'transcription-line text-sm leading-relaxed p-1.5 rounded-lg border-b border-white/5 transition-all';
           div.style.color = transSubtitleConfig.textColor;
-          div.innerHTML = `<span class="text-[10px] font-mono opacity-50 mr-1.5">[${formatClockTime(startSec)}]</span><span>${text}</span>`;
+          // SEM TIMESTAMP - apenas o texto da fala limpo
+          div.innerHTML = `<span>${text}</span>`;
 
           feed.insertBefore(div, feed.firstChild);
           if (box) box.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3448,12 +3470,25 @@
         broadcastSubtitleGlobally('transmitter', text, startSec, endSec);
       }
 
+      function getTargetColumnElements(lang) {
+        if (!lang) return {};
+        const short = lang.split('-')[0].toLowerCase();
+        const full = lang.trim();
+        return {
+          bar: document.getElementById('target-vu-bar-' + full) || document.getElementById('target-vu-bar-' + short),
+          led: document.getElementById('target-vu-led-' + full) || document.getElementById('target-vu-led-' + short),
+          textEl: document.getElementById('target-vu-text-' + full) || document.getElementById('target-vu-text-' + short),
+          statusEl: document.getElementById('target-vu-status-' + full) || document.getElementById('target-vu-status-' + short),
+          feed: document.getElementById('target-transcription-feed-' + full) || document.getElementById('target-transcription-feed-' + short),
+          box: document.getElementById('target-subtitle-box-' + full) || document.getElementById('target-subtitle-box-' + short)
+        };
+      }
+
       async function translateAndDispatchTargetSentence(originalText, targetLang, startSec, endSec) {
         if (!originalText || !originalText.trim()) return;
         const clean = originalText.trim();
         const sourceCode = (selectedSourceLanguage || 'pt-BR').split('-')[0].toLowerCase();
         const targetCode = targetLang.split('-')[0].toLowerCase();
-        const langInfo = SUPPORTED_LANG_MAP[targetLang] || { channel: targetCode, name: targetLang };
 
         if (sourceCode === targetCode) {
           addTargetSentenceClean(targetLang, clean, startSec, endSec);
@@ -3499,45 +3534,44 @@
       }
 
       function addTargetSentenceClean(targetLang, text, startSec, endSec) {
+        if (!text || !text.trim()) return;
+        const clean = text.trim();
         if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
-        targetTranscriptions[targetLang].push({ text: text, timeStart: startSec, timeEnd: endSec });
+        targetTranscriptions[targetLang].push({ text: clean, timeStart: startSec, timeEnd: endSec });
 
-        const feed = document.getElementById('target-transcription-feed-' + targetLang);
-        const box = document.getElementById('target-subtitle-box-' + targetLang);
+        const els = getTargetColumnElements(targetLang);
         const cfg = targetColumnConfigs[targetLang] || { textColor: '#fde047' };
 
-        if (feed) {
-          const empty = feed.querySelector('.placeholder-empty');
+        if (els.feed) {
+          const empty = els.feed.querySelector('.placeholder-empty');
           if (empty) empty.remove();
 
           const div = document.createElement('div');
           div.className = 'text-sm leading-relaxed p-1.5 rounded-lg border-b border-white/5 transition-all';
           div.style.color = cfg.textColor;
-          div.innerHTML = `<span class="text-[10px] font-mono opacity-50 mr-1.5">[${formatClockTime(startSec)}]</span><span>${text}</span>`;
+          // SEM TIMESTAMP - apenas o texto traduzido limpo
+          div.innerHTML = `<span>${clean}</span>`;
 
-          feed.insertBefore(div, feed.firstChild);
-          if (box) box.scrollTo({ top: 0, behavior: 'smooth' });
+          els.feed.insertBefore(div, els.feed.firstChild);
+          if (els.box) els.box.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // Broadcast nos canais padrão (receiver para inglês, spanish para espanhol, ou código)
+        // Broadcast nos canais padrão (única transmissão desduplicada)
         const targetCode = targetLang.split('-')[0].toLowerCase();
-        let broadcastChan = targetCode;
-        if (targetCode === 'en') broadcastChan = 'receiver';
-        else if (targetCode === 'es') broadcastChan = 'spanish';
-
-        broadcastSubtitleGlobally(broadcastChan, text, startSec, endSec);
-        broadcastSubtitleGlobally(targetLang, text, startSec, endSec);
+        broadcastSubtitleGlobally(targetCode, clean, startSec, endSec);
+        if (targetCode === 'en') broadcastSubtitleGlobally('receiver', clean, startSec, endSec);
+        if (targetCode === 'es') broadcastSubtitleGlobally('spanish', clean, startSec, endSec);
 
         // Feedback visual do canal de áudio traduzido no Cockpit (VU Meter)
-        triggerTargetAudioMeter(targetLang, Math.max(2200, (text || '').length * 85));
+        triggerTargetAudioMeter(targetLang, Math.max(3000, clean.length * 90));
 
         // Pre-fetch silencioso do chunk de áudio em MP3 para gravação final (faixas feminina e masculina)
-        fetchAudioChunkForExport(targetLang, text);
+        fetchAudioChunkForExport(targetLang, clean);
       }
 
       function triggerTargetAudioMeter(targetLang, durationMs) {
         const langCode = (targetLang || '').split('-')[0].toLowerCase();
-        const duration = durationMs || 2500;
+        const duration = durationMs || 3000;
         const until = Date.now() + duration;
         targetMeterStates[targetLang] = { activeUntil: until };
         targetMeterStates[langCode] = { activeUntil: until };
@@ -4071,30 +4105,36 @@
       setInterval(() => {
         const now = Date.now();
         activeTargetLanguages.forEach(lang => {
-          const langCode = lang.split('-')[0].toLowerCase();
-          const bar = document.getElementById('target-vu-bar-' + langCode);
-          const led = document.getElementById('target-vu-led-' + langCode);
-          const textEl = document.getElementById('target-vu-text-' + langCode);
-          const statusEl = document.getElementById('target-vu-status-' + langCode);
+          const els = getTargetColumnElements(lang);
+          if (!els.bar || !els.led || !els.textEl) return;
 
-          const st = targetMeterStates[lang] || targetMeterStates[langCode];
+          const shortCode = lang.split('-')[0].toLowerCase();
+          const st = targetMeterStates[lang] || targetMeterStates[shortCode];
           const isPlaying = st && st.activeUntil > now;
 
-          if (bar && led && textEl) {
-            if (isPlaying) {
-              const randLevel = Math.floor(Math.random() * 32) + 68;
-              bar.style.width = randLevel + '%';
-              bar.className = 'h-full rounded-full transition-all duration-75 bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 shadow-xs';
-              textEl.innerText = randLevel + '%';
-              led.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse';
-              if (statusEl) statusEl.innerText = '● Tocando & Gravando';
-            } else {
-              bar.style.width = '2%';
-              bar.className = 'h-full rounded-full transition-all duration-200 bg-slate-300 dark:bg-slate-700';
-              textEl.innerText = '0%';
-              led.className = 'w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600';
-              if (statusEl) statusEl.innerText = 'Em espera';
-            }
+          if (isPlaying) {
+            // Modulação ativa e dinâmica do canal traduzido
+            const randLevel = Math.floor(Math.random() * 32) + 68;
+            els.bar.style.width = randLevel + '%';
+            els.bar.className = 'h-full rounded-full transition-all duration-75 bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 shadow-xs';
+            els.textEl.innerText = randLevel + '%';
+            els.led.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse';
+            if (els.statusEl) els.statusEl.innerText = '● Transmitindo Áudio';
+          } else if (isRealMicActive && !isTransmitterMicMuted) {
+            // Microfone do palestrante está ativo captando fala: canal traduzido em prontidão imediata
+            const activeLevel = Math.max(8, Math.min(30, Math.floor(Math.random() * 12) + 10));
+            els.bar.style.width = activeLevel + '%';
+            els.bar.className = 'h-full rounded-full transition-all duration-150 bg-emerald-500/60';
+            els.textEl.innerText = activeLevel + '%';
+            els.led.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400/80';
+            if (els.statusEl) els.statusEl.innerText = 'Pronto p/ Traduzir';
+          } else {
+            // Em espera
+            els.bar.style.width = '2%';
+            els.bar.className = 'h-full rounded-full transition-all duration-200 bg-slate-300 dark:bg-slate-700';
+            els.textEl.innerText = '0%';
+            els.led.className = 'w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600';
+            if (els.statusEl) els.statusEl.innerText = 'Em espera';
           }
         });
       }, 100);
