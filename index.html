@@ -56,25 +56,24 @@
 
     /* Cards, Seções e Gradients no Dashboard e Cockpit */
     html.dark section,
-    html.dark .bg-white,
-    html.dark [class*="bg-white"],
-    html.dark [class*="bg-slate-50"],
-    html.dark [class*="bg-slate-100"],
-    html.dark [class*="bg-slate-200"],
-    html.dark [class*="from-blue-50"],
-    html.dark [class*="from-indigo-50"],
-    html.dark [class*="from-emerald-50"] {
+    html.dark .bg-white:not(input):not(select):not(textarea):not(button),
+    html.dark [class*="bg-white"]:not(input):not(select):not(textarea):not(button),
+    html.dark [class*="bg-slate-50"]:not(input):not(select):not(textarea):not(button),
+    html.dark [class*="bg-slate-100"]:not(input):not(select):not(textarea):not(button):not(#meeting-progress-bar),
+    html.dark [class*="bg-slate-200"]:not(input):not(select):not(textarea):not(button),
+    html.dark [class*="from-blue-50"]:not(button),
+    html.dark [class*="from-indigo-50"]:not(button),
+    html.dark [class*="from-emerald-50"]:not(button) {
       background-color: #111827 !important;
-      background-image: none !important;
       border-color: #374151 !important;
       color: #f8fafc !important;
     }
 
     /* Cabeçalhos de Seções e Sub-blocos */
     html.dark section > div:first-child,
-    html.dark [class*="bg-blue-100"],
-    html.dark [class*="bg-indigo-100"],
-    html.dark [class*="bg-emerald-100"] {
+    html.dark [class*="bg-blue-100"]:not(button):not(span),
+    html.dark [class*="bg-indigo-100"]:not(button):not(span),
+    html.dark [class*="bg-emerald-100"]:not(button):not(span) {
       background-color: #1e293b !important;
       border-color: #374151 !important;
       color: #f8fafc !important;
@@ -109,13 +108,74 @@
       border-color: #374151 !important;
     }
 
-    /* Inputs, Selects e Textareas */
-    html.dark input,
+    /* CAMPOS DINÂMICOS QUE PODEM SER ALTERADOS (MANTIDOS COM FUNDO BRANCO E TEXTO ESCURO NO DARK MODE) */
+    html.dark input:not([type="range"]):not([type="color"]):not([type="checkbox"]):not([type="radio"]),
     html.dark select,
     html.dark textarea {
-      background-color: #1e293b !important;
-      color: #f8fafc !important;
-      border-color: #4b5563 !important;
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+      border: 1.5px solid #cbd5e1 !important;
+      font-weight: 600 !important;
+    }
+    html.dark select option {
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+    }
+    html.dark input::placeholder,
+    html.dark textarea::placeholder {
+      color: #64748b !important;
+    }
+
+    /* PRESERVAÇÃO DA BARRA DE PROGRESSO NO DARK MODE (GRADIENTE VIVO) */
+    html.dark #meeting-progress-bar {
+      opacity: 1 !important;
+      background-image: linear-gradient(to right, #10b981, #2dd4bf, #059669) !important;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.5) !important;
+    }
+
+    /* PRESERVAÇÃO DAS CORES VIVAS DE TODOS OS BOTÕES COLORIDOS NO DARK MODE */
+    html.dark button[class*="bg-blue-"], html.dark a[class*="bg-blue-"] {
+      background-color: #2563eb !important;
+      color: #ffffff !important;
+    }
+    html.dark button[class*="bg-blue-"]:hover, html.dark a[class*="bg-blue-"]:hover {
+      background-color: #1d4ed8 !important;
+    }
+    html.dark button[class*="bg-indigo-"], html.dark a[class*="bg-indigo-"] {
+      background-color: #4f46e5 !important;
+      color: #ffffff !important;
+    }
+    html.dark button[class*="bg-indigo-"]:hover, html.dark a[class*="bg-indigo-"]:hover {
+      background-color: #4338ca !important;
+    }
+    html.dark button[class*="bg-emerald-"], html.dark a[class*="bg-emerald-"],
+    html.dark button[class*="bg-green-"], html.dark a[class*="bg-green-"] {
+      background-color: #059669 !important;
+      color: #ffffff !important;
+    }
+    html.dark button[class*="bg-emerald-"]:hover, html.dark a[class*="bg-emerald-"]:hover {
+      background-color: #047857 !important;
+    }
+    html.dark button[class*="bg-rose-"], html.dark a[class*="bg-rose-"],
+    html.dark button[class*="bg-red-"], html.dark a[class*="bg-red-"] {
+      background-color: #e11d48 !important;
+      color: #ffffff !important;
+    }
+    html.dark button[class*="bg-rose-"]:hover, html.dark a[class*="bg-rose-"]:hover {
+      background-color: #be123c !important;
+    }
+    html.dark button[class*="bg-amber-"], html.dark a[class*="bg-amber-"] {
+      background-color: #f59e0b !important;
+      color: #020617 !important;
+    }
+    html.dark button[class*="bg-purple-"], html.dark a[class*="bg-purple-"] {
+      background-color: #9333ea !important;
+      color: #ffffff !important;
+    }
+    /* Preserva botões de amostra de paleta de cor das legendas */
+    html.dark button[onclick*="setSubtitleBg"],
+    html.dark button[onclick*="setSubtitleText"] {
+      border: 1px solid rgba(255, 255, 255, 0.5) !important;
     }
 
     /* Modais */
@@ -911,9 +971,9 @@
                           🗣️ Idioma Falado pelo Palestrante (Origem):
                         </label>
                         <select id="m-lang-source" class="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none shadow-2xs">
-                          <option value="en-US" selected>🇺🇸 Inglês (Estados Unidos / Global)</option>
+                          <option value="pt-BR" selected>🇧🇷 Português (Brasil)</option>
+                          <option value="en-US">🇺🇸 Inglês (Estados Unidos / Global)</option>
                           <option value="es-ES">🇪🇸 Espanhol (Internacional)</option>
-                          <option value="pt-BR">🇧🇷 Português (Brasil)</option>
                           <option value="fr-FR">🇫🇷 Francês</option>
                           <option value="de-DE">🇩🇪 Alemão</option>
                           <option value="it-IT">🇮🇹 Italiano</option>
@@ -926,9 +986,9 @@
                           🎧 Idioma Traduzido para a Plateia (Destino):
                         </label>
                         <select id="m-lang-target" class="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none shadow-2xs">
-                          <option value="pt-BR" selected>🇧🇷 Português (Brasil)</option>
+                          <option value="en-US" selected>🇺🇸 Inglês (Global / Internacional)</option>
+                          <option value="pt-BR">🇧🇷 Português (Brasil)</option>
                           <option value="es-ES">🇪🇸 Espanhol (Internacional)</option>
-                          <option value="en-US">🇺🇸 Inglês (Global)</option>
                           <option value="fr-FR">🇫🇷 Francês</option>
                           <option value="de-DE">🇩🇪 Alemão</option>
                           <option value="it-IT">🇮🇹 Italiano</option>
@@ -991,19 +1051,24 @@
 
                   <!-- Fila Dinâmica de Salas do Google Meet -->
                   <div class="p-5 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-4">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <h4 class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                           <span>📋 Fila de Reuniões do Google Meet (Hot-Swap Pré-Agendado)</span>
                           <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">${window.formMeetingSlots.length} Slots</span>
                         </h4>
                         <p class="text-[11px] text-slate-500 mt-0.5">
-                          Cole abaixo as reuniões geradas manualmente pela conta transmissora. Você pode adicionar quantos slots precisar antes e durante o evento!
+                          Abra o Meet com a conta transmissora no botão ao lado, gere os links e cole-os abaixo nos slots correspondentes:
                         </p>
                       </div>
-                      <button type="button" onclick="addFormMeetingSlot()" class="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
-                        <span>+ Adicionar Mais Uma Reunião na Fila</span>
-                      </button>
+                      <div class="flex flex-wrap items-center gap-2 shrink-0">
+                        <button type="button" onclick="openMeetHomeTransmitter()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5">
+                          <span>🌐 Abrir Meet no Google (Conta Transmissora) ↗</span>
+                        </button>
+                        <button type="button" onclick="addFormMeetingSlot()" class="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5">
+                          <span>+ Adicionar Slot</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div class="space-y-3" id="form-meeting-slots-container">
@@ -1022,6 +1087,9 @@
                             oninput="updateFormMeetingSlot(${idx}, this.value)"
                             class="dynamic-meet-input flex-1 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 outline-none"
                           >
+                          <button type="button" onclick="openMeetHomeTransmitter()" title="Abrir Google Meet na conta transmissora para criar reunião" class="px-2.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-[11px] font-bold shrink-0 cursor-pointer shadow-2xs">
+                            Abrir Meet ↗
+                          </button>
                           ${idx > 1 ? `
                             <button type="button" onclick="removeFormMeetingSlot(${idx})" title="Remover este slot" class="text-rose-500 hover:text-rose-700 p-2 rounded-lg hover:bg-rose-50 text-xs font-bold transition-all cursor-pointer">
                               ✕
@@ -2284,8 +2352,7 @@
       // Transcrições (Com blocos harmoniosos e curtos)
       let transmitterTranscriptions = []; // { id, timeStart, timeEnd, text }
       let receiverTranscriptions = [];    // { id, timeStart, timeEnd, text, isDirectAudio }
-      let speechRecognizer = null;        // Reconhecedor do Palestrante (Entrada)
-      let receiverSpeechRecognizer = null;// Reconhecedor da Tradução (Saída da Reunião Receptora)
+      let speechRecognizer = null;        // Reconhecedor do Palestrante (Entrada Contínua Resiliente)
       let isTranscribingSpeech = false;
       let isReceiverListening = false;
 
@@ -2493,6 +2560,9 @@
                       </span>
                     </div>
                     <div class="flex items-center gap-1.5">
+                      <button type="button" onclick="injectTestSubtitleSentence()" title="Injetar frase de teste nas legendas" class="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/60 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1">
+                        <span>🧪 Testar Legenda</span>
+                      </button>
                       <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Idioma de Entrada:</span>
                       <select id="speaker-lang-select" onchange="changeSpeakerSourceLanguage(this.value)" class="text-xs bg-white dark:bg-slate-800 border border-blue-300 dark:border-blue-600 rounded-lg px-2 py-0.5 text-blue-900 dark:text-blue-100 font-bold outline-none shadow-2xs">
                         <option value="pt-BR" ${selectedSourceLanguage === 'pt-BR' ? 'selected' : ''}>Português (pt-BR)</option>
@@ -2563,6 +2633,9 @@
                       </span>
                     </div>
                     <div class="flex items-center gap-1.5">
+                      <button type="button" onclick="injectTestSubtitleSentence()" title="Injetar frase de teste nas legendas" class="px-2.5 py-1 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/60 dark:hover:bg-indigo-800 text-indigo-800 dark:text-indigo-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1">
+                        <span>🧪 Testar Legenda</span>
+                      </button>
                       <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Idioma de Saída:</span>
                       <select id="receiver-language-select" onchange="changeReceiverTargetLanguage(this.value)" class="text-xs bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-600 rounded-lg px-2 py-0.5 text-indigo-900 dark:text-indigo-100 font-bold outline-none shadow-2xs">
                         <option value="en-US" ${selectedTargetLanguage === 'en-US' ? 'selected' : ''}>Inglês (en-US)</option>
@@ -3415,9 +3488,6 @@
             receiverMediaRecorder.start(1000);
             isRecordingReceiver = true;
           } catch(e) {}
-
-          // Inicia reconhecimento direto no áudio receptor
-          startReceiverSpeechRecognition();
         } catch(err) {
           alert('Erro ao ativar leitura do canal receptor: ' + err.message + '\n\nCertifique-se de que o dispositivo está conectado e que o navegador possui permissão.');
         }
@@ -3451,10 +3521,6 @@
         if (bar) bar.style.width = '0%';
         if (text) text.innerText = '0%';
         if (led) led.className = 'w-2 h-2 rounded-full bg-slate-400';
-
-        if (receiverSpeechRecognizer) {
-          try { receiverSpeechRecognizer.stop(); } catch(e) {}
-        }
 
         appendSystemLog('Leitura do canal receptor desconectada.');
       }
@@ -3686,15 +3752,24 @@
         refreshAudioDevicesList();
       }, 500);
 
-      // TRANSCRIÇÃO DE VOZ CONTÍNUA (RECONHECIMENTO RESILIENTE)
+      // ========================================================
+      // TRANSCRIÇÃO DE VOZ CONTÍNUA & SINCRONIZAÇÃO RESILIENTE
+      // ========================================================
       let speechRecognizerRestartTimeout = null;
-      function scheduleSpeechRecognizerRestart() {
+      let speechSilenceCommitTimer = null;
+      let speechInterimBuffer = '';
+      let lastCommittedSpeechText = '';
+      let lastCommittedSpeechTimestamp = 0;
+
+      function scheduleSpeechRecognizerRestart(delay = 250) {
         if (speechRecognizerRestartTimeout) clearTimeout(speechRecognizerRestartTimeout);
         speechRecognizerRestartTimeout = setTimeout(() => {
           if (isRealMicActive && !isTimerPaused) {
             try {
               if (speechRecognizer) {
-                try { speechRecognizer.start(); } catch(e) {
+                try {
+                  speechRecognizer.start();
+                } catch(e) {
                   startContinuousSpeechTranscription();
                 }
               } else {
@@ -3704,13 +3779,43 @@
               startContinuousSpeechTranscription();
             }
           }
-        }, 300);
+        }, delay);
+      }
+
+      // Função central de commit de frases reconhecidas (chamada tanto por isFinal quanto por silêncio)
+      async function commitSpeechSentence(rawText) {
+        if (!rawText || !rawText.trim()) return;
+        const clean = rawText.trim();
+        const now = Date.now();
+
+        // Evita duplicatas consecutivas nos últimos 2.2 segundos
+        if (clean.toLowerCase() === lastCommittedSpeechText.toLowerCase() && (now - lastCommittedSpeechTimestamp < 2200)) {
+          return;
+        }
+        lastCommittedSpeechText = clean;
+        lastCommittedSpeechTimestamp = now;
+
+        const startSec = sessionElapsedSeconds;
+        const endSec = startSec + Math.max(2.2, clean.length * 0.08);
+
+        // Limpa o interim no transmissor
+        const interimEl = document.getElementById('transmitter-interim-text');
+        if (interimEl) interimEl.innerText = '';
+
+        // 1. Fracionamento em blocos curtos e confortáveis (máx ~48 caracteres)
+        const chunks = splitTextIntoHarmoniousSubtitleChunks(clean, startSec, endSec, 48);
+        chunks.forEach(c => {
+          addTransmitterSentenceClean(c.text, c.timeStart, c.timeEnd);
+        });
+
+        // 2. Tradução direta e envio para a sessão receptora
+        translateAndAddReceiverSentenceClean(clean, startSec, endSec);
       }
 
       function startContinuousSpeechTranscription() {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRec) {
-          appendSystemLog('⚠️ Reconhecimento de voz não suportado neste navegador. Use Google Chrome ou Edge.');
+          appendSystemLog('⚠️ Reconhecimento de voz não suportado neste navegador. Use Google Chrome ou Microsoft Edge.');
           return;
         }
 
@@ -3722,34 +3827,54 @@
           speechRecognizer.continuous = true;
           speechRecognizer.interimResults = true;
           speechRecognizer.lang = selectedSourceLanguage || 'pt-BR';
+          speechRecognizer.maxAlternatives = 1;
 
           speechRecognizer.onstart = () => {
             isTranscribingSpeech = true;
-            appendSystemLog(`🎙️ Reconhecimento de voz ATIVO no microfone (${selectedSourceLanguage}). Fale normalmente.`);
+            appendSystemLog(`🎙️ Reconhecimento de voz ATIVO (${selectedSourceLanguage}). Fale normalmente.`);
           };
 
           speechRecognizer.onresult = (event) => {
             let interim = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-              const transcript = event.results[i][0].transcript;
-              if (event.results[i].isFinal) {
-                const startSec = sessionElapsedSeconds;
-                const endSec = startSec + Math.max(2.2, transcript.length * 0.08);
+            let finalizedInBatch = '';
 
-                // FRACIONAMENTO HARMONIOSO EM BLOCOS CURTOS (MÁX ~48 CARACTERES)
-                const chunks = splitTextIntoHarmoniousSubtitleChunks(transcript, startSec, endSec, 48);
-                chunks.forEach(c => {
-                  addTransmitterSentenceClean(c.text, c.timeStart, c.timeEnd);
-                });
-                
-                // Tradução direta das falas reais do palestrante (NUNCA FORÇADA NO SILÊNCIO)
-                translateAndAddReceiverSentenceClean(transcript, startSec, endSec);
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const res = event.results[i];
+              if (!res || !res[0]) continue;
+              const transcript = res[0].transcript;
+              if (res.isFinal) {
+                finalizedInBatch += (finalizedInBatch ? ' ' : '') + transcript;
               } else {
                 interim += transcript;
               }
             }
-            const interimEl = document.getElementById('transmitter-interim-text');
-            if (interimEl) interimEl.innerText = interim ? `💬 ${interim}...` : '';
+
+            // Se o Chrome marcou como finalizado
+            if (finalizedInBatch.trim()) {
+              if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
+              speechInterimBuffer = '';
+              commitSpeechSentence(finalizedInBatch.trim());
+            }
+
+            // Se há fala intermediária (interim)
+            if (interim.trim()) {
+              speechInterimBuffer = interim.trim();
+              const interimEl = document.getElementById('transmitter-interim-text');
+              if (interimEl) {
+                interimEl.innerText = `💬 ${speechInterimBuffer}...`;
+              }
+
+              // AUTO-FINALIZAÇÃO POR SILÊNCIO: se houver uma pausa de 1.3s na fala,
+              // commita o texto acumulado sem depender de isFinal tardio do Chrome!
+              if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
+              speechSilenceCommitTimer = setTimeout(() => {
+                if (speechInterimBuffer.trim()) {
+                  const toCommit = speechInterimBuffer.trim();
+                  speechInterimBuffer = '';
+                  commitSpeechSentence(toCommit);
+                }
+              }, 1300);
+            }
           };
 
           speechRecognizer.onerror = (e) => {
@@ -3757,15 +3882,23 @@
             if (e.error === 'not-allowed') {
               isRealMicActive = false;
               stopMasterMicCapture();
-              appendSystemLog('❌ Permissão de microfone negada. Clique no ícone de cadeado na barra de endereços do Chrome para permitir o microfone.');
+              appendSystemLog('❌ Permissão de microfone negada. Clique no cadeado na barra de endereços do Chrome para permitir o microfone.');
             } else if (e.error === 'no-speech' || e.error === 'network' || e.error === 'aborted') {
-              scheduleSpeechRecognizerRestart();
+              scheduleSpeechRecognizerRestart(350);
             }
           };
 
           speechRecognizer.onend = () => {
+            // Se havia buffer acumulado que não virou isFinal antes de fechar a sessão, commita imediatamente
+            if (speechSilenceCommitTimer) clearTimeout(speechSilenceCommitTimer);
+            if (speechInterimBuffer.trim()) {
+              const toCommit = speechInterimBuffer.trim();
+              speechInterimBuffer = '';
+              commitSpeechSentence(toCommit);
+            }
+
             if (isRealMicActive && !isTimerPaused) {
-              scheduleSpeechRecognizerRestart();
+              scheduleSpeechRecognizerRestart(150);
             } else {
               isTranscribingSpeech = false;
             }
@@ -3773,7 +3906,7 @@
 
           speechRecognizer.start();
         } catch(e) {
-          scheduleSpeechRecognizerRestart();
+          scheduleSpeechRecognizerRestart(400);
         }
       }
 
@@ -3829,71 +3962,34 @@
         }
 
         appendSystemLog(`🌐 Idioma da tradução alterado para: ${newLang}`);
-
-        if (receiverSpeechRecognizer) {
-          try { receiverSpeechRecognizer.abort(); } catch(e) {}
-        }
-        if (isReceiverAudioCaptureActive && !isTimerPaused) {
-          setTimeout(() => {
-            startReceiverSpeechRecognition();
-          }, 150);
-        }
       };
 
-      function startReceiverSpeechRecognition() {
-        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRec) return;
+      // Injeção de frases para teste manual instantâneo das legendas
+      window.injectTestSubtitleSentence = function() {
+        const testPhrases = [
+          { pt: "Olá a todos! Sejam muito bem-vindos à nossa transmissão ao vivo.", en: "Hello everyone! Welcome to our live broadcast." },
+          { pt: "Estamos iniciando os testes de sincronização de áudio e legendas.", en: "We are starting the audio and subtitle synchronization tests." },
+          { pt: "A recepção da tradução está ativa e operando com clareza cristalina.", en: "Translation reception is active and operating with crystal clarity." },
+          { pt: "Cada nova fala aparece no topo e as anteriores descem harmoniosamente.", en: "Each new speech appears at the top and previous ones descend harmoniously." }
+        ];
+        const item = testPhrases[Math.floor(Math.random() * testPhrases.length)];
+        const startSec = sessionElapsedSeconds;
+        const endSec = startSec + 3;
 
-        try {
-          if (receiverSpeechRecognizer) {
-            try { receiverSpeechRecognizer.abort(); } catch(e) {}
-          }
-          receiverSpeechRecognizer = new SpeechRec();
-          receiverSpeechRecognizer.continuous = true;
-          receiverSpeechRecognizer.interimResults = true;
-          receiverSpeechRecognizer.lang = selectedTargetLanguage || 'en-US';
+        // Injeta no transmissor
+        const chunksPt = splitTextIntoHarmoniousSubtitleChunks(item.pt, startSec, endSec, 48);
+        chunksPt.forEach(c => addTransmitterSentenceClean(c.text, c.timeStart, c.timeEnd));
 
-          receiverSpeechRecognizer.onstart = () => {
-            isReceiverListening = true;
-            appendSystemLog(`🎧 Reconhecedor de fala do canal receptor ATIVO (${selectedTargetLanguage}).`);
-          };
+        // Injeta no receptor com pequeno delay
+        setTimeout(() => {
+          const targetCode = (selectedTargetLanguage || 'en-US').split('-')[0].toLowerCase();
+          const textToUse = targetCode === 'pt' ? item.pt : item.en;
+          const chunksEn = splitTextIntoHarmoniousSubtitleChunks(textToUse, startSec, endSec, 48);
+          chunksEn.forEach(c => addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, false));
+        }, 300);
 
-          receiverSpeechRecognizer.onresult = (event) => {
-            let interim = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-              const transcript = event.results[i][0].transcript;
-              if (event.results[i].isFinal) {
-                const startSec = sessionElapsedSeconds;
-                const endSec = startSec + Math.max(2.2, transcript.length * 0.08);
-                const chunks = splitTextIntoHarmoniousSubtitleChunks(transcript, startSec, endSec, 48);
-                chunks.forEach(c => {
-                  addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, true);
-                });
-              } else {
-                interim += transcript;
-              }
-            }
-            const interimEl = document.getElementById('receiver-interim-text');
-            if (interimEl) interimEl.innerText = interim ? `💬 ${interim}...` : '';
-          };
-
-          receiverSpeechRecognizer.onerror = (e) => {
-            if (isReceiverAudioCaptureActive && !isTimerPaused && e.error !== 'not-allowed') {
-              setTimeout(startReceiverSpeechRecognition, 400);
-            }
-          };
-
-          receiverSpeechRecognizer.onend = () => {
-            if (isReceiverAudioCaptureActive && !isTimerPaused) {
-              setTimeout(startReceiverSpeechRecognition, 400);
-            } else {
-              isReceiverListening = false;
-            }
-          };
-
-          receiverSpeechRecognizer.start();
-        } catch(e) {}
-      }
+        appendSystemLog('🧪 Frase de teste injetada nas legendas com sucesso!');
+      };
 
       // FRACIONAMENTO HARMONIOSO EM BLOCOS CURTOS (MÁX ~48 CARACTERES)
       function splitTextIntoHarmoniousSubtitleChunks(text, totalStartSec, totalEndSec, maxChars = 48) {
@@ -4051,24 +4147,78 @@
       }
 
       async function translateAndAddReceiverSentenceClean(originalText, startSec, endSec) {
-        let translatedText = '';
-        try {
-          const targetCode = (selectedTargetLanguage || 'en-US').split('-')[0] || 'en';
-          const sourceCode = (selectedSourceLanguage || 'pt-BR').split('-')[0] || 'auto';
-          const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(originalText)}`);
-          const data = await res.json();
-          if (Array.isArray(data) && Array.isArray(data[0])) {
-            translatedText = data[0].map(item => item[0]).join('');
-          }
-        } catch(e) {
-          console.warn('Aviso na tradução do receptor:', e);
+        if (!originalText || !originalText.trim()) return;
+        const clean = originalText.trim();
+        const targetLang = selectedTargetLanguage || 'en-US';
+        const sourceLang = selectedSourceLanguage || 'pt-BR';
+        const targetCode = targetLang.split('-')[0].toLowerCase();
+        const sourceCode = sourceLang.split('-')[0].toLowerCase();
+
+        // Se o idioma for idêntico, exibe diretamente sem chamada externa
+        if (targetCode === sourceCode) {
+          const chunks = splitTextIntoHarmoniousSubtitleChunks(clean, startSec, endSec, 48);
+          chunks.forEach(c => {
+            addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, false);
+          });
+          return;
         }
 
-        if (!translatedText) translatedText = originalText;
-        const chunks = splitTextIntoHarmoniousSubtitleChunks(translatedText, startSec, endSec, 48);
-        chunks.forEach(c => {
-          addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, false);
-        });
+        // Mostra indicador visual sutil no interim do receptor enquanto traduz
+        const recInterimEl = document.getElementById('receiver-interim-text');
+        if (recInterimEl) {
+          recInterimEl.innerText = `🎧 Traduzindo para ${targetLang}...`;
+        }
+
+        let translatedText = '';
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+          const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`, {
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && Array.isArray(data[0])) {
+              translatedText = data[0].map(item => item[0]).join('');
+            }
+          }
+        } catch(e) {
+          console.warn('Aviso na tradução do receptor via Google Translate gtx:', e);
+        }
+
+        // Fallback rápido caso o primeiro endpoint tenha sofrido timeout ou restrição
+        if (!translatedText) {
+          try {
+            const controller2 = new AbortController();
+            const timeoutId2 = setTimeout(() => controller2.abort(), 2500);
+            const res2 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=${sourceCode}|${targetCode}`, {
+              signal: controller2.signal
+            });
+            clearTimeout(timeoutId2);
+            if (res2.ok) {
+              const data2 = await res2.json();
+              if (data2 && data2.responseData && data2.responseData.translatedText) {
+                translatedText = data2.responseData.translatedText;
+              }
+            }
+          } catch(e2) {}
+        }
+
+        if (!translatedText || !translatedText.trim()) {
+          translatedText = clean;
+        }
+
+        // Delay natural suave (350ms) condizente com a recepção do áudio traduzido que o usuário monitora
+        setTimeout(() => {
+          if (recInterimEl) recInterimEl.innerText = '';
+          const chunks = splitTextIntoHarmoniousSubtitleChunks(translatedText.trim(), startSec, endSec, 48);
+          chunks.forEach(c => {
+            addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, false);
+          });
+        }, 350);
       }
 
       // ========================================================
@@ -4196,9 +4346,6 @@
         if (isReceiverAudioCaptureActive) stopReceiverAudioCapture();
         if (speechRecognizer) {
           try { speechRecognizer.stop(); } catch(e) {}
-        }
-        if (receiverSpeechRecognizer) {
-          try { receiverSpeechRecognizer.stop(); } catch(e) {}
         }
 
         const modal = document.getElementById('finish-meeting-modal');
