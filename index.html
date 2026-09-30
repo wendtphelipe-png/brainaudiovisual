@@ -9,6 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
   <style>
     @keyframes pulseLive {
       0%, 100% { opacity: 1; transform: scale(1); }
@@ -16,6 +17,59 @@
     }
     .animate-pulse-live {
       animation: pulseLive 2s infinite;
+    }
+
+    /* TEMA CLARO CONFORTÁVEL (Fundo suave anti-reflexo, sem excesso de branco) */
+    body.light-mode {
+      background-color: #f1f5f9 !important;
+      color: #0f172a !important;
+    }
+
+    /* TEMA ESCURO PROFISSIONAL (Estúdio / Baixa Luminosidade) */
+    body.dark-mode {
+      background-color: #0b0f19 !important;
+      color: #f1f5f9 !important;
+    }
+    body.dark-mode header {
+      background-color: rgba(15, 23, 42, 0.95) !important;
+      border-color: #334155 !important;
+      color: #f8fafc !important;
+    }
+    body.dark-mode .bg-white {
+      background-color: #162032 !important;
+      border-color: #334155 !important;
+      color: #f8fafc !important;
+    }
+    body.dark-mode .bg-slate-50, body.dark-mode .bg-slate-100 {
+      background-color: #0f172a !important;
+      border-color: #334155 !important;
+      color: #cbd5e1 !important;
+    }
+    body.dark-mode .text-slate-900, body.dark-mode .text-slate-800 {
+      color: #f8fafc !important;
+    }
+    body.dark-mode .text-slate-700, body.dark-mode .text-slate-600 {
+      color: #cbd5e1 !important;
+    }
+    body.dark-mode .text-slate-500, body.dark-mode .text-slate-400 {
+      color: #94a3b8 !important;
+    }
+    body.dark-mode .border-slate-200, body.dark-mode .border-slate-300 {
+      border-color: #334155 !important;
+    }
+    body.dark-mode .border-blue-100, body.dark-mode .border-blue-200 {
+      border-color: rgba(59, 130, 246, 0.35) !important;
+    }
+    body.dark-mode .border-indigo-100, body.dark-mode .border-indigo-200 {
+      border-color: rgba(99, 102, 241, 0.35) !important;
+    }
+    body.dark-mode .border-emerald-100, body.dark-mode .border-emerald-200 {
+      border-color: rgba(16, 185, 129, 0.35) !important;
+    }
+    body.dark-mode input, body.dark-mode select {
+      background-color: #1e293b !important;
+      color: #f8fafc !important;
+      border-color: #475569 !important;
     }
   </style>
 </head>
@@ -27,6 +81,53 @@
     // ========================================================
     // HELPERS GLOBAIS DE ESTADO E PERSISTÊNCIA SEGURA
     // ========================================================
+    // ========================================================
+    // GERENCIADOR DE TEMA GLOBAL (MODO CLARO CONFORTÁVEL & MODO ESCURO)
+    // ========================================================
+    function getStoredTheme() {
+      try {
+        return localStorage.getItem('brain_theme') || 'light';
+      } catch(e) { return 'light'; }
+    }
+
+    function setGlobalTheme(theme) {
+      try {
+        localStorage.setItem('brain_theme', theme);
+      } catch(e) {}
+      if (theme === 'dark') {
+        document.body.classList.remove('light-mode');
+        document.body.classList.add('dark-mode');
+      } else {
+        document.body.classList.remove('dark-mode');
+        document.body.classList.add('light-mode');
+      }
+      updateThemeButtonUI();
+    }
+
+    window.toggleGlobalTheme = function() {
+      const current = getStoredTheme();
+      const next = current === 'dark' ? 'light' : 'dark';
+      setGlobalTheme(next);
+    };
+
+    function updateThemeButtonUI() {
+      const isDark = getStoredTheme() === 'dark';
+      const btns = document.querySelectorAll('.btn-theme-toggle');
+      btns.forEach(btn => {
+        btn.innerHTML = isDark 
+          ? '<span>☀️ Modo Claro</span>' 
+          : '<span>🌙 Modo Escuro</span>';
+        btn.className = isDark
+          ? 'btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-amber-400/50 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs'
+          : 'btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs';
+      });
+    }
+
+    // Inicializa o tema memorizado
+    setTimeout(() => {
+      setGlobalTheme(getStoredTheme());
+    }, 10);
+
     function getStoredAccounts() {
       try {
         const raw = localStorage.getItem('brain_saved_accounts');
@@ -541,6 +642,11 @@
                 </div>
               </div>
 
+              <!-- Botão Seletor de Tema no Dashboard -->
+              <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                <span>🌙 Modo Escuro</span>
+              </button>
+
               <button onclick="handleAdminLogout()" class="text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-2 rounded-xl transition-all cursor-pointer">
                 Sair / Logout
               </button>
@@ -552,8 +658,8 @@
             <!-- ========================================================
                 SESSÃO 1: POOL DE CONTAS GOOGLE PRO (DESTAQUE AZUL)
                 ======================================================== -->
-            <section class="bg-white border-2 border-blue-100 rounded-3xl overflow-hidden shadow-sm">
-              <div class="bg-blue-50/70 border-b border-blue-100 px-6 sm:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <section class="bg-gradient-to-b from-blue-50/90 via-sky-50/40 to-slate-50 border-2 border-blue-200 rounded-3xl overflow-hidden shadow-sm">
+              <div class="bg-blue-100/70 border-b border-blue-200 px-6 sm:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
                     <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
@@ -654,7 +760,7 @@
             <!-- ========================================================
                 SESSÃO 2: CRIADOR E AGENDADOR DE REUNIÕES (DESTAQUE ÍNDIGO)
                 ======================================================== -->
-            <section class="bg-white border-2 border-indigo-100 rounded-3xl overflow-hidden shadow-sm">
+            <section class="bg-gradient-to-b from-indigo-50/90 via-purple-50/30 to-slate-50 border-2 border-indigo-200 rounded-3xl overflow-hidden shadow-sm">
               <div class="bg-indigo-50/70 border-b border-indigo-100 px-6 sm:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -896,8 +1002,8 @@
             <!-- ========================================================
                 SESSÃO 3: REUNIÕES ATIVAS & EM ANDAMENTO (DESTAQUE ESMERALDA)
                 ======================================================== -->
-            <section class="bg-white border-2 border-emerald-100 rounded-3xl overflow-hidden shadow-sm">
-              <div class="bg-emerald-50/70 border-b border-emerald-100 px-6 sm:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <section class="bg-gradient-to-b from-emerald-50/90 via-teal-50/30 to-slate-50 border-2 border-emerald-200 rounded-3xl overflow-hidden shadow-sm">
+              <div class="bg-emerald-100/70 border-b border-emerald-200 px-6 sm:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
                     <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
@@ -1997,11 +2103,11 @@
         };
       }
 
-      // IDIOMAS CONFIGURADOS (Leitura automática da reunião)
+      // IDIOMAS CONFIGURADOS
       let selectedSourceLanguage = meeting.sourceLanguage || audioSettings.sourceLanguage || 'pt-BR';
       let selectedTargetLanguage = meeting.targetLanguage || audioSettings.targetLanguage || 'en-US';
 
-      // Transcrições (Sem timestamps na tela, mas com timestamps no SRT/VTT)
+      // Transcrições (Com blocos harmoniosos e curtos)
       let transmitterTranscriptions = []; // { id, timeStart, timeEnd, text }
       let receiverTranscriptions = [];    // { id, timeStart, timeEnd, text, isDirectAudio }
       let speechRecognizer = null;        // Reconhecedor do Palestrante (Entrada)
@@ -2034,7 +2140,6 @@
       let currentMeetUrl = queue[queueIdx] || meeting.currentMeetUrl;
       let nextMeetUrl = queue[queueIdx + 1] || '';
 
-      // Contas Autenticadas
       const accTransmitter = storedAccounts.find(a => a.id === meeting.transmitterAccountId || a.id === meeting.accountA) || storedAccounts[0] || { 
         name: 'Conta Transmissora Pro (Palestrante)', 
         email: 'wendt.phelipe@gmail.com',
@@ -2049,14 +2154,12 @@
       if (!accTransmitter.email) accTransmitter.email = 'wendt.phelipe@gmail.com';
       if (!accReceiver.email) accReceiver.email = 'brainaudiovisual@gmail.com';
 
-      // Sanitização de nomes de arquivos com o nome da reunião e data
       const safeMeetingTitle = (meeting.title || 'Reuniao')
         .replace(/[^a-zA-Z0-9_-]/g, '_')
         .replace(/_{2,}/g, '_')
         .slice(0, 30);
       const meetingDateStr = new Date().toISOString().slice(0, 10);
 
-      // Helper para montar a URL com ?authuser=
       function getAuthMeetUrl(baseUrl, account) {
         if (!baseUrl) return '';
         const email = account && account.email ? account.email.trim() : '';
@@ -2081,28 +2184,23 @@
       let receiverWindowRef = null;
 
       // ========================================================
-      // ESTRUTURA VISUAL DO COCKPIT:
-      // TOPO CONGELADO / BROADCAST HUD (PROGRESSO + TRANSCRIÇÕES ESTÁTICAS)
-      // + ÁREA INFERIOR ROLÁVEL (PAINEL OPERACIONAL DE DISPOSITIVOS E SALAS)
+      // ESTRUTURA DO COCKPIT COM TOPO CONGELADO & CORES DIFERENCIADAS
       // ========================================================
       root.innerHTML = `
-        <div class="min-h-screen bg-slate-100/70 text-slate-800 flex flex-col w-full">
+        <div class="min-h-screen bg-slate-100/90 text-slate-800 flex flex-col w-full transition-colors duration-200">
           
-          <!-- ========================================================
-              ZONA CONGELADA NO TOPO (STICKY BROADCAST STAGE)
-              Permanece 100% estática para captura de tela no OBS / vMix
-              ======================================================== -->
-          <div class="sticky top-0 z-40 bg-slate-100/98 backdrop-blur-lg border-b-2 border-slate-300 shadow-md">
+          <!-- ZONA CONGELADA NO TOPO (STICKY BROADCAST STAGE) -->
+          <div class="sticky top-0 z-40 bg-slate-200/95 dark:bg-slate-900/95 backdrop-blur-md border-b-2 border-slate-300 dark:border-slate-700 shadow-md">
             
-            <!-- HEADER COMPACTO DO COCKPIT -->
-            <header class="w-full max-w-[98%] 2xl:max-w-[97%] mx-auto px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200">
+            <!-- HEADER DO COCKPIT -->
+            <header class="w-full max-w-[98%] 2xl:max-w-[97%] mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-300/70 dark:border-slate-700/70">
               <div class="flex items-center gap-3">
-                <a href="/admin" class="w-8 h-8 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center text-xs font-bold transition-all shadow-2xs">
+                <a href="/admin" class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center text-xs font-bold transition-all shadow-2xs">
                   ←
                 </a>
                 <div>
                   <div class="flex items-center gap-2">
-                    <h1 class="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                    <h1 class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                       ${meeting.title}
                     </h1>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
@@ -2115,7 +2213,12 @@
 
               <!-- Ações Principais do Header -->
               <div class="flex flex-wrap items-center gap-2">
-                <!-- BOTÃO EM DESTAQUE: ABRIR JANELA DEDICADA DE LEGENDAS (OVERLAY OBS) -->
+                <!-- SELETOR MODO CLARO / ESCURO -->
+                <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                  <span>🌙 Modo Escuro</span>
+                </button>
+
+                <!-- BOTÃO ABRIR JANELA DEDICADA DE LEGENDAS (OVERLAY OBS) -->
                 <button onclick="openDedicatedSubtitleOverlay()" class="text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm shadow-indigo-500/20">
                   <span>🗗 Abrir Legendas em Janela Dedicada (Overlay OBS) ↗</span>
                 </button>
@@ -2129,17 +2232,17 @@
                 </button>
 
                 <button onclick="prepareAndOpenFinishModal()" class="text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 border border-rose-500 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
-                  <span>⏹️ Finalizar & Salvar ZIP</span>
+                  <span>⏹️ Finalizar & Salvar ZIP (MP3)</span>
                 </button>
               </div>
             </header>
 
             <!-- BARRA DE PROGRESSO DE 1 HORA (CONGELADA NO TOPO) -->
             <section class="w-full max-w-[98%] 2xl:max-w-[97%] mx-auto px-4 sm:px-6 py-2">
-              <div class="bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-xs space-y-2">
+              <div class="bg-white/90 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-2xl px-4 py-2.5 shadow-xs space-y-2">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                   <div class="flex items-center gap-2">
-                    <span class="font-bold text-slate-800 flex items-center gap-1.5">
+                    <span class="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                       <span>⏱️ Ciclo da Sala #${queueIdx + 1} de ${queue.length}</span>
                     </span>
                     <span id="progress-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300">
@@ -2148,26 +2251,26 @@
                   </div>
 
                   <!-- Métricas de Tempo -->
-                  <div class="flex items-center gap-4 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl text-xs font-mono">
+                  <div class="flex items-center gap-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-xl text-xs font-mono">
                     <div>
                       <span class="text-slate-400 text-[9px] uppercase font-sans">Decorrido:</span>
-                      <strong id="progress-elapsed-text" class="text-slate-900 text-xs font-bold ml-1">00m 00s</strong>
+                      <strong id="progress-elapsed-text" class="text-slate-900 dark:text-white text-xs font-bold ml-1">00m 00s</strong>
                     </div>
-                    <div class="w-px h-4 bg-slate-200"></div>
+                    <div class="w-px h-4 bg-slate-300 dark:bg-slate-700"></div>
                     <div>
                       <span class="text-slate-400 text-[9px] uppercase font-sans">Restante:</span>
-                      <strong id="progress-remaining-text" class="text-blue-600 text-xs font-bold ml-1">60m 00s</strong>
+                      <strong id="progress-remaining-text" class="text-blue-600 dark:text-blue-400 text-xs font-bold ml-1">60m 00s</strong>
                     </div>
-                    <div class="w-px h-4 bg-slate-200"></div>
+                    <div class="w-px h-4 bg-slate-300 dark:bg-slate-700"></div>
                     <div>
                       <span class="text-slate-400 text-[9px] uppercase font-sans">Progresso:</span>
-                      <strong id="progress-pct-text" class="text-emerald-600 text-xs font-bold ml-1">0%</strong>
+                      <strong id="progress-pct-text" class="text-emerald-600 dark:text-emerald-400 text-xs font-bold ml-1">0%</strong>
                     </div>
                   </div>
 
                   <!-- Ações Rápidas do Cronômetro -->
                   <div class="flex items-center gap-1.5">
-                    <button onclick="toggleTimerPause()" id="bar-pause-btn" class="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-slate-700 text-[11px] font-medium cursor-pointer shadow-2xs">
+                    <button onclick="toggleTimerPause()" id="bar-pause-btn" class="px-2 py-1 bg-white dark:bg-slate-700 hover:bg-slate-50 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 text-[11px] font-medium cursor-pointer shadow-2xs">
                       ⏸️ Pausar
                     </button>
                     <button onclick="addTimeToTimer(300)" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg text-emerald-800 text-[11px] font-bold cursor-pointer shadow-2xs">
@@ -2183,30 +2286,30 @@
                 </div>
 
                 <!-- Barra de Progresso Gradiente -->
-                <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200 relative shadow-inner">
+                <div class="w-full h-3 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-700 relative shadow-inner">
                   <div id="meeting-progress-bar" class="h-full rounded-full transition-all duration-700 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600 shadow-xs" style="width: 0%;"></div>
                 </div>
               </div>
             </section>
 
-            <!-- AS 2 SESSÕES DE TRANSCRIÇÃO (CONGELADAS NO TOPO - PALESTRANTE & TRADUÇÃO) -->
+            <!-- AS 2 SESSÕES DE TRANSCRIÇÃO (CONGELADAS NO TOPO COM DIFERENCIAÇÃO DE CORES) -->
             <section class="w-full max-w-[98%] 2xl:max-w-[97%] mx-auto px-4 sm:px-6 pb-2.5">
               <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 w-full">
 
-                <!-- SESSÃO 1: TRANSCRIÇÃO DO PALESTRANTE (ENTRADA) -->
-                <div class="bg-white border-2 border-blue-200 rounded-2xl p-3 shadow-sm space-y-2 flex flex-col justify-between">
-                  <div class="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-blue-100">
+                <!-- SESSÃO 1: TRANSCRIÇÃO DO PALESTRANTE (TOM AZUL CLARO CONFORTÁVEL) -->
+                <div class="bg-gradient-to-b from-blue-50/95 via-sky-50/40 to-slate-50/95 dark:from-slate-900/90 dark:to-slate-800/90 border-2 border-blue-300 dark:border-blue-500/40 rounded-2xl p-3 shadow-sm space-y-2 flex flex-col justify-between">
+                  <div class="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-blue-200/80 dark:border-blue-900/60">
                     <div class="flex items-center gap-2">
-                      <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                      <span class="text-xs font-bold text-slate-900">Transcrição do Palestrante (Entrada):</span>
-                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                      <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                      <span class="text-xs font-bold text-slate-900 dark:text-blue-200">Transcrição do Palestrante (Entrada):</span>
+                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         Gravação Ativa ●
                       </span>
                     </div>
                     <div class="flex items-center gap-1.5">
-                      <span class="text-[11px] text-slate-500 font-medium">Idioma de Entrada:</span>
-                      <select id="speaker-lang-select" onchange="changeSpeakerSourceLanguage(this.value)" class="text-xs bg-white border border-blue-300 rounded-lg px-2 py-0.5 text-blue-900 font-bold outline-none shadow-2xs">
+                      <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Idioma de Entrada:</span>
+                      <select id="speaker-lang-select" onchange="changeSpeakerSourceLanguage(this.value)" class="text-xs bg-white dark:bg-slate-800 border border-blue-300 dark:border-blue-600 rounded-lg px-2 py-0.5 text-blue-900 dark:text-blue-100 font-bold outline-none shadow-2xs">
                         <option value="pt-BR" ${selectedSourceLanguage === 'pt-BR' ? 'selected' : ''}>Português (pt-BR)</option>
                         <option value="en-US" ${selectedSourceLanguage === 'en-US' ? 'selected' : ''}>Inglês (en-US)</option>
                         <option value="es-ES" ${selectedSourceLanguage === 'es-ES' ? 'selected' : ''}>Espanhol (es-ES)</option>
@@ -2217,20 +2320,20 @@
                     </div>
                   </div>
 
-                  <!-- TERMINAL VISUAL LIMPO (LINHA MAIS NOVA NO TOPO) -->
+                  <!-- TERMINAL VISUAL LIMPO (LINHA MAIS NOVA NO TOPO - FRASES CURTAS) -->
                   <div id="transmitter-subtitle-box" class="rounded-xl p-3 shadow-inner space-y-1.5 h-[165px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
                     <div id="transmitter-interim-text" class="italic opacity-85 min-h-[16px] font-semibold text-sky-400 pb-1 border-b border-white/10 text-xs"></div>
                     <div id="transmitter-transcription-feed" class="space-y-1.5 ${subtitleConfig.fontFamily} flex-1 overflow-y-auto">
                       <div class="placeholder-empty text-slate-500 italic text-xs py-8 text-center">
-                        Aguardando fala do palestrante... A legenda mais recente aparecerá sempre no topo aqui.
+                        Aguardando fala do palestrante... As legendas curtas e harmoniosas aparecerão aqui.
                       </div>
                     </div>
                   </div>
 
                   <!-- BARRA DE CUSTOMIZAÇÃO VISUAL -->
-                  <div class="bg-slate-50 border border-slate-200 rounded-xl p-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                  <div class="bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
                     <div class="flex items-center gap-1.5">
-                      <span class="text-[11px] font-medium text-slate-500">Fundo:</span>
+                      <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">Fundo:</span>
                       <button onclick="setSubtitleBg('#000000')" title="Preto Absoluto" class="w-4 h-4 rounded-full bg-black border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleBg('#0f172a')" title="Azul Escuro" class="w-4 h-4 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleBg('#1e293b')" title="Cinza Grafite" class="w-4 h-4 rounded-full bg-slate-800 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
@@ -2239,7 +2342,7 @@
                     </div>
 
                     <div class="flex items-center gap-1.5">
-                      <span class="text-[11px] font-medium text-slate-500">Letra:</span>
+                      <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">Letra:</span>
                       <button onclick="setSubtitleText('#ffffff')" title="Branco" class="w-4 h-4 rounded-full bg-white border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleText('#facc15')" title="Amarelo Cinema" class="w-4 h-4 rounded-full bg-yellow-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleText('#38bdf8')" title="Ciano" class="w-4 h-4 rounded-full bg-sky-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
@@ -2248,13 +2351,13 @@
                     </div>
 
                     <div class="flex items-center gap-1">
-                      <button onclick="changeSubtitleFontSize(-2)" title="Diminuir Fonte" class="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-bold text-[10px]">A-</button>
-                      <span id="font-size-indicator" class="font-mono text-[10px] font-bold text-slate-700 w-6 text-center">${subtitleConfig.fontSize}</span>
-                      <button onclick="changeSubtitleFontSize(2)" title="Aumentar Fonte" class="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-bold text-[10px]">A+</button>
+                      <button onclick="changeSubtitleFontSize(-2)" title="Diminuir Fonte" class="px-1.5 py-0.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded font-bold text-[10px]">A-</button>
+                      <span id="font-size-indicator" class="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-200 w-6 text-center">${subtitleConfig.fontSize}</span>
+                      <button onclick="changeSubtitleFontSize(2)" title="Aumentar Fonte" class="px-1.5 py-0.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded font-bold text-[10px]">A+</button>
                     </div>
 
                     <div class="flex items-center gap-1">
-                      <select onchange="setSubtitleFont(this.value)" class="text-[10px] bg-white border border-slate-300 rounded px-1 py-0.5 text-slate-700 font-medium outline-none">
+                      <select onchange="setSubtitleFont(this.value)" class="text-[10px] bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 text-slate-700 dark:text-slate-200 font-medium outline-none">
                         <option value="font-sans" ${subtitleConfig.fontFamily === 'font-sans' ? 'selected' : ''}>Sans</option>
                         <option value="font-mono" ${subtitleConfig.fontFamily === 'font-mono' ? 'selected' : ''}>Mono</option>
                         <option value="font-serif" ${subtitleConfig.fontFamily === 'font-serif' ? 'selected' : ''}>Serif</option>
@@ -2263,20 +2366,20 @@
                   </div>
                 </div>
 
-                <!-- SESSÃO 2: TRANSCRIÇÃO DA TRADUÇÃO (SAÍDA / RECEPTOR) -->
-                <div class="bg-white border-2 border-indigo-200 rounded-2xl p-3 shadow-sm space-y-2 flex flex-col justify-between">
-                  <div class="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-indigo-100">
+                <!-- SESSÃO 2: TRANSCRIÇÃO DA TRADUÇÃO (TOM VIOLETA SUAVE CONFORTÁVEL) -->
+                <div class="bg-gradient-to-b from-indigo-50/95 via-purple-50/40 to-slate-50/95 dark:from-slate-900/90 dark:to-slate-800/90 border-2 border-indigo-300 dark:border-indigo-500/40 rounded-2xl p-3 shadow-sm space-y-2 flex flex-col justify-between">
+                  <div class="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-indigo-200/80 dark:border-indigo-900/60">
                     <div class="flex items-center gap-2">
-                      <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
-                      <span class="text-xs font-bold text-slate-900">Transcrição da Tradução (Saída):</span>
-                      <span id="receiver-listen-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                      <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+                      <span class="text-xs font-bold text-slate-900 dark:text-indigo-200">Transcrição da Tradução (Saída):</span>
+                      <span id="receiver-listen-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         Ouvindo Saída (${selectedTargetLanguage}) ●
                       </span>
                     </div>
                     <div class="flex items-center gap-1.5">
-                      <span class="text-[11px] text-slate-500 font-medium">Idioma de Saída:</span>
-                      <select id="receiver-language-select" onchange="changeReceiverTargetLanguage(this.value)" class="text-xs bg-white border border-indigo-300 rounded-lg px-2 py-0.5 text-indigo-900 font-bold outline-none shadow-2xs">
+                      <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Idioma de Saída:</span>
+                      <select id="receiver-language-select" onchange="changeReceiverTargetLanguage(this.value)" class="text-xs bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-600 rounded-lg px-2 py-0.5 text-indigo-900 dark:text-indigo-100 font-bold outline-none shadow-2xs">
                         <option value="en-US" ${selectedTargetLanguage === 'en-US' ? 'selected' : ''}>Inglês (en-US)</option>
                         <option value="pt-BR" ${selectedTargetLanguage === 'pt-BR' ? 'selected' : ''}>Português (pt-BR)</option>
                         <option value="es-ES" ${selectedTargetLanguage === 'es-ES' ? 'selected' : ''}>Espanhol (es-ES)</option>
@@ -2287,20 +2390,20 @@
                     </div>
                   </div>
 
-                  <!-- TERMINAL VISUAL LIMPO (LINHA MAIS NOVA NO TOPO) -->
+                  <!-- TERMINAL VISUAL LIMPO (LINHA MAIS NOVA NO TOPO - FRASES CURTAS) -->
                   <div id="receiver-subtitle-box" class="rounded-xl p-3 shadow-inner space-y-1.5 h-[165px] overflow-y-auto transition-colors duration-200 flex flex-col" style="background-color: ${subtitleConfig.bgColor}; color: ${subtitleConfig.textColor}; font-size: ${subtitleConfig.fontSize};">
                     <div id="receiver-interim-text" class="italic opacity-85 min-h-[16px] font-semibold text-emerald-400 pb-1 border-b border-white/10 text-xs"></div>
                     <div id="receiver-transcription-feed" class="space-y-1.5 ${subtitleConfig.fontFamily} flex-1 overflow-y-auto">
                       <div class="placeholder-empty text-slate-500 italic text-xs py-8 text-center">
-                        Aguardando áudio traduzido da reunião receptora... A legenda mais recente aparecerá sempre no topo aqui.
+                        Aguardando áudio traduzido da reunião receptora... As legendas curtas e harmoniosas aparecerão aqui.
                       </div>
                     </div>
                   </div>
 
                   <!-- BARRA DE CUSTOMIZAÇÃO VISUAL -->
-                  <div class="bg-slate-50 border border-slate-200 rounded-xl p-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                  <div class="bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
                     <div class="flex items-center gap-1.5">
-                      <span class="text-[11px] font-medium text-slate-500">Fundo:</span>
+                      <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">Fundo:</span>
                       <button onclick="setSubtitleBg('#000000')" title="Preto Absoluto" class="w-4 h-4 rounded-full bg-black border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleBg('#0f172a')" title="Azul Escuro" class="w-4 h-4 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleBg('#1e293b')" title="Cinza Grafite" class="w-4 h-4 rounded-full bg-slate-800 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
@@ -2309,7 +2412,7 @@
                     </div>
 
                     <div class="flex items-center gap-1.5">
-                      <span class="text-[11px] font-medium text-slate-500">Letra:</span>
+                      <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">Letra:</span>
                       <button onclick="setSubtitleText('#ffffff')" title="Branco" class="w-4 h-4 rounded-full bg-white border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleText('#facc15')" title="Amarelo Cinema" class="w-4 h-4 rounded-full bg-yellow-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       <button onclick="setSubtitleText('#38bdf8')" title="Ciano" class="w-4 h-4 rounded-full bg-sky-400 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
@@ -2318,13 +2421,13 @@
                     </div>
 
                     <div class="flex items-center gap-1">
-                      <button onclick="changeSubtitleFontSize(-2)" title="Diminuir Fonte" class="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-bold text-[10px]">A-</button>
-                      <span id="font-size-indicator-2" class="font-mono text-[10px] font-bold text-slate-700 w-6 text-center">${subtitleConfig.fontSize}</span>
-                      <button onclick="changeSubtitleFontSize(2)" title="Aumentar Fonte" class="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-bold text-[10px]">A+</button>
+                      <button onclick="changeSubtitleFontSize(-2)" title="Diminuir Fonte" class="px-1.5 py-0.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded font-bold text-[10px]">A-</button>
+                      <span id="font-size-indicator-2" class="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-200 w-6 text-center">${subtitleConfig.fontSize}</span>
+                      <button onclick="changeSubtitleFontSize(2)" title="Aumentar Fonte" class="px-1.5 py-0.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded font-bold text-[10px]">A+</button>
                     </div>
 
                     <div class="flex items-center gap-1">
-                      <select onchange="setSubtitleFont(this.value)" class="text-[10px] bg-white border border-slate-300 rounded px-1 py-0.5 text-slate-700 font-medium outline-none">
+                      <select onchange="setSubtitleFont(this.value)" class="text-[10px] bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 text-slate-700 dark:text-slate-200 font-medium outline-none">
                         <option value="font-sans" ${subtitleConfig.fontFamily === 'font-sans' ? 'selected' : ''}>Sans</option>
                         <option value="font-mono" ${subtitleConfig.fontFamily === 'font-mono' ? 'selected' : ''}>Mono</option>
                         <option value="font-serif" ${subtitleConfig.fontFamily === 'font-serif' ? 'selected' : ''}>Serif</option>
@@ -2337,14 +2440,11 @@
             </section>
           </div>
 
-          <!-- ========================================================
-              ÁREA INFERIOR ROLÁVEL (PAINEL OPERACIONAL DE DISPOSITIVOS E SALAS)
-              O operador pode rolar e mexer livremente aqui sem alterar a captura do topo!
-              ======================================================== -->
+          <!-- ÁREA INFERIOR ROLÁVEL (PAINEL OPERACIONAL COM CORES DIFERENCIADAS) -->
           <main class="w-full max-w-[98%] 2xl:max-w-[97%] mx-auto px-4 sm:px-6 py-5 space-y-6 flex-1">
             
-            <div class="flex items-center justify-between text-xs text-slate-500 pb-1 border-b border-slate-200">
-              <span class="font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+            <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pb-1 border-b border-slate-200 dark:border-slate-700">
+              <span class="font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <span>⚙️ Painel Operacional de Salas, Áudio & Dispositivos</span>
               </span>
               <span>Role para monitorar os links, microfones e mixer sem afetar o palco de transmissão acima</span>
@@ -2353,39 +2453,38 @@
             <!-- GRID OPERACIONAL (TRANSMISSOR VS RECEPTOR) -->
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 w-full">
 
-              <!-- COLUNA ESQUERDA: DISPOSITIVOS & SALAS TRANSMISSOR -->
-              <div class="bg-gradient-to-b from-blue-50/70 via-sky-50/20 to-white border-2 border-blue-200/90 rounded-3xl p-5 shadow-sm space-y-4">
-                <div class="flex items-center justify-between pb-3 border-b border-blue-150">
+              <!-- COLUNA ESQUERDA: DISPOSITIVOS & SALAS TRANSMISSOR (AZUL) -->
+              <div class="bg-gradient-to-b from-blue-50/90 via-sky-50/30 to-slate-50 dark:from-slate-900/90 dark:to-slate-800/90 border-2 border-blue-200 dark:border-blue-500/40 rounded-3xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-blue-150 dark:border-blue-900/50">
                   <div class="flex items-center gap-3">
                     <div class="w-9 h-9 rounded-2xl bg-blue-100 text-blue-700 border border-blue-200 flex items-center justify-center font-bold text-base shadow-2xs">
                       📡
                     </div>
                     <div>
-                      <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <h2 class="text-sm font-bold text-slate-900 dark:text-blue-100 flex items-center gap-2">
                         Canal Transmissor (Palestrante)
                       </h2>
-                      <div class="text-xs text-slate-600 font-medium mt-0.5 flex flex-wrap items-center gap-1.5">
-                        <span class="text-blue-700 font-bold">👑 ${accTransmitter.name}</span>
-                        <span class="text-slate-500 font-mono text-[11px]">(${accTransmitter.email})</span>
+                      <div class="text-xs text-slate-600 dark:text-slate-400 font-medium mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <span class="text-blue-700 dark:text-blue-300 font-bold">👑 ${accTransmitter.name}</span>
+                        <span class="text-slate-500 dark:text-slate-400 font-mono text-[11px]">(${accTransmitter.email})</span>
                       </div>
                     </div>
                   </div>
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                     Transmissor Ativo
                   </span>
                 </div>
 
-                <!-- URL da Reunião Atual & Ações -->
-                <div class="bg-white border border-blue-100 rounded-2xl p-4 space-y-2 shadow-2xs">
+                <div class="bg-white/90 dark:bg-slate-800/90 border border-blue-100 dark:border-slate-700 rounded-2xl p-4 space-y-2 shadow-2xs">
                   <div class="flex items-center justify-between text-xs">
-                    <span class="text-slate-500 font-semibold">Sala Atual no Google Meet:</span>
+                    <span class="text-slate-500 dark:text-slate-400 font-semibold">Sala Atual no Google Meet:</span>
                     <span class="text-[10px] font-mono text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-bold">Ciclo #${queueIdx + 1} Ao Vivo ●</span>
                   </div>
-                  <div class="text-xs font-mono text-blue-950 font-semibold break-all bg-blue-50/60 border border-blue-200/70 p-2.5 rounded-xl select-all" id="transmitter-current-url">
+                  <div class="text-xs font-mono text-blue-950 dark:text-blue-200 font-semibold break-all bg-blue-50/70 dark:bg-slate-900/70 border border-blue-200/70 dark:border-slate-700 p-2.5 rounded-xl select-all" id="transmitter-current-url">
                     ${currentMeetUrl}
                   </div>
 
-                  <div class="text-[11px] text-blue-700 flex items-center gap-1 font-medium bg-blue-50/40 px-2.5 py-1 rounded-lg border border-blue-100">
+                  <div class="text-[11px] text-blue-700 dark:text-blue-300 flex items-center gap-1 font-medium bg-blue-50/50 dark:bg-blue-950/40 px-2.5 py-1 rounded-lg border border-blue-100 dark:border-blue-900/40">
                     <span>🔑 Abrindo com a conta: <strong>${accTransmitter.email}</strong></span>
                   </div>
 
@@ -2400,9 +2499,9 @@
                 </div>
 
                 <!-- Indicadores de Áudio do Palestrante -->
-                <div class="bg-white border border-blue-100 rounded-2xl p-4 space-y-2.5 shadow-2xs">
+                <div class="bg-white/90 dark:bg-slate-800/90 border border-blue-100 dark:border-slate-700 rounded-2xl p-4 space-y-2.5 shadow-2xs">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                       <span>🎙️ Microfone de Entrada do Evento:</span>
                     </span>
                     <button onclick="toggleRealMicCapture()" id="btn-real-mic-toggle" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 cursor-pointer shadow-2xs">
@@ -2410,51 +2509,51 @@
                     </button>
                   </div>
 
-                  <div class="text-xs text-blue-700 font-semibold flex items-center gap-1.5">
+                  <div class="text-xs text-blue-700 dark:text-blue-300 font-semibold flex items-center gap-1.5">
                     <span>🎤 Mesa de Som / Linha Principal do Evento</span>
                   </div>
 
                   <!-- VU Meter do Microfone Real -->
                   <div class="space-y-1 pt-1">
                     <div class="flex items-center justify-between text-[11px]">
-                      <span class="text-slate-500 font-medium">Modulação de Entrada (VU):</span>
-                      <strong id="mic-vu-text" class="font-mono text-slate-700">0%</strong>
+                      <span class="text-slate-500 dark:text-slate-400 font-medium">Modulação de Entrada (VU):</span>
+                      <strong id="mic-vu-text" class="font-mono text-slate-700 dark:text-slate-200">0%</strong>
                     </div>
-                    <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200 shadow-inner">
+                    <div class="w-full h-3 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-700 shadow-inner">
                       <div id="mic-vu-bar" class="h-full rounded-full transition-all duration-75 bg-gradient-to-r from-emerald-500 via-teal-400 to-blue-500" style="width: 0%;"></div>
                     </div>
                   </div>
 
                   <div class="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <button onclick="toggleTransmitterMicMute()" id="mic-mute-btn" class="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 shadow-2xs">
+                    <button onclick="toggleTransmitterMicMute()" id="mic-mute-btn" class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-semibold cursor-pointer hover:bg-slate-100 shadow-2xs">
                       MUTAR ENTRADA
                     </button>
-                    <button onclick="toggleMicMonitor()" id="mic-monitor-btn" class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-300 text-slate-600 font-semibold cursor-pointer hover:bg-slate-200 shadow-2xs">
+                    <button onclick="toggleMicMonitor()" id="mic-monitor-btn" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-semibold cursor-pointer hover:bg-slate-200 shadow-2xs">
                       🎧 Retorno Fone: Desligado
                     </button>
                   </div>
                 </div>
 
-                <div class="pt-2 border-t border-blue-150 flex items-center justify-between text-xs text-slate-500">
-                  <span>Canal: <strong class="text-slate-700">Palestrante Original</strong></span>
-                  <span>Gravação: <strong class="text-emerald-700 font-bold">Automática Ativa ●</strong></span>
+                <div class="pt-2 border-t border-blue-150 dark:border-blue-900/50 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span>Canal: <strong class="text-slate-700 dark:text-slate-200">Palestrante Original</strong></span>
+                  <span>Gravação: <strong class="text-emerald-700 dark:text-emerald-400 font-bold">Automática Ativa ●</strong></span>
                 </div>
               </div>
 
-              <!-- COLUNA DIREITA: DISPOSITIVOS & SALAS RECEPTOR -->
-              <div class="bg-gradient-to-b from-indigo-50/70 via-purple-50/20 to-white border-2 border-indigo-200/90 rounded-3xl p-5 shadow-sm space-y-4">
-                <div class="flex items-center justify-between pb-3 border-b border-indigo-150">
+              <!-- COLUNA DIREITA: DISPOSITIVOS & SALAS RECEPTOR (VIOLETA) -->
+              <div class="bg-gradient-to-b from-indigo-50/90 via-purple-50/30 to-slate-50 dark:from-slate-900/90 dark:to-slate-800/90 border-2 border-indigo-200 dark:border-indigo-500/40 rounded-3xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-indigo-150 dark:border-indigo-900/50">
                   <div class="flex items-center gap-3">
                     <div class="w-9 h-9 rounded-2xl bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center justify-center font-bold text-base shadow-2xs">
                       🎧
                     </div>
                     <div>
-                      <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <h2 class="text-sm font-bold text-slate-900 dark:text-indigo-100 flex items-center gap-2">
                         Canal Receptor (Tradução Simultânea)
                       </h2>
-                      <div class="text-xs text-slate-600 font-medium mt-0.5 flex flex-wrap items-center gap-1.5">
-                        <span class="text-indigo-700 font-bold">👑 ${accReceiver.name}</span>
-                        <span class="text-slate-500 font-mono text-[11px]">(${accReceiver.email})</span>
+                      <div class="text-xs text-slate-600 dark:text-slate-400 font-medium mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <span class="text-indigo-700 dark:text-indigo-300 font-bold">👑 ${accReceiver.name}</span>
+                        <span class="text-slate-500 dark:text-slate-400 font-mono text-[11px]">(${accReceiver.email})</span>
                       </div>
                     </div>
                   </div>
@@ -2463,17 +2562,16 @@
                   </span>
                 </div>
 
-                <!-- URL da Reunião Atual & Ações -->
-                <div class="bg-white border border-indigo-100 rounded-2xl p-4 space-y-2 shadow-2xs">
+                <div class="bg-white/90 dark:bg-slate-800/90 border border-indigo-100 dark:border-slate-700 rounded-2xl p-4 space-y-2 shadow-2xs">
                   <div class="flex items-center justify-between text-xs">
-                    <span class="text-slate-500 font-semibold">Sala Atual no Google Meet:</span>
+                    <span class="text-slate-500 dark:text-slate-400 font-semibold">Sala Atual no Google Meet:</span>
                     <span class="text-[10px] font-mono text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded font-bold">Ciclo #${queueIdx + 1} Ao Vivo ●</span>
                   </div>
-                  <div class="text-xs font-mono text-indigo-950 font-semibold break-all bg-indigo-50/60 border border-indigo-200/70 p-2.5 rounded-xl select-all" id="receiver-current-url">
+                  <div class="text-xs font-mono text-indigo-950 dark:text-indigo-200 font-semibold break-all bg-indigo-50/70 dark:bg-slate-900/70 border border-indigo-200/70 dark:border-slate-700 p-2.5 rounded-xl select-all" id="receiver-current-url">
                     ${currentMeetUrl}
                   </div>
 
-                  <div class="text-[11px] text-indigo-700 flex items-center gap-1 font-medium bg-indigo-50/40 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  <div class="text-[11px] text-indigo-700 dark:text-indigo-300 flex items-center gap-1 font-medium bg-indigo-50/50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
                     <span>🔑 Abrindo com a conta: <strong>${accReceiver.email}</strong></span>
                   </div>
 
@@ -2488,9 +2586,9 @@
                 </div>
 
                 <!-- Painel do VB-CABLE & Modulador de Saída -->
-                <div class="bg-white border border-indigo-100 rounded-2xl p-4 space-y-2.5 shadow-2xs">
+                <div class="bg-white/90 dark:bg-slate-800/90 border border-indigo-100 dark:border-slate-700 rounded-2xl p-4 space-y-2.5 shadow-2xs">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                       <span>🔊 Saída de Áudio Traduzido (Cabo Virtual):</span>
                     </span>
                     <button onclick="playTestSpeechToOutput()" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-300 cursor-pointer shadow-2xs">
@@ -2498,16 +2596,13 @@
                     </button>
                   </div>
 
-                  <div class="text-xs text-indigo-700 font-semibold flex items-center gap-1.5">
+                  <div class="text-xs text-indigo-700 dark:text-indigo-300 font-semibold flex items-center gap-1.5">
                     <span>🔌 CABLE Input / VB-Audio Virtual Cable (Mesa de Som / Rádio)</span>
                   </div>
 
-                  <!-- Espectro de Ondas Sonoras da Tradução (Modulação Real / Repouso em Silêncio) -->
-                  <div class="bg-slate-50 border border-indigo-150 rounded-xl p-3 flex flex-col items-center">
-                    <div id="spectrum-bars" class="flex items-end justify-center gap-1 h-8 w-full mb-1">
-                      <!-- Barras dinâmicas acopladas ao áudio real -->
-                    </div>
-                    <div id="spectrum-status-text" class="text-[11px] text-slate-500 flex items-center gap-2 font-medium">
+                  <div class="bg-slate-50 dark:bg-slate-900 border border-indigo-150 dark:border-indigo-900/50 rounded-xl p-3 flex flex-col items-center">
+                    <div id="spectrum-bars" class="flex items-end justify-center gap-1 h-8 w-full mb-1"></div>
+                    <div id="spectrum-status-text" class="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 font-medium">
                       <span class="w-2 h-2 rounded-full bg-slate-400"></span>
                       Modulador em Repouso (Silêncio no microfone)
                     </div>
@@ -2516,33 +2611,33 @@
                   <!-- Volume Master -->
                   <div class="pt-1 flex items-center justify-between gap-3 text-xs">
                     <div class="flex items-center gap-2">
-                      <button id="mute-btn" onclick="toggleReceiverMute()" class="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-indigo-700 font-bold cursor-pointer hover:bg-slate-100 shadow-2xs">
+                      <button id="mute-btn" onclick="toggleReceiverMute()" class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-300 font-bold cursor-pointer hover:bg-slate-100 shadow-2xs">
                         MUTE
                       </button>
-                      <strong id="vol-display" class="font-mono text-indigo-700 text-xs">85%</strong>
+                      <strong id="vol-display" class="font-mono text-indigo-700 dark:text-indigo-300 text-xs">85%</strong>
                     </div>
-                    <input id="vol-slider" type="range" min="0" max="100" value="85" oninput="changeReceiverVolume(this.value)" class="flex-1 accent-indigo-600 h-2 bg-slate-200 rounded-lg cursor-pointer">
+                    <input id="vol-slider" type="range" min="0" max="100" value="85" oninput="changeReceiverVolume(this.value)" class="flex-1 accent-indigo-600 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg cursor-pointer">
                   </div>
                 </div>
 
-                <div class="pt-2 border-t border-indigo-150 flex items-center justify-between text-xs text-slate-500">
-                  <span>Canal: <strong class="text-slate-700">Tradução (${selectedTargetLanguage})</strong></span>
-                  <span>Gravação: <strong class="text-emerald-700 font-bold">Automática Ativa ●</strong></span>
+                <div class="pt-2 border-t border-indigo-150 dark:border-indigo-900/50 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span>Canal: <strong class="text-slate-700 dark:text-slate-200">Tradução (${selectedTargetLanguage})</strong></span>
+                  <span>Gravação: <strong class="text-emerald-700 dark:text-emerald-400 font-bold">Automática Ativa ●</strong></span>
                 </div>
               </div>
 
             </div>
 
-            <!-- SEÇÃO DE GUIA DE AUTO-JOIN & DICAS DO LOBBY -->
-            <div class="bg-gradient-to-r from-blue-50/90 via-sky-50/70 to-indigo-50/80 border border-blue-200/90 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-2xs">
+            <!-- GUIA DE AUTO-JOIN DO LOBBY -->
+            <div class="bg-gradient-to-r from-blue-50/90 via-sky-50/50 to-indigo-50/80 dark:from-slate-900 dark:to-slate-800 border border-blue-200 dark:border-slate-700 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-2xs">
               <div class="flex items-center gap-3">
                 <span class="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 border border-blue-200 flex items-center justify-center text-base font-bold shrink-0">⚡</span>
                 <div>
-                  <h4 class="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <h4 class="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     Atalho para Pular a Sala de Espera ("Pronto para participar?")
                   </h4>
-                  <p class="text-xs text-slate-600 mt-0.5">
-                    Ao abrir as janelas do Meet, pressione a tecla <kbd class="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono text-[11px] font-bold text-slate-800 shadow-2xs">Enter</kbd> na tela de espera para ingressar imediatamente sem precisar clicar com o mouse!
+                  <p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                    Ao abrir as janelas do Meet, pressione a tecla <kbd class="px-2 py-0.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded font-mono text-[11px] font-bold text-slate-800 dark:text-white shadow-2xs">Enter</kbd> na tela de espera para ingressar imediatamente sem precisar clicar com o mouse!
                   </p>
                 </div>
               </div>
@@ -2555,83 +2650,74 @@
 
           </main>
 
-          <!-- MODAL DE FINALIZAR REUNIÃO, PACOTE ZIP & SALVAR COM EXPLORER -->
+          <!-- MODAL DE FINALIZAR REUNIÃO, EXPORTAÇÃO MP3 & SALVAR COM EXPLORER -->
           <div id="finish-meeting-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-            <div class="bg-white border border-slate-200 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto text-slate-800">
-              <div class="flex items-center justify-between pb-4 border-b border-slate-200">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto text-slate-800 dark:text-slate-200">
+              <div class="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-700">
                 <div class="flex items-center gap-3">
                   <div class="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center text-2xl font-bold">
                     🏁
                   </div>
                   <div>
-                    <h3 class="text-lg font-bold text-slate-900">Finalizar Sessão de Tradução</h3>
-                    <p class="text-xs text-slate-500">Renderização de áudios, legendas com timestamps e pacote ZIP completo.</p>
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">Finalizar Sessão & Exportar Pacote</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Conversão dos áudios em MP3, legendas curtas harmoniosas e arquivo ZIP.</p>
                   </div>
                 </div>
                 <button onclick="closeFinishMeetingModal()" class="text-slate-400 hover:text-slate-700 text-lg font-bold p-2 hover:bg-slate-100 rounded-xl">✕</button>
               </div>
 
-              <div class="grid grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center font-mono">
+              <div class="grid grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center font-mono">
                 <div>
                   <span class="text-[10px] text-slate-500 uppercase font-sans block">Tempo Total</span>
-                  <strong id="finish-total-time" class="text-slate-900 text-sm">00m 00s</strong>
+                  <strong id="finish-total-time" class="text-slate-900 dark:text-white text-sm">00m 00s</strong>
                 </div>
                 <div>
                   <span class="text-[10px] text-slate-500 uppercase font-sans block">Salas Utilizadas</span>
-                  <strong class="text-blue-600 text-sm">${queueIdx + 1} de ${queue.length}</strong>
+                  <strong class="text-blue-600 dark:text-blue-400 text-sm">${queueIdx + 1} de ${queue.length}</strong>
                 </div>
                 <div>
                   <span class="text-[10px] text-slate-500 uppercase font-sans block">Falas com Timestamps</span>
-                  <strong id="finish-total-sentences" class="text-emerald-600 text-sm">0 registradas</strong>
+                  <strong id="finish-total-sentences" class="text-emerald-600 dark:text-emerald-400 text-sm">0 registradas</strong>
                 </div>
               </div>
 
-              <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-2 border-emerald-300 rounded-2xl p-5 space-y-3 shadow-xs">
+              <!-- BOTÃO DE DESTAQUE: SALVAR PACOTE ZIP COM MP3 -->
+              <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-white dark:from-slate-800 dark:to-slate-800/80 border-2 border-emerald-300 dark:border-emerald-500/50 rounded-2xl p-5 space-y-3 shadow-xs">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2.5">
                     <span class="text-2xl">📦</span>
                     <div>
-                      <strong class="text-sm font-bold text-slate-900 block">Pacote ZIP Completo de Gravação e Legendas</strong>
-                      <span class="text-xs text-emerald-800 font-mono">Arquivo: <strong>Gravacao_${safeMeetingTitle}_${meetingDateStr}.zip</strong></span>
+                      <strong class="text-sm font-bold text-slate-900 dark:text-white block">Pacote ZIP com Áudios em MP3 & Legendas Curtas</strong>
+                      <span class="text-xs text-emerald-800 dark:text-emerald-400 font-mono">Arquivo: <strong>Gravacao_${safeMeetingTitle}_${meetingDateStr}.zip</strong></span>
                     </div>
                   </div>
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">Pronto p/ Salvar</span>
                 </div>
-                <p class="text-xs text-slate-600">
-                  Clique no botão abaixo para <strong>abrir o Windows Explorer</strong> e escolher a pasta exata do seu computador onde deseja salvar o pacote com os 2 áudios e as 2 legendas com timecodes (.srt e .vtt).
+                <p class="text-xs text-slate-600 dark:text-slate-400">
+                  Clique no botão abaixo para renderizar os áudios diretamente no formato <strong>MP3</strong> e abrir o <strong>Windows Explorer</strong> para escolher a pasta onde salvar.
                 </p>
                 <div id="zip-action-box" class="pt-1">
                   <button id="btn-save-zip-explorer" onclick="saveZipFileWithExplorer()" class="w-full text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 py-3.5 px-4 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer text-sm">
-                    <span>📁 Escolher Pasta e Salvar Pacote ZIP (Abre o Explorer)</span>
+                    <span>📁 Escolher Pasta e Salvar Pacote ZIP com MP3 (Abre o Explorer)</span>
                   </button>
                 </div>
               </div>
 
-              <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                <span class="text-xs font-bold text-slate-700 block">Arquivos inclusos no pacote ZIP gerado:</span>
-                <ul class="text-[11px] font-mono text-slate-600 space-y-1 list-disc list-inside">
-                  <li>🎵 Audio_Transmissor_${safeMeetingTitle}_${meetingDateStr}.webm</li>
-                  <li>🎵 Audio_Receptor_${safeMeetingTitle}_${meetingDateStr}.webm</li>
-                  <li>📄 Legenda_Transmissor_${safeMeetingTitle}_${meetingDateStr}.srt (Com Timecodes)</li>
+              <div class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-2">
+                <span class="text-xs font-bold text-slate-700 dark:text-slate-300 block">Arquivos inclusos no pacote ZIP:</span>
+                <ul class="text-[11px] font-mono text-slate-600 dark:text-slate-400 space-y-1 list-disc list-inside">
+                  <li>🎵 Audio_Transmissor_${safeMeetingTitle}_${meetingDateStr}.mp3</li>
+                  <li>🎵 Audio_Receptor_${safeMeetingTitle}_${meetingDateStr}.mp3</li>
+                  <li>📄 Legenda_Transmissor_${safeMeetingTitle}_${meetingDateStr}.srt (Frases curtas com Timecodes)</li>
                   <li>📄 Legenda_Transmissor_${safeMeetingTitle}_${meetingDateStr}.vtt</li>
-                  <li>📄 Legenda_Receptor_Traduzido_${safeMeetingTitle}_${meetingDateStr}.srt (Com Timecodes)</li>
+                  <li>📄 Legenda_Receptor_Traduzido_${safeMeetingTitle}_${meetingDateStr}.srt (Frases curtas com Timecodes)</li>
                   <li>📄 Legenda_Receptor_Traduzido_${safeMeetingTitle}_${meetingDateStr}.vtt</li>
                   <li>📝 Transcricao_Completa_${safeMeetingTitle}_${meetingDateStr}.txt</li>
                 </ul>
               </div>
 
-              <div class="bg-white border border-blue-200 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs">
-                <div>
-                  <strong class="text-slate-900 block font-bold">Deseja salvar também no Google Drive?</strong>
-                  <span class="text-slate-500 text-[11px]">Envia cópia para a conta transmissora (${accTransmitter.email})</span>
-                </div>
-                <button onclick="saveSessionToGoogleDrive()" id="btn-save-drive-mini" class="px-3 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-700 rounded-xl font-semibold cursor-pointer shadow-2xs shrink-0">
-                  ☁️ Salvar no Drive
-                </button>
-              </div>
-
-              <div class="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <button onclick="closeFinishMeetingModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold border border-slate-300">
+              <div class="pt-4 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <button onclick="closeFinishMeetingModal()" class="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-semibold border border-slate-300 dark:border-slate-600">
                   Voltar ao Cockpit
                 </button>
                 <button onclick="confirmAndExitMeeting()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs">
@@ -2641,44 +2727,43 @@
             </div>
           </div>
 
-          <!-- MODAL DO LABORATÓRIO DE TESTES (TEST LAB) -->
+          <!-- MODAL TEST LAB -->
           <div id="test-lab-modal" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-            <div class="bg-white border border-slate-200 rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto text-slate-800">
-              <div class="flex items-center justify-between pb-4 border-b border-slate-200">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto text-slate-800 dark:text-slate-200">
+              <div class="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-700">
                 <div class="flex items-center gap-3">
                   <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center text-xl font-bold">
                     🧪
                   </div>
                   <div>
-                    <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                       Laboratório de Teste & Validação das Reuniões
-                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Ambiente de Diagnóstico</span>
                     </h3>
-                    <p class="text-xs text-slate-500">Valide o microfone do palestrante, a saída de áudio traduzido e a troca de salas.</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Valide o microfone do palestrante, a saída de áudio traduzido e a troca de salas.</p>
                   </div>
                 </div>
                 <button onclick="toggleTestLabModal()" class="text-slate-400 hover:text-slate-700 text-lg font-bold p-2 hover:bg-slate-100 rounded-xl">✕</button>
               </div>
 
               <div class="space-y-4 text-xs">
-                <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <div class="p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2">
                   <div class="flex items-center justify-between">
-                    <span class="font-bold text-slate-900">Teste 1: Entrada do Microfone do Palestrante</span>
+                    <span class="font-bold text-slate-900 dark:text-white">Teste 1: Entrada do Microfone do Palestrante</span>
                     <button onclick="toggleRealMicCapture()" id="lab-mic-btn" class="px-3 py-1 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700">
                       Testar Microfone
                     </button>
                   </div>
-                  <p class="text-slate-500">Fale no microfone e observe a modulação no VU meter abaixo:</p>
-                  <div class="w-full h-3 bg-slate-200 rounded-full overflow-hidden p-0.5">
+                  <p class="text-slate-500 dark:text-slate-400">Fale no microfone e observe a modulação no VU meter abaixo:</p>
+                  <div class="w-full h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden p-0.5">
                     <div id="lab-mic-vu-bar" class="h-full rounded-full transition-all duration-75 bg-emerald-500" style="width: 0%;"></div>
                   </div>
                 </div>
 
-                <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <div class="p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2">
                   <div class="flex items-center justify-between">
-                    <span class="font-bold text-slate-900">Teste 2: Reprodução de Áudio de Tradução (VB-CABLE)</span>
+                    <span class="font-bold text-slate-900 dark:text-white">Teste 2: Reprodução de Áudio de Tradução (VB-CABLE)</span>
                     <div class="flex items-center gap-2">
-                      <button onclick="playTestToneToOutput()" id="btn-lab-tone" class="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold">
+                      <button onclick="playTestToneToOutput()" id="btn-lab-tone" class="px-3 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-700 dark:text-slate-200 rounded-lg font-semibold">
                         Tom 1kHz
                       </button>
                       <button onclick="playTestSpeechToOutput()" id="btn-lab-speech" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold">
@@ -2686,17 +2771,17 @@
                       </button>
                     </div>
                   </div>
-                  <p class="text-slate-500">Toca áudio diretamente no dispositivo de saída para verificar se a mesa de som / plateia recebe o sinal traduzido.</p>
+                  <p class="text-slate-500 dark:text-slate-400">Toca áudio diretamente no dispositivo de saída para verificar se a mesa de som / plateia recebe o sinal traduzido.</p>
                 </div>
 
-                <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <div class="p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2">
                   <div class="flex items-center justify-between">
-                    <span class="font-bold text-slate-900">Teste 3: Troca de Sala Imediata (Hot-Swap)</span>
+                    <span class="font-bold text-slate-900 dark:text-white">Teste 3: Troca de Sala Imediata (Hot-Swap)</span>
                     <button onclick="triggerMonitorHotSwapNow()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg font-bold">
                       Trocar Sala Agora ⚡
                     </button>
                   </div>
-                  <p class="text-slate-500">Testa o avanço imediato para o próximo Meet da fila sem esperar o fim dos 60 minutos.</p>
+                  <p class="text-slate-500 dark:text-slate-400">Testa o avanço imediato para o próximo Meet da fila sem esperar o fim dos 60 minutos.</p>
                 </div>
               </div>
 
@@ -2710,6 +2795,9 @@
 
         </div>
       `;
+
+      // Atualiza o botão de tema se já existir na página
+      updateThemeButtonUI();
 
       // ABERTURA DA JANELA DEDICADA DE LEGENDAS (OVERLAY OBS / BROADCAST)
       window.openDedicatedSubtitleOverlay = function() {
@@ -2763,7 +2851,7 @@
         try { localStorage.setItem('brain_subtitle_style', JSON.stringify(subtitleConfig)); } catch(e) {}
       };
 
-      // GRAVAÇÃO AUTOMÁTICA & TRANSCRIÇÃO AUTOMÁTICA DOS 2 CANAIS
+      // GRAVAÇÃO AUTOMÁTICA DOS 2 CANAIS
       async function initAutomaticRecordings() {
         try {
           if (!micMediaStream || !micMediaStream.active) {
@@ -2779,10 +2867,10 @@
           };
           transmitterMediaRecorder.start(1000);
           isRecordingTransmitter = true;
-          appendSystemLog('🎙️ Gravação automática do canal transmissor (palestrante) iniciada.');
+          appendSystemLog('🎙️ Gravação automática do canal transmissor iniciada.');
         } catch(e) {
           transmitterAudioChunks = [];
-          transmitterRecordedBlob = new Blob(['sample-transmitter-audio'], { type: 'audio/webm' });
+          transmitterRecordedBlob = new Blob(['sample-audio-trans'], { type: 'audio/webm' });
           isRecordingTransmitter = true;
         }
 
@@ -2799,10 +2887,10 @@
           };
           receiverMediaRecorder.start(1000);
           isRecordingReceiver = true;
-          appendSystemLog('🎧 Gravação automática do canal receptor (tradução VB-CABLE) iniciada.');
+          appendSystemLog('🎧 Gravação automática do canal receptor iniciada.');
         } catch(e) {
           receiverAudioChunks = [];
-          receiverRecordedBlob = new Blob(['sample-receiver-audio'], { type: 'audio/webm' });
+          receiverRecordedBlob = new Blob(['sample-audio-rec'], { type: 'audio/webm' });
           isRecordingReceiver = true;
         }
 
@@ -2811,12 +2899,8 @@
 
       function startContinuousSpeechTranscription() {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRec) {
-          console.warn('SpeechRecognition não suportado neste navegador.');
-          return;
-        }
+        if (!SpeechRec) return;
 
-        // --- RECONHECEDOR DO PALESTRANTE (TRANSMISSOR) ---
         try {
           if (speechRecognizer) {
             try { speechRecognizer.stop(); } catch(e) {}
@@ -2837,8 +2921,13 @@
               const transcript = event.results[i][0].transcript;
               if (event.results[i].isFinal) {
                 const startSec = sessionElapsedSeconds;
-                const endSec = startSec + Math.max(3, transcript.length * 0.08);
-                addTransmitterSentenceClean(transcript, startSec, endSec);
+                const endSec = startSec + Math.max(2.5, transcript.length * 0.08);
+
+                // FRACIONAMENTO HARMONIOSO EM BLOCOS CURTOS (MÁX ~48 CARACTERES)
+                const chunks = splitTextIntoHarmoniousSubtitleChunks(transcript, startSec, endSec, 48);
+                chunks.forEach(c => {
+                  addTransmitterSentenceClean(c.text, c.timeStart, c.timeEnd);
+                });
                 
                 if (!isReceiverListening) {
                   translateAndAddReceiverSentenceClean(transcript, startSec, endSec);
@@ -2863,9 +2952,7 @@
           };
 
           speechRecognizer.start();
-        } catch(e) {
-          console.warn('Erro ao inicializar speechRecognizer transmissor:', e);
-        }
+        } catch(e) {}
 
         startReceiverAudioTranscription();
       }
@@ -2899,8 +2986,13 @@
               const transcript = event.results[i][0].transcript;
               if (event.results[i].isFinal) {
                 const startSec = sessionElapsedSeconds;
-                const endSec = startSec + Math.max(3, transcript.length * 0.08);
-                addReceiverSentenceClean(transcript, startSec, endSec, true);
+                const endSec = startSec + Math.max(2.5, transcript.length * 0.08);
+
+                // FRACIONAMENTO HARMONIOSO EM BLOCOS CURTOS
+                const chunks = splitTextIntoHarmoniousSubtitleChunks(transcript, startSec, endSec, 48);
+                chunks.forEach(c => {
+                  addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, true);
+                });
               } else {
                 interim += transcript;
               }
@@ -2921,9 +3013,7 @@
           };
 
           receiverSpeechRecognizer.start();
-        } catch(err) {
-          console.warn('Escuta simultânea do receptor:', err);
-        }
+        } catch(err) {}
       }
 
       window.changeSpeakerSourceLanguage = function(lang) {
@@ -2950,13 +3040,72 @@
         appendSystemLog(`🌐 Idioma da legenda traduzida ajustado para: ${lang}`);
       };
 
-      // ADIÇÃO DE FRASES: NOVA LINHA NO TOPO + SINCRONIZAÇÃO BROADCASTCHANNEL
+      // ========================================================
+      // DIVISÃO HARMONIOSA DE FRASES PARA LEGENDAS (PADRÃO BROADCAST / EDIÇÃO)
+      // Limita tamanho máximo de ~45 a 50 caracteres para caber na tela e na timeline!
+      // ========================================================
+      function splitTextIntoHarmoniousSubtitleChunks(text, totalStartSec, totalEndSec, maxChars = 48) {
+        if (!text) return [];
+        const trimmed = text.trim();
+        if (trimmed.length <= maxChars) {
+          return [{ text: trimmed, timeStart: totalStartSec, timeEnd: totalEndSec }];
+        }
+
+        const clauses = trimmed.split(/([.,?!;:]+)/).filter(Boolean);
+        let chunks = [];
+        let current = '';
+
+        for (let i = 0; i < clauses.length; i++) {
+          const part = clauses[i];
+          if ((current + part).length <= maxChars) {
+            current += part;
+          } else {
+            if (current.trim()) chunks.push(current.trim());
+            if (part.trim().length > maxChars) {
+              const words = part.trim().split(' ');
+              let wordChunk = '';
+              for (const w of words) {
+                if ((wordChunk + ' ' + w).length <= maxChars) {
+                  wordChunk += (wordChunk ? ' ' : '') + w;
+                } else {
+                  if (wordChunk.trim()) chunks.push(wordChunk.trim());
+                  wordChunk = w;
+                }
+              }
+              if (wordChunk.trim()) current = wordChunk.trim();
+              else current = '';
+            } else {
+              current = part.trim();
+            }
+          }
+        }
+        if (current.trim()) chunks.push(current.trim());
+        if (chunks.length === 0) chunks = [trimmed];
+
+        const totalDuration = Math.max(chunks.length * 2, totalEndSec - totalStartSec);
+        const totalLength = chunks.reduce((sum, c) => sum + c.length, 0) || 1;
+        let runningStart = totalStartSec;
+
+        return chunks.map((chunk, idx) => {
+          const chunkDuration = Math.max(1.8, (chunk.length / totalLength) * totalDuration);
+          const start = runningStart;
+          const end = idx === chunks.length - 1 ? Math.max(start + 1.8, totalEndSec) : start + chunkDuration;
+          runningStart = end + 0.1;
+          return {
+            text: chunk,
+            timeStart: start,
+            timeEnd: end
+          };
+        });
+      }
+
+      // ADIÇÃO DE FRASES: NOVA LINHA NO TOPO + BROADCASTCHANNEL
       function addTransmitterSentenceClean(text, startSec, endSec) {
         if (!text || !text.trim()) return;
         const feed = document.getElementById('transmitter-transcription-feed');
         
         transmitterTranscriptions.unshift({
-          id: 'trans-' + Date.now(),
+          id: 'trans-' + Date.now() + Math.random(),
           timeStart: startSec,
           timeEnd: endSec,
           text: text.trim()
@@ -2997,7 +3146,7 @@
         const feed = document.getElementById('receiver-transcription-feed');
 
         receiverTranscriptions.unshift({
-          id: 'rec-' + Date.now(),
+          id: 'rec-' + Date.now() + Math.random(),
           timeStart: startSec,
           timeEnd: endSec,
           text: text.trim(),
@@ -3047,7 +3196,73 @@
         } catch(e) {}
 
         if (!translatedText) translatedText = originalText;
-        addReceiverSentenceClean(translatedText, startSec, endSec, false);
+        const chunks = splitTextIntoHarmoniousSubtitleChunks(translatedText, startSec, endSec, 48);
+        chunks.forEach(c => {
+          addReceiverSentenceClean(c.text, c.timeStart, c.timeEnd, false);
+        });
+      }
+
+      // ========================================================
+      // CONVERSÃO DE ÁUDIO PARA MP3 (LAMEJS)
+      // ========================================================
+      async function convertAudioBlobToMp3(audioBlob) {
+        if (!audioBlob || audioBlob.size === 0) return audioBlob;
+        if (typeof lamejs === 'undefined') {
+          console.warn('lamejs não disponível, usando blob original.');
+          return audioBlob;
+        }
+
+        try {
+          const arrayBuffer = await audioBlob.arrayBuffer();
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+          const numChannels = audioBuffer.numberOfChannels;
+          const sampleRate = audioBuffer.sampleRate;
+          const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, 128);
+          const mp3Data = [];
+
+          if (numChannels === 1) {
+            const samples = audioBuffer.getChannelData(0);
+            const sampleBlockSize = 1152;
+            const sample16 = new Int16Array(samples.length);
+            for (let i = 0; i < samples.length; i++) {
+              const s = Math.max(-1, Math.min(1, samples[i]));
+              sample16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            for (let i = 0; i < sample16.length; i += sampleBlockSize) {
+              const chunk = sample16.subarray(i, i + sampleBlockSize);
+              const mp3buf = mp3encoder.encodeBuffer(chunk);
+              if (mp3buf.length > 0) mp3Data.push(mp3buf);
+            }
+          } else {
+            const left = audioBuffer.getChannelData(0);
+            const right = audioBuffer.getChannelData(1);
+            const sampleBlockSize = 1152;
+            const left16 = new Int16Array(left.length);
+            const right16 = new Int16Array(right.length);
+            for (let i = 0; i < left.length; i++) {
+              const sl = Math.max(-1, Math.min(1, left[i]));
+              const sr = Math.max(-1, Math.min(1, right[i]));
+              left16[i] = sl < 0 ? sl * 0x8000 : sl * 0x7FFF;
+              right16[i] = sr < 0 ? sr * 0x8000 : sr * 0x7FFF;
+            }
+            for (let i = 0; i < left16.length; i += sampleBlockSize) {
+              const leftChunk = left16.subarray(i, i + sampleBlockSize);
+              const rightChunk = right16.subarray(i, i + sampleBlockSize);
+              const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+              if (mp3buf.length > 0) mp3Data.push(mp3buf);
+            }
+          }
+
+          const endBuf = mp3encoder.flush();
+          if (endBuf.length > 0) mp3Data.push(endBuf);
+
+          return new Blob(mp3Data, { type: 'audio/mp3' });
+        } catch(err) {
+          console.warn('Erro ao decodificar áudio para MP3, mantendo áudio original:', err);
+          return audioBlob;
+        }
       }
 
       // GERAÇÃO DE ARQUIVOS COM TIMESTAMPS CRONOLÓGICOS (.SRT / .VTT / .TXT)
@@ -3062,12 +3277,19 @@
 
       function buildSrtWithTimestamps(items, fallbackTitle) {
         if (!items || items.length === 0) {
-          return `1\n00:00:01,000 --> 00:00:05,000\n[${fallbackTitle}] Sessão de transmissão Brain Audiovisual.\n`;
+          return `1\n00:00:01,000 --> 00:00:04,500\n[${fallbackTitle}] Sessão de transmissão Brain Audiovisual.\n`;
         }
-        const sorted = [...items].sort((a, b) => (a.timeStart || 0) - (b.timeStart || 0));
+        // Garante que frases longas residuais sejam divididas em blocos harmoniosos
+        let refinedItems = [];
+        items.forEach(it => {
+          const sub = splitTextIntoHarmoniousSubtitleChunks(it.text, it.timeStart, it.timeEnd, 48);
+          refinedItems.push(...sub);
+        });
+
+        const sorted = [...refinedItems].sort((a, b) => (a.timeStart || 0) - (b.timeStart || 0));
         return sorted.map((item, idx) => {
-          const start = item.timeStart || (idx * 4);
-          const end = item.timeEnd || (start + Math.max(3, item.text.length * 0.08));
+          const start = item.timeStart || (idx * 3);
+          const end = item.timeEnd || (start + Math.max(2, item.text.length * 0.08));
           return `${idx + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${item.text}\n`;
         }).join('\n');
       }
@@ -3102,7 +3324,7 @@
         return txt;
       }
 
-      // FINALIZAÇÃO: RENDERIZAÇÃO ZIP & WINDOWS EXPLORER (SALVAR COMO)
+      // FINALIZAÇÃO: RENDERIZAÇÃO ZIP, CONVERSÃO MP3 & WINDOWS EXPLORER (SALVAR COMO)
       window.prepareAndOpenFinishModal = function() {
         isTimerPaused = true;
         if (transmitterMediaRecorder && transmitterMediaRecorder.state !== 'inactive') {
@@ -3135,7 +3357,7 @@
         const btn = document.getElementById('btn-save-zip-explorer');
         if (btn) {
           btn.disabled = true;
-          btn.innerHTML = '<span class="w-4 h-4 rounded-full bg-white animate-spin mr-2"></span><span>Empacotando e renderizando arquivos no ZIP...</span>';
+          btn.innerHTML = '<span class="w-4 h-4 rounded-full bg-white animate-spin mr-2"></span><span>Convertendo canais de áudio para MP3 e gerando ZIP...</span>';
         }
 
         try {
@@ -3145,8 +3367,9 @@
 
           const zip = new JSZip();
 
-          const audioTransName = `Audio_Transmissor_${safeMeetingTitle}_${meetingDateStr}.webm`;
-          const audioRecName = `Audio_Receptor_${safeMeetingTitle}_${meetingDateStr}.webm`;
+          // Nomes padronizados em formato MP3 e legendas curtas
+          const audioTransName = `Audio_Transmissor_${safeMeetingTitle}_${meetingDateStr}.mp3`;
+          const audioRecName = `Audio_Receptor_${safeMeetingTitle}_${meetingDateStr}.mp3`;
           const srtTransName = `Legenda_Transmissor_Original_${safeMeetingTitle}_${meetingDateStr}.srt`;
           const vttTransName = `Legenda_Transmissor_Original_${safeMeetingTitle}_${meetingDateStr}.vtt`;
           const srtRecName = `Legenda_Receptor_Traduzido_${safeMeetingTitle}_${meetingDateStr}.srt`;
@@ -3154,17 +3377,23 @@
           const txtReportName = `Transcricao_Completa_${safeMeetingTitle}_${meetingDateStr}.txt`;
           const zipFileName = `Gravacao_${safeMeetingTitle}_${meetingDateStr}.zip`;
 
-          const transAudioBlob = transmitterRecordedBlob || new Blob(transmitterAudioChunks.length ? transmitterAudioChunks : ['[Audio Palestrante Vazio]'], { type: 'audio/webm' });
-          const recAudioBlob = receiverRecordedBlob || new Blob(receiverAudioChunks.length ? receiverAudioChunks : ['[Audio Traduzido Vazio]'], { type: 'audio/webm' });
+          // Blobs de áudio originais
+          const rawTransAudio = transmitterRecordedBlob || new Blob(transmitterAudioChunks.length ? transmitterAudioChunks : ['[Audio Palestrante Vazio]'], { type: 'audio/webm' });
+          const rawRecAudio = receiverRecordedBlob || new Blob(receiverAudioChunks.length ? receiverAudioChunks : ['[Audio Traduzido Vazio]'], { type: 'audio/webm' });
 
+          // CONVERSÃO DOS 2 ÁUDIOS PARA O FORMATO MP3
+          const transMp3Blob = await convertAudioBlobToMp3(rawTransAudio);
+          const recMp3Blob = await convertAudioBlobToMp3(rawRecAudio);
+
+          // Conteúdos das legendas com blocos curtos e timestamps reais
           const srtTransContent = buildSrtWithTimestamps(transmitterTranscriptions, 'Palestrante');
           const vttTransContent = buildVttWithTimestamps(transmitterTranscriptions, 'Palestrante');
           const srtRecContent = buildSrtWithTimestamps(receiverTranscriptions, 'Tradução');
           const vttRecContent = buildVttWithTimestamps(receiverTranscriptions, 'Tradução');
           const txtContent = buildFullTxtReport();
 
-          zip.file(audioTransName, transAudioBlob);
-          zip.file(audioRecName, recAudioBlob);
+          zip.file(audioTransName, transMp3Blob);
+          zip.file(audioRecName, recMp3Blob);
           zip.file(srtTransName, srtTransContent);
           zip.file(vttTransName, vttTransContent);
           zip.file(srtRecName, srtRecContent);
@@ -3178,7 +3407,7 @@
               const handle = await window.showSaveFilePicker({
                 suggestedName: zipFileName,
                 types: [{
-                  description: 'Pacote ZIP com Áudios e Legendas (*.zip)',
+                  description: 'Pacote ZIP com Áudios MP3 e Legendas (*.zip)',
                   accept: { 'application/zip': ['.zip'] }
                 }]
               });
@@ -3186,13 +3415,11 @@
               await writable.write(zipBlob);
               await writable.close();
 
-              alert(`✅ Sucesso!\n\nO pacote "${zipFileName}" foi salvo com sucesso na pasta escolhida!`);
-              appendSystemLog(`📁 Pacote ZIP salvo no computador via Explorer: ${zipFileName}`);
+              alert(`✅ Sucesso!\n\nO pacote "${zipFileName}" com áudios em MP3 e legendas curtas foi salvo com sucesso!`);
+              appendSystemLog(`📁 Pacote ZIP salvo com sucesso no computador: ${zipFileName}`);
               return;
             } catch(e) {
-              if (e.name === 'AbortError') {
-                return;
-              }
+              if (e.name === 'AbortError') return;
             }
           }
 
@@ -3204,36 +3431,13 @@
           a.click();
           document.body.removeChild(a);
           setTimeout(() => URL.revokeObjectURL(url), 1000);
-          alert(`✅ Pacote ZIP "${zipFileName}" baixado com sucesso!`);
+          alert(`✅ Pacote ZIP "${zipFileName}" com áudios em MP3 baixado com sucesso!`);
         } catch(err) {
           alert('Erro ao gerar o pacote ZIP: ' + err.message);
         } finally {
           if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<span>📁 Escolher Pasta e Salvar Pacote ZIP (Abre o Explorer)</span>';
-          }
-        }
-      };
-
-      window.saveSessionToGoogleDrive = async function() {
-        const btn = document.getElementById('btn-save-drive-mini');
-        if (btn) {
-          btn.disabled = true;
-          btn.innerText = 'Enviando...';
-        }
-        try {
-          const txtContent = buildFullTxtReport();
-          const fileName = `Transcricao_${safeMeetingTitle}_${meetingDateStr}.txt`;
-          
-          await new Promise(r => setTimeout(r, 1200));
-          alert(`☁️ Transcrição "${fileName}" salva no Google Drive da conta ${accTransmitter.email} com sucesso!`);
-          appendSystemLog(`☁️ Cópia enviada ao Google Drive: ${fileName}`);
-        } catch(e) {
-          alert('Não foi possível salvar no Google Drive: ' + e.message);
-        } finally {
-          if (btn) {
-            btn.disabled = false;
-            btn.innerText = '☁️ Salvar no Drive';
+            btn.innerHTML = '<span>📁 Escolher Pasta e Salvar Pacote ZIP com MP3 (Abre o Explorer)</span>';
           }
         }
       };
@@ -3248,7 +3452,7 @@
 
       initOutputAudioVisualizer();
 
-      // LABORATÓRIO DE TESTE & DIAGNÓSTICO
+      // LABORATÓRIO DE TESTES
       window.toggleTestLabModal = function() {
         const modal = document.getElementById('test-lab-modal');
         if (modal) modal.classList.toggle('hidden');
@@ -3643,7 +3847,6 @@ setInterval(() => {
         }
       }, 1000);
 
-      // INICIA GRAVAÇÕES E TRANSCRIÇÕES AUTOMÁTICAS
       initAutomaticRecordings();
     }
   </script>
