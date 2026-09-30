@@ -313,57 +313,74 @@
     const params = new URLSearchParams(window.location.search);
     const isAudiencePage = params.get('view') === 'audience' || params.get('view') === 'listener' || params.get('listener') === 'true' || window.location.pathname.startsWith('/listener') || window.location.pathname.startsWith('/audience');
     const isOverlaySubtitles = params.get('overlay') === 'subtitles' || params.get('telao') === 'true' || window.location.pathname.startsWith('/overlay/subtitles') || window.location.pathname.startsWith('/telao');
+    const isAdmin = params.get('admin') === 'true' || params.has('admin') || window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin');
     const meetingId = params.get('meeting') || (window.location.pathname.startsWith('/meeting/') ? window.location.pathname.split('/')[2] : null);
 
-    const root = document.getElementById('app-root');
+    const root = document.getElementById('app-root') || document.body;
 
-    // 1. ROTA DEDICADA: PÁGINA DO ESPECTADOR / AUDIÊNCIA (?meeting=xyz&view=audience)
-    if (isAudiencePage && meetingId) {
-      document.body.className = "bg-slate-50 text-slate-800 font-sans antialiased m-0 min-h-screen selection:bg-indigo-500/30 selection:text-indigo-600";
-      setGlobalTheme(getStoredTheme());
-      try {
+    try {
+      // 1. ROTA DEDICADA: PÁGINA DO ESPECTADOR / AUDIÊNCIA (?meeting=xyz&view=audience)
+      if (isAudiencePage && meetingId) {
+        document.body.className = "bg-slate-50 text-slate-800 font-sans antialiased m-0 min-h-screen selection:bg-indigo-500/30 selection:text-indigo-600";
+        setGlobalTheme(getStoredTheme());
         renderAudienceListenerPage(meetingId);
-      } catch(err) {
-        console.error("Erro crítico ao inicializar Página do Espectador:", err);
       }
-    }
-    // 2. ROTA DEDICADA: JANELA EXCLUSIVA DE LEGENDAS PARA OBS / BROADCAST (?meeting=xyz&overlay=subtitles)
-    else if (isOverlaySubtitles && meetingId) {
-      document.body.className = "bg-black text-white font-sans antialiased m-0 min-h-screen overflow-x-hidden selection:bg-blue-500/30 selection:text-blue-200";
-      try {
+      // 2. ROTA DEDICADA: JANELA EXCLUSIVA DE LEGENDAS PARA OBS / BROADCAST (?meeting=xyz&overlay=subtitles)
+      else if (isOverlaySubtitles && meetingId) {
+        document.body.className = "bg-black text-white font-sans antialiased m-0 min-h-screen overflow-x-hidden selection:bg-blue-500/30 selection:text-blue-200";
         renderSubtitleOverlayPage(meetingId);
-      } catch(err) {
-        console.error("Erro crítico ao inicializar Overlay de Legenda:", err);
       }
-    }
-    // 3. ROTA: MONITOR DEDICADO DO COCKPIT DA REUNIÃO (?meeting=xyz ou /meeting/xyz)
-    else if (meetingId) {
-      document.body.className = "font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
-      setGlobalTheme(getStoredTheme());
-      try {
-        renderMeetingRoomMonitor(meetingId);
-      } catch(err) {
-        console.error("Erro crítico ao inicializar Cockpit da Reunião:", err);
+      // 3. ROTA: MONITOR DEDICADO DO COCKPIT DA REUNIÃO (?meeting=xyz ou /meeting/xyz)
+      else if (meetingId) {
+        document.body.className = "font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
+        setGlobalTheme(getStoredTheme());
+        try {
+          renderMeetingRoomMonitor(meetingId);
+        } catch(err) {
+          console.error("Erro crítico ao inicializar Cockpit da Reunião:", err);
+          root.innerHTML = `
+            <div class="min-h-screen flex items-center justify-center p-6">
+              <div class="max-w-md w-full bg-slate-900 border border-rose-500/40 rounded-3xl p-8 text-center shadow-2xl">
+                <div class="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-xl font-bold mx-auto mb-4">⚠️</div>
+                <h2 class="text-base font-bold text-white mb-2">Erro ao Iniciar Cockpit</h2>
+                <p class="text-xs text-slate-400 mb-6 font-mono">${err.message || String(err)}</p>
+                <div class="flex items-center justify-center gap-3">
+                  <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Recarregar</button>
+                  <a href="/admin" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Voltar ao Painel</a>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      } 
+      // 4. ROTA: ÁREA ADMINISTRATIVA / DASHBOARD CENTRAL DE EVENTOS (/admin ou ?admin=true)
+      else if (isAdmin) {
+        document.body.className = "font-sans antialiased m-0 min-h-screen";
+        setGlobalTheme(getStoredTheme());
+        renderAdminDashboard();
+      }
+      // 5. ROTA PADRÃO PÚBLICA: PÁGINA EM CONSTRUÇÃO CLEAN E CLARA (/)
+      else {
+        document.body.className = "bg-[#f8fafc] text-[#0f172a] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
+        renderPublicConstructionPage();
+      }
+    } catch(globalRouterErr) {
+      console.error("Erro fatal no roteamento da aplicação:", globalRouterErr);
+      if (root) {
         root.innerHTML = `
           <div class="min-h-screen flex items-center justify-center p-6">
-            <div class="max-w-md w-full bg-slate-900 border border-rose-500/40 rounded-3xl p-8 text-center shadow-2xl">
-              <div class="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-xl font-bold mx-auto mb-4">⚠️</div>
-              <h2 class="text-base font-bold text-white mb-2">Erro ao Iniciar Cockpit</h2>
-              <p class="text-xs text-slate-400 mb-6 font-mono">${err.message || String(err)}</p>
+            <div class="max-w-md w-full bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-800 rounded-3xl p-8 text-center shadow-xl">
+              <div class="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center text-xl font-bold mx-auto mb-4">⚠️</div>
+              <h2 class="text-base font-bold text-slate-900 dark:text-white mb-2">Erro de Inicialização</h2>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 font-mono">${globalRouterErr.message || String(globalRouterErr)}</p>
               <div class="flex items-center justify-center gap-3">
                 <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Recarregar</button>
-                <a href="/" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Voltar ao Painel</a>
+                <a href="/admin" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Acessar Admin</a>
               </div>
             </div>
           </div>
         `;
       }
-    } 
-    // 4. ROTA PADRÃO PÚBLICA & ADMIN: DASHBOARD CENTRAL DE EVENTOS (/)
-    else {
-      document.body.className = "font-sans antialiased m-0 min-h-screen";
-      setGlobalTheme(getStoredTheme());
-      renderAdminDashboard();
     }
 
     // ========================================================
@@ -466,13 +483,16 @@
     // TELA 1: PÁGINA PÚBLICA CLEAN (EM CONSTRUÇÃO)
     // ========================================================
     function renderPublicConstructionPage() {
+      document.title = "Brain Audiovisual — Página em construção";
+      document.documentElement.classList.remove('dark');
+      document.body.className = "bg-[#f8fafc] text-[#0f172a] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
       root.innerHTML = `
-        <div class="max-w-xl flex flex-col items-center justify-center">
-          <h1 class="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-[#0f172a] mb-5 leading-tight">
+        <div class="max-w-xl flex flex-col items-center justify-center" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%; max-width: 36rem;">
+          <h1 class="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-[#0f172a] mb-5 leading-tight" style="font-family: inherit; font-size: 2.75rem; font-weight: 600; letter-spacing: -0.025em; color: #0f172a; margin-bottom: 1.25rem; line-height: 1.15;">
             Brain Audiovisual
           </h1>
-          <div class="w-12 h-[1.5px] bg-[#cbd5e1] mb-6"></div>
-          <p class="text-xs sm:text-sm font-medium tracking-[0.22em] uppercase text-[#64748b]">
+          <div class="w-12 h-[1.5px] bg-[#cbd5e1] mb-6" style="width: 3rem; height: 1.5px; background-color: #cbd5e1; margin-bottom: 1.5rem;"></div>
+          <p class="text-xs sm:text-sm font-medium tracking-[0.22em] uppercase text-[#64748b]" style="font-size: 0.85rem; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: #64748b; margin: 0;">
             Página em construção
           </p>
         </div>
@@ -663,11 +683,35 @@
     // TELA 2: DASHBOARD CENTRAL DE EVENTOS & MULTISSALAS (SEM MEET)
     // ========================================================
     function renderAdminDashboard() {
-      // Reuniões salvas no localStorage
+      // Reuniões salvas no localStorage com higienização estrita
       let meetings = [];
-      const savedMeetings = localStorage.getItem('brain_saved_meetings');
-      if (savedMeetings) {
-        try { meetings = JSON.parse(savedMeetings); } catch(e) {}
+      try {
+        const savedMeetings = localStorage.getItem('brain_saved_meetings');
+        if (savedMeetings) {
+          const parsed = JSON.parse(savedMeetings);
+          if (Array.isArray(parsed)) {
+            meetings = parsed.filter(m => m && typeof m === 'object').map(m => {
+              const id = m.id || ('sala-' + Math.random().toString(36).substring(2, 7));
+              const title = m.title || ('Sessão de Tradução ' + id);
+              const sourceLanguage = (typeof m.sourceLanguage === 'string' && m.sourceLanguage) ? m.sourceLanguage : 'pt-BR';
+              const targetLanguages = Array.isArray(m.targetLanguages) && m.targetLanguages.length > 0 
+                ? m.targetLanguages.filter(t => typeof t === 'string') 
+                : ['en-US', 'es-ES'];
+              return {
+                id,
+                title,
+                createdAt: m.createdAt || new Date().toISOString(),
+                status: m.status || 'active',
+                sourceLanguage,
+                autoDetectLanguage: !!m.autoDetectLanguage,
+                inputDevice: m.inputDevice || 'default',
+                targetLanguages: targetLanguages.length > 0 ? targetLanguages : ['en-US', 'es-ES']
+              };
+            });
+          }
+        }
+      } catch(e) {
+        meetings = [];
       }
 
       // Idiomas do sistema
@@ -925,8 +969,9 @@
                 <!-- Grid de Cards de Reuniões Ativas -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   ${meetings.map(m => {
-                    const targets = m.targetLanguages || ['en-US', 'es-ES'];
-                    const sourceLangObj = SUPPORTED_LANGS.find(l => l.code === m.sourceLanguage) || { name: m.sourceLanguage, flag: '🇧🇷' };
+                    const targets = Array.isArray(m.targetLanguages) && m.targetLanguages.length > 0 ? m.targetLanguages : ['en-US', 'es-ES'];
+                    const sourceLangObj = SUPPORTED_LANGS.find(l => l.code === m.sourceLanguage) || { name: m.sourceLanguage || 'Português', flag: '🇧🇷' };
+                    const sourceDisplayName = (sourceLangObj && sourceLangObj.name ? sourceLangObj.name : 'Português').split(' ')[0];
                     return `
                       <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 rounded-3xl p-5 shadow-sm transition-all flex flex-col justify-between space-y-4">
                         <div class="space-y-3">
@@ -936,7 +981,7 @@
                                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                                 <span class="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Ao Vivo / Pronta</span>
                               </div>
-                              <h3 class="text-base font-bold text-slate-900 dark:text-white leading-tight">${m.title}</h3>
+                              <h3 class="text-base font-bold text-slate-900 dark:text-white leading-tight">${m.title || 'Reunião Sem Título'}</h3>
                               <p class="text-[11px] font-mono text-slate-400 mt-0.5">ID: ${m.id}</p>
                             </div>
                             <button onclick="deleteMeetingFromDashboard('${m.id}')" title="Excluir Reunião" class="text-slate-400 hover:text-rose-500 p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors">
@@ -948,8 +993,8 @@
                             <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
                               <span class="text-slate-400">Entrada (Palestrante):</span>
                               <span class="font-bold flex items-center gap-1">
-                                <span>${sourceLangObj.flag}</span>
-                                <span>${m.autoDetectLanguage ? '🌐 Detecção Auto' : sourceLangObj.name.split(' ')[0]}</span>
+                                <span>${sourceLangObj.flag || '🎙️'}</span>
+                                <span>${m.autoDetectLanguage ? '🌐 Detecção Auto' : sourceDisplayName}</span>
                               </span>
                             </div>
 
@@ -957,11 +1002,12 @@
                               <span class="text-[11px] text-slate-400 block">Canais Traduzidos (Saída):</span>
                               <div class="flex flex-wrap gap-1">
                                 ${targets.map(t => {
-                                  const tObj = SUPPORTED_LANGS.find(l => l.code === t) || { name: t, flag: '🌐' };
+                                  const tObj = SUPPORTED_LANGS.find(l => l.code === t) || { name: t || 'Idioma', flag: '🌐' };
+                                  const targetDisplayName = (tObj && tObj.name ? tObj.name : (t || 'Idioma')).split(' ')[0];
                                   return `
                                     <span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 flex items-center gap-1">
-                                      <span>${tObj.flag}</span>
-                                      <span>${tObj.name.split(' ')[0]}</span>
+                                      <span>${tObj.flag || '🌐'}</span>
+                                      <span>${targetDisplayName}</span>
                                     </span>
                                   `;
                                 }).join('')}
@@ -2415,7 +2461,7 @@
           <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-3 shadow-xs backdrop-blur-md">
             
             <div class="flex items-center gap-3">
-              <a href="/" title="Voltar ao Painel" class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white text-sm shadow-xs hover:opacity-90">
+              <a href="/admin" title="Voltar ao Painel" class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white text-sm shadow-xs hover:opacity-90">
                 BA
               </a>
               <div>
@@ -3720,7 +3766,7 @@
       window.confirmAndExitMeeting = function() {
         if (confirm('Deseja realmente sair da sala e voltar ao painel?')) {
           if (isRealMicActive) stopMasterMicCapture();
-          window.location.href = '/';
+          window.location.href = '/admin';
         }
       };
 
