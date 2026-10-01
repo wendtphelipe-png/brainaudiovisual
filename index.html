@@ -4081,40 +4081,18 @@
       // ========================================================
       // MOTOR DE TRANSCRIÇÃO CONTÍNUA COM AS DUAS CORREÇÕES
       // ========================================================
-      // RASTREAMENTO INTELIGENTE DE CORTES CONTÍNUOS POR TEMPO (5S) E PALAVRAS
-      let currentResultIndex = -1;
-      let committedWordOffsetForIndex = 0;
-      let utteranceSegmentStartTime = Date.now();
-
-      function findConvenientBreakIndex(words) {
-        if (!words || words.length <= 6) return words.length;
-        // Prioridade 1: Pontuação (. , ; ! ?) entre a 5ª e a última palavra
-        for (let i = words.length - 1; i >= 5; i--) {
-          const w = words[i];
-          if (/[.,;!?]$/.test(w)) {
-            return i + 1;
-          }
-        }
-        // Prioridade 2: Quebra antes de conjunções / preposições de ligação
-        const breakConjunctions = [
-          'e', 'mas', 'porém', 'contudo', 'todavia', 'que', 'porque', 'onde', 'quando', 'como', 'para', 'com', 'pois', 'então',
-          'and', 'but', 'which', 'that', 'because', 'where', 'when', 'so', 'for', 'with',
-          'y', 'pero', 'que', 'porque', 'donde', 'cuando', 'para', 'con', 'entonces'
-        ];
-        for (let i = words.length - 1; i >= 5; i--) {
-          const cleanW = words[i].toLowerCase().replace(/[^a-zà-ú]/g, '');
-          if (breakConjunctions.includes(cleanW)) {
-            return i;
-          }
-        }
-        // Prioridade 3: Corte natural no limite de palavras
-        return Math.min(words.length, 14);
-      }
+      // MOTOR DE TRANSCRIÇÃO CONTÍNUA EM TEMPO REAL COM FEED IMEDIATO E 1S DE ATRASO
+      let speechDebounceTimer = null;
+      let lastResultIndexProcessed = -1;
+      let committedLengthForCurrentIndex = 0;
 
       function safelyDestroySpeechRecognizer() {
-        currentResultIndex = -1;
-        committedWordOffsetForIndex = 0;
-        utteranceSegmentStartTime = Date.now();
+        if (speechDebounceTimer) {
+          clearTimeout(speechDebounceTimer);
+          speechDebounceTimer = null;
+        }
+        lastResultIndexProcessed = -1;
+        committedLengthForCurrentIndex = 0;
 
         if (speechRecognizer) {
           try {
@@ -4148,7 +4126,7 @@
         }
       }
 
-      function scheduleSpeechRestart(delay = 150) {
+      function scheduleSpeechRestart(delay = 100) {
         if (speechRecognizerRestartTimeout) clearTimeout(speechRecognizerRestartTimeout);
         speechRecognizerRestartTimeout = setTimeout(() => {
           if (isRealMicActive && !isTimerPaused) {
@@ -4157,12 +4135,12 @@
         }, delay);
       }
 
-      // Watchdog de integridade: reinicia recognizer apenas se inativo por mais de 20s
+      // Watchdog de integridade: reinicia recognizer apenas se estiver inativo por mais de 25s
       if (speechWatchdogInterval) clearInterval(speechWatchdogInterval);
       speechWatchdogInterval = setInterval(() => {
         if (isRealMicActive && !isTimerPaused) {
           const idleTime = Date.now() - lastSpeechActivityTimestamp;
-          if (!isTranscribingSpeech || idleTime > 20000) {
+          if (!isTranscribingSpeech || idleTime > 25000) {
             safelyDestroySpeechRecognizer();
             startContinuousSpeechTranscription();
           }
@@ -4195,9 +4173,8 @@
               isStartingSpeechRecognition = false;
               isTranscribingSpeech = true;
               lastSpeechActivityTimestamp = Date.now();
-              currentResultIndex = -1;
-              committedWordOffsetForIndex = 0;
-              utteranceSegmentStartTime = Date.now();
+              lastResultIndexProcessed = -1;
+              committedLengthForCurrentIndex = 0;
               updateSpeechStatusIndicator(true);
             };
 
@@ -4213,85 +4190,75 @@
                 const res = event.results[i];
                 if (!res || !res[0]) continue;
 
-                // Se mudou de resultado do SpeechRecognition, reinicia os cursores
-                if (i !== currentResultIndex) {
-                  currentResultIndex = i;
-                  committedWordOffsetForIndex = 0;
-                  utteranceSegmentStartTime = Date.now();
+                if (i !== lastResultIndexProcessed) {
+                  lastResultIndexProcessed = i;
+                  committedLengthForCurrentIndex = 0;
                 }
 
-                const fullTranscript = (res[0].transcript || '').trim();
-                if (!fullTranscript) continue;
+                const transcript = (res[0].transcript || '').trim();
+                if (!transcript) continue;
 
-                const allWords = fullTranscript.split(/\s+/).filter(w => Boolean(w));
-                const uncommittedWords = allWords.slice(committedWordOffsetForIndex);
-                const uncommittedText = uncommittedWords.join(' ').trim();
+                const uncommittedText = transcript.substring(committedLengthForCurrentIndex).trim();
 
-                // CASO 1: Sentença finalizada nativamente pelo navegador (isFinal = true)
-                if (res.isFinal) {
-                  if (uncommittedWords.length > 0) {
-                    const toCommit = uncommittedWords.join(' ').trim();
-                    committedWordOffsetForIndex = allWords.length;
-                    if (toCommit) {
-                      commitSpeechSentence(toCommit);
-                    }
+                // 1. ALIMENTA O FEED EM TEMPO REAL (sem delay de exibição visual)
+                if (interimEl) {
+                  if (uncommittedText) {
+                    interimEl.style.display = 'block';
+                    interimEl.innerText = uncommittedText;
+                    interimEl.style.color = transSubtitleConfig.textColor;
+                  } else {
+                    interimEl.innerText = '';
+                    interimEl.style.display = 'none';
                   }
-                  // Reset para a próxima sentença
-                  currentResultIndex = -1;
-                  committedWordOffsetForIndex = 0;
-                  utteranceSegmentStartTime = Date.now();
-
-                  if (interimEl) { interimEl.innerText = ''; interimEl.style.display = 'none'; }
                 }
-                // CASO 2: Fala em andamento contínuo (isFinal = false)
-                else {
-                  const elapsedSec = (Date.now() - utteranceSegmentStartTime) / 1000;
-                  const charCount = uncommittedText.length;
 
-                  // Atualiza a pré-visualização provisória na tela com o que ainda não foi commitado
+                // 2. SE O RECONHECEDOR NATIVO FINALIZOU O BLOCO (isFinal = true)
+                if (res.isFinal) {
+                  if (speechDebounceTimer) {
+                    clearTimeout(speechDebounceTimer);
+                    speechDebounceTimer = null;
+                  }
+                  if (uncommittedText && uncommittedText.length >= 2) {
+                    commitSpeechSentence(uncommittedText);
+                    committedLengthForCurrentIndex = transcript.length;
+                  }
                   if (interimEl) {
-                    if (uncommittedText) {
-                      interimEl.style.display = 'block';
-                      interimEl.innerText = '● ' + uncommittedText;
-                      interimEl.style.color = transSubtitleConfig.textColor;
-                    } else {
+                    interimEl.innerText = '';
+                    interimEl.style.display = 'none';
+                  }
+                  committedLengthForCurrentIndex = 0;
+                  continue;
+                }
+
+                // 3. DETECÇÃO DE ORAÇÃO CONCLUÍDA POR PONTUAÇÃO NATURAL (. , ; ! ?)
+                const punctMatch = uncommittedText.match(/^(.+?[.,;!?])\s+(.+)$/);
+                if (punctMatch && punctMatch[1] && punctMatch[1].trim().split(/\s+/).length >= 5) {
+                  const clause = punctMatch[1].trim();
+                  commitSpeechSentence(clause);
+                  committedLengthForCurrentIndex += punctMatch[1].length;
+                  if (speechDebounceTimer) clearTimeout(speechDebounceTimer);
+                  const remaining = uncommittedText.substring(punctMatch[1].length).trim();
+                  if (interimEl) {
+                    interimEl.innerText = remaining;
+                    interimEl.style.display = remaining ? 'block' : 'none';
+                  }
+                  continue;
+                }
+
+                // 4. DELAY DE 1 SEGUNDO DE ESTABILIZAÇÃO PARA INÍCIO DA TRADUÇÃO
+                // Agrupa as palavras com contexto garantido e dispara a tradução sem pausas longas
+                if (speechDebounceTimer) clearTimeout(speechDebounceTimer);
+                speechDebounceTimer = setTimeout(() => {
+                  const textToCommit = transcript.substring(committedLengthForCurrentIndex).trim();
+                  if (textToCommit && textToCommit.length >= 2) {
+                    commitSpeechSentence(textToCommit);
+                    committedLengthForCurrentIndex = transcript.length;
+                    if (interimEl) {
                       interimEl.innerText = '';
                       interimEl.style.display = 'none';
                     }
                   }
-
-                  // QUEBRA FORÇADA DINÂMICA DEFINITIVA (SEM ESPERAR PAUSA E SEM REPETIÇÕES):
-                  // Se a fala ininterrupta atingir 4.5 segundos OU 110 caracteres (ou mais de 8 palavras contínuas):
-                  // commita o trecho imediatamente e força o reinício do ciclo do recognizer para zerar o buffer!
-                  const shouldForceBreak = (elapsedSec >= 4.5 && uncommittedWords.length >= 5) || (charCount >= 110 && uncommittedWords.length >= 5) || (uncommittedWords.length >= 12);
-
-                  if (shouldForceBreak && !isSpeechCycleRestarting) {
-                    const cutIdx = findConvenientBreakIndex(uncommittedWords);
-                    const safeCutIdx = (cutIdx >= 4 && cutIdx <= uncommittedWords.length) ? cutIdx : uncommittedWords.length;
-                    const wordsToCommit = uncommittedWords.slice(0, safeCutIdx);
-                    const chunkText = wordsToCommit.join(' ').trim();
-
-                    if (chunkText && chunkText.length >= 2) {
-                      commitSpeechSentence(chunkText);
-                    }
-
-                    // Limpa visualização provisória
-                    if (interimEl) { interimEl.innerText = ''; interimEl.style.display = 'none'; }
-
-                    // REINÍCIO LIMPO DO CICLO:
-                    // Chama recognizer.stop(). O Chrome Web Speech API finaliza o bloco atual e dispara onend.
-                    // No onend, reabre imediatamente um novo recognizer com buffer 100% zerado!
-                    // O palestrante continua falando e a próxima palavra ouvida é a primeira do novo bloco,
-                    // sem nenhum acúmulo de texto e sem esperar pausas!
-                    isSpeechCycleRestarting = true;
-                    try {
-                      recognizer.stop();
-                    } catch(stopErr) {
-                      try { recognizer.abort(); } catch(e) {}
-                    }
-                    return;
-                  }
-                }
+                }, 1000);
               }
             };
 
@@ -4302,7 +4269,7 @@
                 stopMasterMicCapture();
                 alert('Permissão de microfone negada. Clique no cadeado na barra de endereços para permitir.');
               } else {
-                scheduleSpeechRestart(300);
+                scheduleSpeechRestart(250);
               }
             };
 
@@ -4310,27 +4277,27 @@
               isStartingSpeechRecognition = false;
               isTranscribingSpeech = false;
               updateSpeechStatusIndicator(false);
-              const interimEl = document.getElementById('transmitter-interim-text');
-              if (interimEl) { interimEl.innerText = ''; interimEl.style.display = 'none'; }
 
-              currentResultIndex = -1;
-              committedWordOffsetForIndex = 0;
-              utteranceSegmentStartTime = Date.now();
+              // Despeja qualquer fala que tenha ficado pendente antes do onend
+              if (speechDebounceTimer) {
+                clearTimeout(speechDebounceTimer);
+                speechDebounceTimer = null;
+              }
 
-              const wasCycleRestart = isSpeechCycleRestarting;
-              isSpeechCycleRestarting = false;
+              lastResultIndexProcessed = -1;
+              committedLengthForCurrentIndex = 0;
 
               if (isRealMicActive && !isTimerPaused) {
-                scheduleSpeechRestart(wasCycleRestart ? 40 : 80);
+                scheduleSpeechRestart(40);
               }
             };
 
             recognizer.start();
           } catch(e) {
             isStartingSpeechRecognition = false;
-            scheduleSpeechRestart(400);
+            scheduleSpeechRestart(300);
           }
-        }, 60);
+        }, 50);
       }
 
       window.changeSpeakerSourceLanguage = function(newLang) {
@@ -4357,73 +4324,38 @@
       // COMMIT DE SENTENÇA E TRADUÇÃO MULTILÍNGUE PARALELA
       let committedHistory = [];
 
+      let lastCommittedSentenceText = '';
+      let lastCommittedSentenceTime = 0;
+
       async function commitSpeechSentence(rawText) {
         if (!rawText || !rawText.trim()) return;
-        let clean = rawText.trim().replace(/\s+/g, ' ');
+        const clean = rawText.trim().replace(/\s+/g, ' ');
         if (clean.length < 2) return;
 
         const now = Date.now();
         const cleanLower = clean.toLowerCase();
 
-        // 1. Limpa histórico com mais de 20 segundos
-        committedHistory = committedHistory.filter(h => now - h.time < 20000);
-
-        // 2. Se for IDÊNTICA a qualquer frase dita nos últimos 20 segundos: descarta
-        if (committedHistory.some(h => h.text === cleanLower)) {
+        // Evita duplicatas disparadas na mesma janela imediata de 1.5s
+        if (cleanLower === lastCommittedSentenceText && (now - lastCommittedSentenceTime) < 1500) {
           return;
         }
+        lastCommittedSentenceText = cleanLower;
+        lastCommittedSentenceTime = now;
 
-        // 3. Se a frase for uma repetição de prefixo da frase anterior, extrai somente a novidade
-        if (committedHistory.length > 0) {
-          const lastEntry = committedHistory[committedHistory.length - 1];
-          if (cleanLower.startsWith(lastEntry.text) && cleanLower.length > lastEntry.text.length) {
-            clean = clean.substring(lastEntry.text.length).trim();
-          } else {
-            // Verifica sobreposição de palavras (ex: últimas 2 ou 3 palavras da anterior repetidas no início desta)
-            const prevWords = lastEntry.text.split(' ');
-            const currWords = clean.toLowerCase().split(' ');
-            for (let w = Math.min(5, prevWords.length, currWords.length); w >= 2; w--) {
-              const prevTail = prevWords.slice(-w).join(' ');
-              const currHead = currWords.slice(0, w).join(' ');
-              if (prevTail === currHead) {
-                clean = clean.split(' ').slice(w).join(' ').trim();
-                break;
-              }
-            }
-          }
+        const startSec = sessionElapsedSeconds;
+        const endSec = startSec + Math.max(2.0, clean.length * 0.08);
+
+        // 1. Registra no terminal do Palestrante
+        addTransmitterSentenceClean(clean, startSec, endSec);
+
+        // 2. Dispara tradução em paralelo para cada idioma de saída da reunião
+        const targetsToDispatch = new Set(activeTargetLanguages);
+        if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
+          targetsToDispatch.add('pt-BR');
         }
-
-        if (!clean || clean.length < 2) return;
-
-        // Se após remoção de sobreposição ainda constar no histórico recente, descarta
-        if (committedHistory.some(h => h.text === clean.toLowerCase())) {
-          return;
-        }
-
-        committedHistory.push({ text: clean.toLowerCase(), time: now });
-        if (committedHistory.length > 25) committedHistory.shift();
-
-        // Quebra frases muito longas (> 110 caracteres) em orações naturais por pontuação
-        const sentenceParts = splitLongSentenceNaturally(clean);
-
-        for (const part of sentenceParts) {
-          if (!part || !part.trim()) continue;
-          const trimmedPart = part.trim();
-          const startSec = sessionElapsedSeconds;
-          const endSec = startSec + Math.max(2.0, trimmedPart.length * 0.08);
-
-          // 1. Registra no terminal do Palestrante (sem timestamps na tela)
-          addTransmitterSentenceClean(trimmedPart, startSec, endSec);
-
-          // 2. Dispara tradução em paralelo para cada idioma de saída da reunião
-          const targetsToDispatch = new Set(activeTargetLanguages);
-          if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
-            targetsToDispatch.add('pt-BR');
-          }
-          targetsToDispatch.forEach(targetLang => {
-            translateAndDispatchTargetSentence(trimmedPart, targetLang, startSec, endSec);
-          });
-        }
+        targetsToDispatch.forEach(targetLang => {
+          translateAndDispatchTargetSentence(clean, targetLang, startSec, endSec);
+        });
       }
 
       function splitLongSentenceNaturally(text) {
@@ -4564,7 +4496,8 @@
         triggerTargetAudioMeter(targetLang, Math.max(3000, clean.length * 90));
 
         // Pre-fetch silencioso do chunk de áudio em MP3 para gravação final (faixas feminina e masculina)
-        fetchAudioChunkForExport(targetLang, clean);
+        fetchAudioChunkForExport(targetLang, clean, 'female');
+        fetchAudioChunkForExport(targetLang, clean, 'male');
       }
 
       function triggerTargetAudioMeter(targetLang, durationMs) {
@@ -4575,98 +4508,16 @@
         targetMeterStates[langCode] = { activeUntil: until };
       }
 
-      // SÍNTESE E TRANSFORMAÇÃO DE VOZ MASCULINA PARA GRAVAÇÃO (TIMBRE BARÍTONO ARTHUR)
-      async function convertFemaleBlobToMaleMp3(femaleBlob) {
-        if (!femaleBlob || femaleBlob.size < 60) return femaleBlob;
-        if (typeof lamejs === 'undefined') return femaleBlob;
-        try {
-          const arrayBuffer = await femaleBlob.arrayBuffer();
-          const decodeCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const decoded = await decodeCtx.decodeAudioData(arrayBuffer);
-          try { await decodeCtx.close(); } catch(e) {}
-
-          const sampleRate = decoded.sampleRate || 24000;
-          // Transposição de pitch para registro barítono masculino (pitch ratio 0.80 -> -4 semitons)
-          const playbackRate = 0.80;
-          const targetLength = Math.ceil(decoded.length / playbackRate);
-
-          const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
-            1,
-            targetLength,
-            sampleRate
-          );
-
-          const bufferSource = offlineCtx.createBufferSource();
-          bufferSource.buffer = decoded;
-          bufferSource.playbackRate.value = playbackRate;
-
-          // Modelagem de formantes masculinos: ressonância torácica e corte de brilho agudo feminino
-          const lowShelf = offlineCtx.createBiquadFilter();
-          lowShelf.type = 'lowshelf';
-          lowShelf.frequency.value = 220;
-          lowShelf.gain.value = 5.5;
-
-          const midDip = offlineCtx.createBiquadFilter();
-          midDip.type = 'peaking';
-          midDip.frequency.value = 3200;
-          midDip.Q.value = 1.0;
-          midDip.gain.value = -3.5;
-
-          const highShelf = offlineCtx.createBiquadFilter();
-          highShelf.type = 'highshelf';
-          highShelf.frequency.value = 6000;
-          highShelf.gain.value = -3.0;
-
-          bufferSource.connect(lowShelf);
-          lowShelf.connect(midDip);
-          midDip.connect(highShelf);
-          highShelf.connect(offlineCtx.destination);
-
-          bufferSource.start(0);
-          const renderedBuffer = await offlineCtx.startRendering();
-
-          // Codificação em MP3 128kbps com LameJS
-          const samples = renderedBuffer.getChannelData(0);
-          let maxVal = 0;
-          for (let i = 0; i < samples.length; i++) {
-            const v = Math.abs(samples[i]);
-            if (v > maxVal) maxVal = v;
-          }
-          const normGain = (maxVal > 0.01) ? Math.min(4.0, 0.92 / maxVal) : 1.0;
-
-          const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
-          const mp3Data = [];
-          const sampleBlockSize = 1152;
-          const sample16 = new Int16Array(samples.length);
-          for (let i = 0; i < samples.length; i++) {
-            const s = Math.max(-1, Math.min(1, samples[i] * normGain));
-            sample16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-          }
-          for (let i = 0; i < sample16.length; i += sampleBlockSize) {
-            const chunk = sample16.subarray(i, i + sampleBlockSize);
-            const mp3buf = mp3encoder.encodeBuffer(chunk);
-            if (mp3buf && mp3buf.length > 0) mp3Data.push(mp3buf);
-          }
-          const endBuf = mp3encoder.flush();
-          if (endBuf && endBuf.length > 0) mp3Data.push(endBuf);
-
-          return new Blob(mp3Data, { type: 'audio/mp3' });
-        } catch(err) {
-          console.warn('Erro ao processar voz masculina Arthur:', err);
-          return femaleBlob;
-        }
-      }
-
-      async function fetchAudioChunkForExport(targetLang, text) {
+      // SÍNTESE NATIVA DE VOZES MULTILÍNGUES (FEMININA SOFIA E MASCULINA ARTHUR VIA AMAZON POLLY NATIVO)
+      async function fetchAudioChunkForExport(targetLang, text, gender = 'female') {
         if (!text || !text.trim()) return null;
         const clean = text.trim();
         try {
           const targetCode = targetLang.split('-')[0].toLowerCase();
           const encoded = encodeURIComponent(clean);
-          // Roteia via tts.php (mesmo domínio ou absoluto) com cabeçalhos CORS liberados
           const candidateUrls = [
-            `/tts.php?tl=${targetCode}&q=${encoded}`,
-            `https://brainaudiovisual.com.br/tts.php?tl=${targetCode}&q=${encoded}`
+            `/tts.php?tl=${targetCode}&gender=${gender}&q=${encoded}`,
+            `https://brainaudiovisual.com.br/tts.php?tl=${targetCode}&gender=${gender}&q=${encoded}`
           ];
 
           let blob = null;
@@ -4675,7 +4526,7 @@
               const res = await fetch(url);
               if (res.ok) {
                 const b = await res.blob();
-                if (b && b.size > 200) {
+                if (b && b.size > 250) {
                   blob = b;
                   break;
                 }
@@ -4684,25 +4535,19 @@
           }
 
           if (blob) {
-            if (!targetAudioBlobs[targetLang]) targetAudioBlobs[targetLang] = [];
-            targetAudioBlobs[targetLang].push(blob);
-
-            // Faixa feminina padrão Sofia
-            if (!targetAudioBlobsFemale[targetLang]) targetAudioBlobsFemale[targetLang] = [];
-            targetAudioBlobsFemale[targetLang].push(blob);
-
-            // Faixa masculina padrão Arthur (sintetiza voz barítona masculina distinta)
-            if (!targetAudioBlobsMale[targetLang]) targetAudioBlobsMale[targetLang] = [];
-            convertFemaleBlobToMaleMp3(blob).then(maleBlob => {
-              targetAudioBlobsMale[targetLang].push(maleBlob || blob);
-            }).catch(() => {
+            if (gender === 'male') {
+              if (!targetAudioBlobsMale[targetLang]) targetAudioBlobsMale[targetLang] = [];
               targetAudioBlobsMale[targetLang].push(blob);
-            });
-
+            } else {
+              if (!targetAudioBlobsFemale[targetLang]) targetAudioBlobsFemale[targetLang] = [];
+              targetAudioBlobsFemale[targetLang].push(blob);
+              if (!targetAudioBlobs[targetLang]) targetAudioBlobs[targetLang] = [];
+              targetAudioBlobs[targetLang].push(blob);
+            }
             return blob;
           }
         } catch(e) {
-          console.warn('Erro ao obter chunk de áudio traduzido:', e);
+          console.warn('Erro ao obter áudio nativo de ' + gender + ':', e);
         }
         return null;
       }
@@ -4998,6 +4843,9 @@
               const chunk = sample16.subarray(i, i + sampleBlockSize);
               const mp3buf = mp3encoder.encodeBuffer(chunk);
               if (mp3buf.length > 0) mp3Data.push(mp3buf);
+              if ((i / sampleBlockSize) % 80 === 0) {
+                await new Promise(r => setTimeout(r, 0));
+              }
             }
           } else {
             const left = audioBuffer.getChannelData(0);
@@ -5016,6 +4864,9 @@
               const rightChunk = right16.subarray(i, i + sampleBlockSize);
               const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
               if (mp3buf.length > 0) mp3Data.push(mp3buf);
+              if ((i / sampleBlockSize) % 80 === 0) {
+                await new Promise(r => setTimeout(r, 0));
+              }
             }
           }
 
@@ -5060,27 +4911,44 @@
           const dateStr = new Date().toISOString().slice(0, 10);
           const zipFileName = `Gravacao_${safeTitle}_${dateStr}.zip`;
 
-          // 1. Garantir que todas as falas traduzidas tenham áudio MP3 gravado
-          updateProgress(15, 'Validando e gravando áudios MP3 de todas as falas traduzidas...');
+          // 1. Garantir que todas as falas traduzidas tenham áudio MP3 de Sofia e Arthur
+          updateProgress(15, 'Validando e preparando áudios com vozes nativas (Sofia e Arthur)...');
           for (const lang of activeTargetLanguages) {
             const list = targetTranscriptions[lang] || [];
-            if (!targetAudioBlobs[lang]) targetAudioBlobs[lang] = [];
-            if (targetAudioBlobs[lang].length < list.length) {
-              const startIdx = targetAudioBlobs[lang].length;
+            const langInfo = SUPPORTED_LANG_MAP[lang] || { name: lang };
+
+            // Faixa feminina Sofia
+            if (!targetAudioBlobsFemale[lang]) targetAudioBlobsFemale[lang] = [];
+            if (targetAudioBlobsFemale[lang].length < list.length) {
+              const startIdx = targetAudioBlobsFemale[lang].length;
               for (let i = startIdx; i < list.length; i++) {
                 const item = list[i];
                 if (item && item.text) {
-                  const langInfo = SUPPORTED_LANG_MAP[lang] || { name: lang };
-                  updateProgress(15 + Math.round(((i + 1) / list.length) * 15), `Gravando áudio MP3 (${langInfo.name}): ${i + 1} de ${list.length}...`);
-                  await fetchAudioChunkForExport(lang, item.text);
+                  updateProgress(15 + Math.round(((i + 1) / list.length) * 10), `Gravando voz nativa Sofia (${langInfo.name}): ${i + 1} de ${list.length}...`);
+                  await fetchAudioChunkForExport(lang, item.text, 'female');
+                  await new Promise(r => setTimeout(r, 15));
+                }
+              }
+            }
+
+            // Faixa masculina Arthur NATIVA (sem manipulação de pitch)
+            if (!targetAudioBlobsMale[lang]) targetAudioBlobsMale[lang] = [];
+            if (targetAudioBlobsMale[lang].length < list.length) {
+              const startIdx = targetAudioBlobsMale[lang].length;
+              for (let i = startIdx; i < list.length; i++) {
+                const item = list[i];
+                if (item && item.text) {
+                  updateProgress(25 + Math.round(((i + 1) / list.length) * 10), `Gravando voz nativa Arthur (${langInfo.name}): ${i + 1} de ${list.length}...`);
+                  await fetchAudioChunkForExport(lang, item.text, 'male');
+                  await new Promise(r => setTimeout(r, 15));
                 }
               }
             }
           }
 
-          // 2. Áudio Original do Palestrante convertido em MP3 (128kbps) com ganho normalizado
-          updateProgress(35, 'Codificando e normalizando áudio do palestrante em MP3 (128kbps)...');
-          await new Promise(r => setTimeout(r, 60));
+          // 2. Áudio Original do Palestrante convertido em MP3 (128kbps) com ganho normalizado e yield assíncrono
+          updateProgress(40, 'Codificando e normalizando áudio do palestrante em MP3...');
+          await new Promise(r => setTimeout(r, 50));
 
           let rawTransAudio = transmitterRecordedBlob;
           if (!rawTransAudio && transmitterAudioChunks && transmitterAudioChunks.length > 0) {
@@ -5090,25 +4958,14 @@
           const speakerMp3Blob = await convertAudioBlobToMp3(rawTransAudio);
           zip.file(`Audio_Palestrante_Original_${safeTitle}.mp3`, speakerMp3Blob);
 
-          // 3. Áudios das Traduções (.mp3) - Faixas Feminina (Sofia) e Masculina (Arthur)
-          updateProgress(55, 'Processando faixas traduzidas em MP3 (Sofia e Arthur)...');
-          await new Promise(r => setTimeout(r, 60));
+          // 3. Montagem dos arquivos das traduções (.mp3) com vozes nativas limpas
+          updateProgress(55, 'Empacotando faixas traduzidas nativas (Sofia e Arthur)...');
+          await new Promise(r => setTimeout(r, 50));
 
           for (const lang of activeTargetLanguages) {
             const info = SUPPORTED_LANG_MAP[lang] || { name: lang };
             const femaleChunks = (targetAudioBlobsFemale[lang] && targetAudioBlobsFemale[lang].length > 0) ? targetAudioBlobsFemale[lang] : (targetAudioBlobs[lang] || []);
-            
-            // Garante que a faixa masculina contenha o áudio de Arthur com timbre barítono
-            let maleChunks = targetAudioBlobsMale[lang] || [];
-            if (maleChunks.length < femaleChunks.length) {
-              const startIdx = maleChunks.length;
-              for (let k = startIdx; k < femaleChunks.length; k++) {
-                updateProgress(55 + Math.round(((k + 1) / femaleChunks.length) * 12), `Codificando voz masculina Arthur (${info.name}): ${k + 1} de ${femaleChunks.length}...`);
-                const converted = await convertFemaleBlobToMaleMp3(femaleChunks[k]);
-                maleChunks.push(converted);
-              }
-              targetAudioBlobsMale[lang] = maleChunks;
-            }
+            const maleChunks = targetAudioBlobsMale[lang] || [];
 
             const langBlobFemale = femaleChunks.length > 0 ? new Blob(femaleChunks, { type: 'audio/mp3' }) : generateValidSilentMp3(3);
             const langBlobMale = maleChunks.length > 0 ? new Blob(maleChunks, { type: 'audio/mp3' }) : generateValidSilentMp3(3);
@@ -5133,7 +4990,7 @@
 
           // 6. Compactação do ZIP com barra de progresso assíncrona não-bloqueante
           updateProgress(80, 'Compactando pacote ZIP sem travamentos...');
-          const zipBlob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+          const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 2 } }, (metadata) => {
             const p = 80 + (metadata.percent * 0.20);
             updateProgress(p, 'Compactando pacote ZIP: ' + Math.round(metadata.percent) + '%');
           });
