@@ -683,23 +683,63 @@
     // TELA 2: ROTEADOR ADMINISTRATIVO E MÓDULOS BRAINLINGO
     // ========================================================
     function isMeetingActiveNow(m) {
-      if (!m) return false;
+      if (!m || !m.id) return false;
       if (m.status === 'archived' || m.status === 'completed' || m.status === 'closed') {
         return false;
       }
-      if (m.status === 'active') {
-        return true;
-      }
+      // 1. Verifica heartbeat ativo (cockpit aberto e transmitindo nos últimos 12 segundos)
       try {
-        if (m.createdAt) {
-          const created = new Date(m.createdAt).getTime();
-          if (!isNaN(created)) {
-            return (Date.now() - created) < (24 * 3600 * 1000);
+        const hb = localStorage.getItem('brain_room_heartbeat_' + m.id);
+        if (hb) {
+          const lastHb = parseInt(hb, 10);
+          if (lastHb > 0 && (Date.now() - lastHb) < 12000) {
+            return true;
           }
         }
       } catch(e) {}
-      return true;
+
+      // 2. Se a sala acabou de ser criada nesta sessão (há menos de 60 segundos), mantém ativa temporariamente para abertura do cockpit
+      try {
+        if (m.createdAt) {
+          const created = new Date(m.createdAt).getTime();
+          if (!isNaN(created) && (Date.now() - created) < 60000) {
+            return true;
+          }
+        }
+      } catch(e) {}
+
+      return false;
     }
+
+    function getMeetingCockpitUrl(meetingId) {
+      const currentPath = window.location.pathname;
+      if (window.location.protocol === 'file:') {
+        return currentPath + '?meeting=' + encodeURIComponent(meetingId);
+      }
+      return '/?meeting=' + encodeURIComponent(meetingId);
+    }
+
+    function getAdminBaseUrl(extraQuery) {
+      const q = extraQuery ? ('?' + extraQuery) : '';
+      if (window.location.protocol === 'file:') {
+        return window.location.pathname + (extraQuery ? ('?admin=true&' + extraQuery) : '?admin=true');
+      }
+      return '/admin' + q;
+    }
+
+    window.openMeetingCockpit = function(meetingId) {
+      const url = getMeetingCockpitUrl(meetingId);
+      window.location.href = url;
+    };
+
+    window.clearAllHistoryMeetings = function() {
+      if (!confirm('Deseja excluir permanentemente todas as reuniões de teste antigas do histórico? Esta ação é irreversível.')) return;
+      try {
+        localStorage.removeItem('brain_saved_meetings');
+        meetings = [];
+        renderMeetingHistoryPage();
+      } catch(e) {}
+    };
 
     window.archiveMeetingFromDashboard = function(idToArchive) {
       if (!confirm('Deseja realmente encerrar e mover esta reunião para o Histórico? Ela deixará de aparecer no monitor de salas ativas.')) return;
@@ -710,6 +750,7 @@
           saved[idx].status = 'archived';
           saved[idx].archivedAt = new Date().toISOString();
           localStorage.setItem('brain_saved_meetings', JSON.stringify(saved));
+          localStorage.removeItem('brain_room_heartbeat_' + idToArchive);
           renderSimultaneousTranslationDashboard();
         }
       } catch(e) {}
@@ -735,6 +776,7 @@
         const saved = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
         const updated = saved.filter(m => m.id !== mId);
         localStorage.setItem('brain_saved_meetings', JSON.stringify(updated));
+        localStorage.removeItem('brain_room_heartbeat_' + mId);
         renderMeetingHistoryPage();
       } catch(e) {}
     };
@@ -1135,6 +1177,11 @@
               <span class="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
                 ${historyMeetings.length} ${historyMeetings.length === 1 ? 'reunião no histórico' : 'reuniões no histórico'}
               </span>
+              ${historyMeetings.length > 0 ? `
+                <button onclick="clearAllHistoryMeetings()" class="text-xs font-bold px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 transition-all cursor-pointer">
+                  🗑️ Limpar Testes Antigos
+                </button>
+              ` : ''}
               <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-all cursor-pointer">
                 🌙 Tema
               </button>
@@ -1193,9 +1240,9 @@
                         <button onclick="unarchiveMeetingFromDashboard('${m.id}')" class="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
                           <span>⚡ Reativar Reunião (Voltar para Ativas)</span>
                         </button>
-                        <a href="/?meeting=${encodeURIComponent(m.id)}" class="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold text-center transition-all">
+                        <button type="button" onclick="openMeetingCockpit('${m.id}')" class="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold text-center transition-all cursor-pointer">
                           Visualizar Cockpit da Sessão
-                        </a>
+                        </button>
                       </div>
                     </div>
                   `;
@@ -1368,7 +1415,7 @@
         });
 
         // Redireciona imediatamente para o Cockpit da nova reunião
-        window.location.href = '/?meeting=' + encodeURIComponent(meetingId);
+        window.location.href = getMeetingCockpitUrl(meetingId);
       };
 
       window.deleteMeetingFromDashboard = function(idToDelete) {
@@ -1595,9 +1642,9 @@
 
                         <!-- Botões de Ação do Card -->
                         <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
-                          <a href="/?meeting=${encodeURIComponent(m.id)}" class="w-full py-2.5 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                          <button type="button" onclick="openMeetingCockpit('${m.id}')" class="w-full py-2.5 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
                             <span>🚀 Abrir Cockpit da Sala</span>
-                          </a>
+                          </button>
                           <div class="grid grid-cols-2 gap-2">
                             <a href="/?meeting=${encodeURIComponent(m.id)}&overlay=subtitles" target="_blank" class="py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-semibold text-center transition-all flex items-center justify-center gap-1">
                               <span>🖥️ Janela OBS</span>
@@ -2938,6 +2985,25 @@
       let sessionElapsedSeconds = 0;
       let latency = 24;
 
+      const safeMeetingMqttId = encodeURIComponent((id || '').toLowerCase().trim()).replace(/[^a-z0-9_-]/g, '_');
+      const mqttMeetingTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/subtitles';
+      let mqttPublisherClient = null;
+
+      // Heartbeat periódico da sala ativa (atualiza a cada 3s enquanto o Cockpit estiver aberto)
+      function pulseRoomActiveHeartbeat() {
+        try {
+          localStorage.setItem('brain_room_heartbeat_' + id, Date.now().toString());
+        } catch(e) {}
+      }
+      pulseRoomActiveHeartbeat();
+      const roomHeartbeatTimer = setInterval(pulseRoomActiveHeartbeat, 3000);
+      window.addEventListener('beforeunload', () => {
+        clearInterval(roomHeartbeatTimer);
+        try {
+          localStorage.removeItem('brain_room_heartbeat_' + id);
+        } catch(e) {}
+      });
+
       // Carrega dados da reunião do localStorage
       let meeting = null;
       try {
@@ -3127,10 +3193,6 @@
         subtitleBroadcast = new BroadcastChannel('brain_subtitles_channel');
       } catch(e) {}
 
-      const safeMeetingMqttId = encodeURIComponent((id || '').toLowerCase().trim()).replace(/[^a-z0-9_-]/g, '_');
-      const mqttMeetingTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/subtitles';
-      let mqttPublisherClient = null;
-
       function connectCockpitMqtt() {
         if (typeof mqtt === 'undefined') return;
         try {
@@ -3236,6 +3298,10 @@
 
               <button onclick="copyTelaoShareLink()" class="text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
                 <span>📋 Link OBS</span>
+              </button>
+
+              <button onclick="confirmAndExitMeeting()" class="text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
+                <span>🚪 Sair / Dashboard</span>
               </button>
 
               <button onclick="prepareAndOpenFinishModal()" class="text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 border border-rose-500 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
@@ -3801,21 +3867,23 @@
         }
       };
 
-      // VU METER DO MICROFONE EM TEMPO REAL
+      // VU METER DO MICROFONE EM TEMPO REAL (BASEADO EM RMS REAL)
       function startMicVuMeterLoop() {
         if (!micAnalyserNode) return;
-        const dataArray = new Uint8Array(micAnalyserNode.frequencyBinCount);
+        const timeData = new Float32Array(micAnalyserNode.fftSize);
 
         function updateVu() {
           if (!isRealMicActive || !micAnalyserNode) return;
-          micAnalyserNode.getByteFrequencyData(dataArray);
+          micAnalyserNode.getFloatTimeDomainData(timeData);
 
-          let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
+          let sumSquares = 0;
+          for (let i = 0; i < timeData.length; i++) {
+            sumSquares += timeData[i] * timeData[i];
           }
-          const avg = sum / dataArray.length;
-          const pct = Math.min(100, Math.round((avg / 128) * 100));
+          const rms = Math.sqrt(sumSquares / timeData.length);
+          // Conversão de RMS para dB (-50dB a 0dB) para resposta dinâmica natural
+          const db = 20 * Math.log10(Math.max(rms, 0.00005));
+          const pct = Math.max(0, Math.min(100, Math.round(((db + 46) / 46) * 100)));
 
           const bar = document.getElementById('transmitter-vu-bar');
           const text = document.getElementById('transmitter-vu-text');
@@ -3824,7 +3892,7 @@
           if (bar) bar.style.width = pct + '%';
           if (text) text.innerText = pct + '%';
           if (led) {
-            led.className = pct > 4 ? 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse' : 'w-2 h-2 rounded-full bg-slate-400';
+            led.className = pct > 6 ? 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse' : 'w-2 h-2 rounded-full bg-slate-400';
           }
 
           micVuAnimFrameId = requestAnimationFrame(updateVu);
@@ -3843,10 +3911,11 @@
       async function startMasterMicCapture() {
         const select = document.getElementById('transmitter-mic-select');
         const targetDeviceId = select ? select.value : selectedMicDeviceId;
+        // Permite controle de ganho automático do hardware/navegador para assegurar volume potente
         const constraints = {
           audio: (targetDeviceId && targetDeviceId !== 'default') 
-            ? { deviceId: { exact: targetDeviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false } 
-            : { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+            ? { deviceId: { exact: targetDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+            : { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         };
 
         try {
@@ -3860,10 +3929,29 @@
           if (micAudioContext.state === 'suspended') await micAudioContext.resume();
 
           const source = micAudioContext.createMediaStreamSource(micMediaStream);
+
+          // Pré-amplificador de Estúdio (+7dB) para encorpar a captação
+          const micGainNode = micAudioContext.createGain();
+          micGainNode.gain.value = 2.24; // +7.0 dB de reforço limpo
+
+          // Compressor Dinâmico de Broadcast (evita clipping e valoriza sussurros)
+          const micCompressor = micAudioContext.createDynamicsCompressor();
+          micCompressor.threshold.setValueAtTime(-24, micAudioContext.currentTime);
+          micCompressor.knee.setValueAtTime(24, micAudioContext.currentTime);
+          micCompressor.ratio.setValueAtTime(3.5, micAudioContext.currentTime);
+          micCompressor.attack.setValueAtTime(0.003, micAudioContext.currentTime);
+          micCompressor.release.setValueAtTime(0.25, micAudioContext.currentTime);
+
           micAnalyserNode = micAudioContext.createAnalyser();
           micAnalyserNode.fftSize = 256;
           micAnalyserNode.smoothingTimeConstant = 0.35;
-          source.connect(micAnalyserNode);
+
+          const micDestination = micAudioContext.createMediaStreamDestination();
+
+          source.connect(micGainNode);
+          micGainNode.connect(micCompressor);
+          micCompressor.connect(micAnalyserNode);
+          micCompressor.connect(micDestination);
 
           isRealMicActive = true;
 
@@ -3875,10 +3963,10 @@
 
           startMicVuMeterLoop();
 
-          // Gravação do áudio do microfone do palestrante
+          // Gravação do áudio do microfone a partir do fluxo pré-amplificado e tratado
           try {
             transmitterAudioChunks = [];
-            micMediaRecorder = new MediaRecorder(micMediaStream);
+            micMediaRecorder = new MediaRecorder(micDestination.stream);
             micMediaRecorder.ondataavailable = (e) => {
               if (e.data.size > 0) transmitterAudioChunks.push(e.data);
             };
@@ -4432,6 +4520,88 @@
         targetMeterStates[langCode] = { activeUntil: until };
       }
 
+      // SÍNTESE E TRANSFORMAÇÃO DE VOZ MASCULINA PARA GRAVAÇÃO (TIMBRE BARÍTONO ARTHUR)
+      async function convertFemaleBlobToMaleMp3(femaleBlob) {
+        if (!femaleBlob || femaleBlob.size < 60) return femaleBlob;
+        if (typeof lamejs === 'undefined') return femaleBlob;
+        try {
+          const arrayBuffer = await femaleBlob.arrayBuffer();
+          const decodeCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const decoded = await decodeCtx.decodeAudioData(arrayBuffer);
+          try { await decodeCtx.close(); } catch(e) {}
+
+          const sampleRate = decoded.sampleRate || 24000;
+          // Transposição de pitch para registro barítono masculino (pitch ratio 0.80 -> -4 semitons)
+          const playbackRate = 0.80;
+          const targetLength = Math.ceil(decoded.length / playbackRate);
+
+          const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
+            1,
+            targetLength,
+            sampleRate
+          );
+
+          const bufferSource = offlineCtx.createBufferSource();
+          bufferSource.buffer = decoded;
+          bufferSource.playbackRate.value = playbackRate;
+
+          // Modelagem de formantes masculinos: ressonância torácica e corte de brilho agudo feminino
+          const lowShelf = offlineCtx.createBiquadFilter();
+          lowShelf.type = 'lowshelf';
+          lowShelf.frequency.value = 220;
+          lowShelf.gain.value = 5.5;
+
+          const midDip = offlineCtx.createBiquadFilter();
+          midDip.type = 'peaking';
+          midDip.frequency.value = 3200;
+          midDip.Q.value = 1.0;
+          midDip.gain.value = -3.5;
+
+          const highShelf = offlineCtx.createBiquadFilter();
+          highShelf.type = 'highshelf';
+          highShelf.frequency.value = 6000;
+          highShelf.gain.value = -3.0;
+
+          bufferSource.connect(lowShelf);
+          lowShelf.connect(midDip);
+          midDip.connect(highShelf);
+          highShelf.connect(offlineCtx.destination);
+
+          bufferSource.start(0);
+          const renderedBuffer = await offlineCtx.startRendering();
+
+          // Codificação em MP3 128kbps com LameJS
+          const samples = renderedBuffer.getChannelData(0);
+          let maxVal = 0;
+          for (let i = 0; i < samples.length; i++) {
+            const v = Math.abs(samples[i]);
+            if (v > maxVal) maxVal = v;
+          }
+          const normGain = (maxVal > 0.01) ? Math.min(4.0, 0.92 / maxVal) : 1.0;
+
+          const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
+          const mp3Data = [];
+          const sampleBlockSize = 1152;
+          const sample16 = new Int16Array(samples.length);
+          for (let i = 0; i < samples.length; i++) {
+            const s = Math.max(-1, Math.min(1, samples[i] * normGain));
+            sample16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+          for (let i = 0; i < sample16.length; i += sampleBlockSize) {
+            const chunk = sample16.subarray(i, i + sampleBlockSize);
+            const mp3buf = mp3encoder.encodeBuffer(chunk);
+            if (mp3buf && mp3buf.length > 0) mp3Data.push(mp3buf);
+          }
+          const endBuf = mp3encoder.flush();
+          if (endBuf && endBuf.length > 0) mp3Data.push(endBuf);
+
+          return new Blob(mp3Data, { type: 'audio/mp3' });
+        } catch(err) {
+          console.warn('Erro ao processar voz masculina Arthur:', err);
+          return femaleBlob;
+        }
+      }
+
       async function fetchAudioChunkForExport(targetLang, text) {
         if (!text || !text.trim()) return null;
         const clean = text.trim();
@@ -4462,12 +4632,18 @@
             if (!targetAudioBlobs[targetLang]) targetAudioBlobs[targetLang] = [];
             targetAudioBlobs[targetLang].push(blob);
 
-            // Faixas de áudio dedicadas para exportação (feminina Sofia e masculina Arthur)
+            // Faixa feminina padrão Sofia
             if (!targetAudioBlobsFemale[targetLang]) targetAudioBlobsFemale[targetLang] = [];
             targetAudioBlobsFemale[targetLang].push(blob);
 
+            // Faixa masculina padrão Arthur (sintetiza voz barítona masculina distinta)
             if (!targetAudioBlobsMale[targetLang]) targetAudioBlobsMale[targetLang] = [];
-            targetAudioBlobsMale[targetLang].push(blob);
+            convertFemaleBlobToMaleMp3(blob).then(maleBlob => {
+              targetAudioBlobsMale[targetLang].push(maleBlob || blob);
+            }).catch(() => {
+              targetAudioBlobsMale[targetLang].push(blob);
+            });
+
             return blob;
           }
         } catch(e) {
@@ -4743,12 +4919,24 @@
           const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, 128);
           const mp3Data = [];
 
+          // Normalização inteligente de estúdio (-0.5 dBFS) para garantir volume potente e audível
+          let maxPeak = 0;
+          for (let c = 0; c < numChannels; c++) {
+            const ch = audioBuffer.getChannelData(c);
+            for (let i = 0; i < ch.length; i++) {
+              const v = Math.abs(ch[i]);
+              if (v > maxPeak) maxPeak = v;
+            }
+          }
+          const targetPeak = 0.94;
+          const normGain = (maxPeak > 0.005) ? Math.min(8.0, targetPeak / maxPeak) : 1.0;
+
           if (numChannels === 1) {
             const samples = audioBuffer.getChannelData(0);
             const sampleBlockSize = 1152;
             const sample16 = new Int16Array(samples.length);
             for (let i = 0; i < samples.length; i++) {
-              const s = Math.max(-1, Math.min(1, samples[i]));
+              const s = Math.max(-1, Math.min(1, samples[i] * normGain));
               sample16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
             }
             for (let i = 0; i < sample16.length; i += sampleBlockSize) {
@@ -4763,8 +4951,8 @@
             const left16 = new Int16Array(left.length);
             const right16 = new Int16Array(right.length);
             for (let i = 0; i < left.length; i++) {
-              const sl = Math.max(-1, Math.min(1, left[i]));
-              const sr = Math.max(-1, Math.min(1, right[i]));
+              const sl = Math.max(-1, Math.min(1, left[i] * normGain));
+              const sr = Math.max(-1, Math.min(1, right[i] * normGain));
               left16[i] = sl < 0 ? sl * 0x8000 : sl * 0x7FFF;
               right16[i] = sr < 0 ? sr * 0x8000 : sr * 0x7FFF;
             }
@@ -4835,8 +5023,8 @@
             }
           }
 
-          // 2. Áudio Original do Palestrante convertido em MP3 (128kbps)
-          updateProgress(35, 'Codificando áudio original do palestrante em MP3 (128kbps)...');
+          // 2. Áudio Original do Palestrante convertido em MP3 (128kbps) com ganho normalizado
+          updateProgress(35, 'Codificando e normalizando áudio do palestrante em MP3 (128kbps)...');
           await new Promise(r => setTimeout(r, 60));
 
           let rawTransAudio = transmitterRecordedBlob;
@@ -4853,9 +5041,19 @@
 
           for (const lang of activeTargetLanguages) {
             const info = SUPPORTED_LANG_MAP[lang] || { name: lang };
-            const chunks = targetAudioBlobs[lang] || [];
-            const femaleChunks = (targetAudioBlobsFemale[lang] && targetAudioBlobsFemale[lang].length > 0) ? targetAudioBlobsFemale[lang] : chunks;
-            const maleChunks = (targetAudioBlobsMale[lang] && targetAudioBlobsMale[lang].length > 0) ? targetAudioBlobsMale[lang] : chunks;
+            const femaleChunks = (targetAudioBlobsFemale[lang] && targetAudioBlobsFemale[lang].length > 0) ? targetAudioBlobsFemale[lang] : (targetAudioBlobs[lang] || []);
+            
+            // Garante que a faixa masculina contenha o áudio de Arthur com timbre barítono
+            let maleChunks = targetAudioBlobsMale[lang] || [];
+            if (maleChunks.length < femaleChunks.length) {
+              const startIdx = maleChunks.length;
+              for (let k = startIdx; k < femaleChunks.length; k++) {
+                updateProgress(55 + Math.round(((k + 1) / femaleChunks.length) * 12), `Codificando voz masculina Arthur (${info.name}): ${k + 1} de ${femaleChunks.length}...`);
+                const converted = await convertFemaleBlobToMaleMp3(femaleChunks[k]);
+                maleChunks.push(converted);
+              }
+              targetAudioBlobsMale[lang] = maleChunks;
+            }
 
             const langBlobFemale = femaleChunks.length > 0 ? new Blob(femaleChunks, { type: 'audio/mp3' }) : generateValidSilentMp3(3);
             const langBlobMale = maleChunks.length > 0 ? new Blob(maleChunks, { type: 'audio/mp3' }) : generateValidSilentMp3(3);
@@ -4927,12 +5125,19 @@
       window.confirmAndExitMeeting = function() {
         if (confirm('Deseja realmente sair da sala e voltar ao painel?')) {
           if (isRealMicActive) stopMasterMicCapture();
-          window.location.href = '/admin';
+          try {
+            localStorage.removeItem('brain_room_heartbeat_' + id);
+            if (typeof roomHeartbeatTimer !== 'undefined') clearInterval(roomHeartbeatTimer);
+          } catch(e) {}
+          window.location.href = getAdminBaseUrl('module=translation');
         }
       };
 
       window.openDedicatedSubtitleOverlay = function() {
-        window.open('/?meeting=' + encodeURIComponent(id) + '&overlay=subtitles', '_blank');
+        const url = (window.location.protocol === 'file:')
+          ? (window.location.pathname + '?meeting=' + encodeURIComponent(id) + '&overlay=subtitles')
+          : ('/?meeting=' + encodeURIComponent(id) + '&overlay=subtitles');
+        window.open(url, '_blank');
       };
 
       window.copyTelaoShareLink = function() {
