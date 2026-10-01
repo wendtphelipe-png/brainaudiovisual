@@ -2988,8 +2988,15 @@
       let audienceLastSubtitleTime = 0;
 
       async function handleAudienceIncomingSubtitle(data) {
-        if (!data || data.type !== 'NEW_SUBTITLE' || !data.text) return;
+        if (!data || !data.text) return;
+
+        const isStreamTTS = data.type === 'STREAM_TTS';
+        const isNewSubtitle = data.type === 'NEW_SUBTITLE';
+        if (!isStreamTTS && !isNewSubtitle) return;
+
         const text = data.text.trim();
+        if (!text) return;
+
         const currentLangPrefix = (currentAudienceLang || 'en').split('-')[0].toLowerCase();
         const dataChan = (data.channel || '').toLowerCase();
 
@@ -3000,7 +3007,13 @@
 
         if (!isForThisAudience) return;
 
-        // Desduplicação universal por texto e janela temporal de 15 segundos
+        // STREAM_TTS: direto para a fila de voz, sem exibir legenda
+        if (isStreamTTS) {
+          queueAudienceSpeech(text);
+          return;
+        }
+
+        // NEW_SUBTITLE: desduplicação, display de legenda e TTS
         const now = Date.now();
         const textLower = text.toLowerCase();
         if (audienceSeenSubtitles.has(textLower)) {
@@ -3040,8 +3053,9 @@
           feed.scrollTop = feed.scrollHeight;
         }
 
-        // Envia a fala para a voz humanizada
-        queueAudienceSpeech(text);
+        // Para NEW_SUBTITLE, o TTS já foi feito via STREAM_TTS durante o interim.
+        // Não re-fala aqui para evitar dupla leitura.
+        // (O único caso em que o TTS chega aqui é se não houve streaming interim, ex: MQTT remoto)
       }
 
       // 1. SINCRONIZAÇÃO LOCAL (BroadcastChannel)
@@ -3321,6 +3335,24 @@
           timestamp: Date.now()
         };
 
+        if (subtitleBroadcast) {
+          try { subtitleBroadcast.postMessage(payload); } catch(e) {}
+        }
+        if (mqttPublisherClient && mqttPublisherClient.connected) {
+          try { mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 0 }); } catch(e) {}
+        }
+      }
+
+      // Broadcast exclusivo para voz em streaming (não exibe legenda, apenas faz TTS)
+      function broadcastStreamTTS(channel, ttsText) {
+        if (!ttsText || !ttsText.trim()) return;
+        const payload = {
+          type: 'STREAM_TTS',
+          meetingId: id,
+          channel: channel,
+          text: ttsText.trim(),
+          timestamp: Date.now()
+        };
         if (subtitleBroadcast) {
           try { subtitleBroadcast.postMessage(payload); } catch(e) {}
         }
@@ -4349,14 +4381,23 @@
           }
         });
         currentTargetParagraphs = {};
-        // Reseta tracker de interim para a pr\u00f3xima frase
+        // Reseta tracker de interim para a próxima frase
         Object.keys(_interimTracker).forEach(lang => {
           _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
+        });
+        // Reseta tracker TTS streaming
+        Object.keys(_liveTTSTracker).forEach(lang => {
+          _liveTTSTracker[lang] = { lastSpokenWordCount: 0 };
         });
       }
 
       // Rastreamento por idioma para tradução interim (não cancela em-voo)
       const _interimTracker = {}; // { [lang]: { lastShownLen, inFlight } }
+
+      // Rastreamento TTS streaming por idioma
+      // lastSpokenWordCount = quantas palavras da TRADUÇÃO já foram enviadas para TTS
+      const _liveTTSTracker = {}; // { [lang]: { lastSpokenWordCount } }
+      const TTS_CHUNK_WORDS = 3; // mínimo de palavras novas para disparar TTS
 
       // Caminho RÁPIDO para tradução em tempo real — só Google direct, sem fallbacks lentos
       async function fetchInterimTranslation(text, sourceLang, targetLang) {
@@ -4401,6 +4442,7 @@
       // TRADUÇÃO EM STREAMING — Padrão Google Tradutor:
       // dispara palavra-a-palavra SEM debounce, SEM cancelar requests anteriores.
       // Usa comprimento do texto para determinar recência (texto mais longo = mais recente).
+      // Também faz TTS streaming em chunks de 3+ palavras novas.
       function scheduleLiveStreamTranslation(interimText) {
         if (!interimText || !interimText.trim()) return;
         const textNow = interimText.trim();
@@ -4416,7 +4458,7 @@
           }
           const tracker = _interimTracker[targetLang];
 
-          // Se já está traduzindo um texto igual ou mais longo, aguarda (não dispara outra chamada)
+          // Se já está traduzindo um texto igual ou mais longo, aguarda
           if (tracker.inFlight && textNow.length <= tracker.lastShownLen) return;
 
           tracker.inFlight = true;
@@ -4425,7 +4467,7 @@
 
           if (!translated) return;
 
-          // Só atualiza se o texto traduzido é referente a um texto igual ou mais longo que o atual mostrado
+          // Só atualiza se o texto é referente a algo igual ou mais longo que o atual mostrado
           if (textNow.length >= tracker.lastShownLen) {
             tracker.lastShownLen = textNow.length;
             const tp = currentTargetParagraphs[targetLang];
@@ -4435,6 +4477,26 @@
               tp.liveSpan.style.opacity = '1';
               const els = getTargetColumnElements(targetLang);
               if (els.box) els.box.scrollTop = els.box.scrollHeight;
+            }
+
+            // ---- TTS STREAMING em chunks de 3+ palavras ----
+            if (!_liveTTSTracker[targetLang]) {
+              _liveTTSTracker[targetLang] = { lastSpokenWordCount: 0 };
+            }
+            const ttsTracker = _liveTTSTracker[targetLang];
+            const translatedWords = translated.trim().split(/\s+/);
+            const currentWordCount = translatedWords.length;
+
+            if (currentWordCount >= ttsTracker.lastSpokenWordCount + TTS_CHUNK_WORDS) {
+              // Extrai apenas as palavras novas desde o último TTS
+              const newChunk = translatedWords.slice(ttsTracker.lastSpokenWordCount).join(' ');
+              if (newChunk.trim()) {
+                ttsTracker.lastSpokenWordCount = currentWordCount;
+                const targetCode = targetLang.split('-')[0].toLowerCase();
+                broadcastStreamTTS(targetCode, newChunk);
+                if (targetCode === 'en') broadcastStreamTTS('receiver', newChunk);
+                if (targetCode === 'es') broadcastStreamTTS('spanish', newChunk);
+              }
             }
           }
         });
@@ -4552,7 +4614,24 @@
         if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
         targetTranscriptions[targetLang].push({ text: cleanTranslated, timeStart: startSec, timeEnd: endSec });
 
+        // TTS: fala apenas as palavras restantes não lidas via streaming interim
+        const ttsTracker = _liveTTSTracker[targetLang] || { lastSpokenWordCount: 0 };
+        const finalWords = cleanTranslated.trim().split(/\s+/);
+        const remainingChunk = finalWords.slice(ttsTracker.lastSpokenWordCount).join(' ');
+
         const targetCode = targetLang.split('-')[0].toLowerCase();
+
+        if (remainingChunk.trim()) {
+          // Fala as palavras restantes via STREAM_TTS (não repete o que já foi falado)
+          broadcastStreamTTS(targetCode, remainingChunk);
+          if (targetCode === 'en') broadcastStreamTTS('receiver', remainingChunk);
+          if (targetCode === 'es') broadcastStreamTTS('spanish', remainingChunk);
+        }
+
+        // Reseta TTS tracker para a próxima frase
+        _liveTTSTracker[targetLang] = { lastSpokenWordCount: 0 };
+
+        // Broadcast completo para exibição de legenda (NEW_SUBTITLE) e gravadores externos
         broadcastSubtitleGlobally(targetCode, cleanTranslated, startSec, endSec);
         if (targetCode === 'en') broadcastSubtitleGlobally('receiver', cleanTranslated, startSec, endSec);
         if (targetCode === 'es') broadcastSubtitleGlobally('spanish', cleanTranslated, startSec, endSec);
