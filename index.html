@@ -4131,6 +4131,9 @@
       let lastConfirmedCleanTranscript = '';
       let lastConfirmedTimestamp = 0;
 
+      // Cache de traduções para evitar chamadas repetidas
+      const _translationCache = new Map();
+
       async function fetchFastTranslation(text, sourceLang, targetLang) {
         if (!text || !text.trim()) return '';
         const clean = text.trim();
@@ -4138,40 +4141,81 @@
         const targetCode = (targetLang || 'en').split('-')[0].toLowerCase();
         if (sourceCode === targetCode) return clean;
 
-        // 1. Google Translate API rápida
+        // Cache hit
+        const cacheKey = `${sourceCode}|${targetCode}|${clean}`;
+        if (_translationCache.has(cacheKey)) return _translationCache.get(cacheKey);
+
+        const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`;
+
+        // 1. Google Translate API (suporta CORS com Access-Control-Allow-Origin: *)
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 2000);
-          const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`, {
-            signal: controller.signal
-          });
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const res = await fetch(googleUrl, { signal: controller.signal });
           clearTimeout(timeoutId);
           if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data) && Array.isArray(data[0])) {
-              const trans = data[0].map(item => item[0]).join('');
-              if (trans && trans.trim()) return trans.trim();
+              const trans = data[0].map(item => item[0]).filter(Boolean).join('');
+              if (trans && trans.trim()) {
+                const result = trans.trim();
+                _translationCache.set(cacheKey, result);
+                if (_translationCache.size > 500) {
+                  const firstKey = _translationCache.keys().next().value;
+                  _translationCache.delete(firstKey);
+                }
+                return result;
+              }
             }
           }
-        } catch(e) {}
+        } catch(e) {
+          console.warn('[BrainLingo] Google Translate direto falhou:', e.message);
+        }
 
-        // 2. Fallback MyMemory
+        // 2. Fallback via proxy CORS (allorigins.win)
         try {
+          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(googleUrl)}`;
           const controller2 = new AbortController();
-          const timeoutId2 = setTimeout(() => controller2.abort(), 1800);
-          const res2 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=${sourceCode}|${targetCode}`, {
-            signal: controller2.signal
-          });
+          const timeoutId2 = setTimeout(() => controller2.abort(), 4000);
+          const res2 = await fetch(proxyUrl, { signal: controller2.signal });
           clearTimeout(timeoutId2);
           if (res2.ok) {
             const data2 = await res2.json();
-            if (data2 && data2.responseData && data2.responseData.translatedText) {
-              return data2.responseData.translatedText.trim();
+            if (Array.isArray(data2) && Array.isArray(data2[0])) {
+              const trans2 = data2[0].map(item => item[0]).filter(Boolean).join('');
+              if (trans2 && trans2.trim()) {
+                const result2 = trans2.trim();
+                _translationCache.set(cacheKey, result2);
+                return result2;
+              }
             }
           }
-        } catch(e2) {}
+        } catch(e2) {
+          console.warn('[BrainLingo] Proxy allorigins falhou:', e2.message);
+        }
 
-        return clean;
+        // 3. Fallback MyMemory (se não estiver com quota esgotada)
+        try {
+          const controller3 = new AbortController();
+          const timeoutId3 = setTimeout(() => controller3.abort(), 2500);
+          const res3 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=${sourceCode}|${targetCode}`, {
+            signal: controller3.signal
+          });
+          clearTimeout(timeoutId3);
+          if (res3.ok) {
+            const data3 = await res3.json();
+            const t3 = data3?.responseData?.translatedText || '';
+            if (t3 && !t3.includes('MYMEMORY WARNING') && !t3.includes('quota') && t3.trim().toLowerCase() !== clean.toLowerCase()) {
+              const result3 = t3.trim();
+              _translationCache.set(cacheKey, result3);
+              return result3;
+            }
+          }
+        } catch(e3) {}
+
+        // Todas as APIs falharam — retorna null (NÃO retorna o texto original para evitar confusão de idiomas)
+        console.warn('[BrainLingo] Tradução falhou para:', sourceCode, '->', targetCode, '| texto:', clean.substring(0, 40));
+        return null;
       }
 
       function getOrCreateActiveParagraph() {
@@ -4314,6 +4358,7 @@
         liveTranslationSeq++;
         const currentSeq = liveTranslationSeq;
 
+        // 50ms debounce — resposta rápida como Google Tradutor em tempo real
         liveTranslationDebounceTimer = setTimeout(() => {
           const targets = new Set(activeTargetLanguages);
           if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
@@ -4321,18 +4366,35 @@
           }
 
           targets.forEach(async (targetLang) => {
+            const tp = currentTargetParagraphs[targetLang];
+            // Mostra indicador de tradução em andamento
+            if (tp && tp.liveSpan && currentSeq === liveTranslationSeq) {
+              tp.liveSpan.style.opacity = '0.5';
+            }
+
             const translated = await fetchFastTranslation(interimText, selectedSourceLanguage, targetLang);
-            if (currentSeq === liveTranslationSeq) {
-              const tp = currentTargetParagraphs[targetLang];
-              if (tp && tp.liveSpan) {
-                const hasConfirmed = tp.confirmedSpan.textContent.trim().length > 0;
-                tp.liveSpan.textContent = (hasConfirmed ? ' ' : '') + translated;
-                const els = getTargetColumnElements(targetLang);
-                if (els.box) els.box.scrollTop = els.box.scrollHeight;
+
+            if (currentSeq !== liveTranslationSeq) return; // resultado expirado
+            const tp2 = currentTargetParagraphs[targetLang];
+            if (tp2 && tp2.liveSpan) {
+              if (translated) {
+                const hasConfirmed = tp2.confirmedSpan.textContent.trim().length > 0;
+                tp2.liveSpan.textContent = (hasConfirmed ? ' ' : '') + translated;
+                tp2.liveSpan.style.opacity = '1';
+              } else {
+                // Tradução falhou — mantém o texto anterior se existir, senão mostra '…'
+                if (!tp2.liveSpan.textContent.trim()) {
+                  tp2.liveSpan.textContent = ' …';
+                  tp2.liveSpan.style.opacity = '0.4';
+                } else {
+                  tp2.liveSpan.style.opacity = '0.6';
+                }
               }
+              const els = getTargetColumnElements(targetLang);
+              if (els.box) els.box.scrollTop = els.box.scrollHeight;
             }
           });
-        }, 100);
+        }, 50);
       }
 
       // TRANSCRIÇÃO EM TEMPO REAL INSTANTÂNEA — PADRÃO BARRA DE PESQUISA DO GOOGLE
@@ -4410,29 +4472,46 @@
 
         targets.forEach(async (targetLang) => {
           const translated = await fetchFastTranslation(originalText, selectedSourceLanguage, targetLang);
-          const cleanTranslated = (translated || originalText).trim();
 
-          const tp = currentTargetParagraphs[targetLang];
-          if (tp) {
-            const prev = tp.confirmedSpan.textContent.trim();
-            tp.confirmedSpan.textContent = prev ? (prev + ' ' + cleanTranslated) : cleanTranslated;
-            tp.liveSpan.textContent = '';
-            const els = getTargetColumnElements(targetLang);
-            if (els.box) els.box.scrollTop = els.box.scrollHeight;
+          // CRÍTICO: Nunca usar o texto original como tradução — só age se houver tradução real
+          if (!translated || !translated.trim()) {
+            console.warn('[BrainLingo] Tradução final falhou para', targetLang, '— ignorando broadcast/TTS.');
+            // Tenta novamente em 2 segundos (retry automático)
+            setTimeout(async () => {
+              const retryTranslated = await fetchFastTranslation(originalText, selectedSourceLanguage, targetLang);
+              if (retryTranslated && retryTranslated.trim()) {
+                _applyFinalTranslation(targetLang, retryTranslated.trim(), startSec, endSec);
+              }
+            }, 2000);
+            return;
           }
 
-          if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
-          targetTranscriptions[targetLang].push({ text: cleanTranslated, timeStart: startSec, timeEnd: endSec });
-
-          const targetCode = targetLang.split('-')[0].toLowerCase();
-          broadcastSubtitleGlobally(targetCode, cleanTranslated, startSec, endSec);
-          if (targetCode === 'en') broadcastSubtitleGlobally('receiver', cleanTranslated, startSec, endSec);
-          if (targetCode === 'es') broadcastSubtitleGlobally('spanish', cleanTranslated, startSec, endSec);
-
-          triggerTargetAudioMeter(targetLang, Math.max(3000, cleanTranslated.length * 90));
-          fetchAudioChunkForExport(targetLang, cleanTranslated, 'female');
-          fetchAudioChunkForExport(targetLang, cleanTranslated, 'male');
+          _applyFinalTranslation(targetLang, translated.trim(), startSec, endSec);
         });
+      }
+
+      function _applyFinalTranslation(targetLang, cleanTranslated, startSec, endSec) {
+        const tp = currentTargetParagraphs[targetLang];
+        if (tp) {
+          const prev = tp.confirmedSpan.textContent.trim();
+          tp.confirmedSpan.textContent = prev ? (prev + ' ' + cleanTranslated) : cleanTranslated;
+          tp.liveSpan.textContent = '';
+          tp.liveSpan.style.opacity = '1';
+          const els = getTargetColumnElements(targetLang);
+          if (els.box) els.box.scrollTop = els.box.scrollHeight;
+        }
+
+        if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
+        targetTranscriptions[targetLang].push({ text: cleanTranslated, timeStart: startSec, timeEnd: endSec });
+
+        const targetCode = targetLang.split('-')[0].toLowerCase();
+        broadcastSubtitleGlobally(targetCode, cleanTranslated, startSec, endSec);
+        if (targetCode === 'en') broadcastSubtitleGlobally('receiver', cleanTranslated, startSec, endSec);
+        if (targetCode === 'es') broadcastSubtitleGlobally('spanish', cleanTranslated, startSec, endSec);
+
+        triggerTargetAudioMeter(targetLang, Math.max(3000, cleanTranslated.length * 90));
+        fetchAudioChunkForExport(targetLang, cleanTranslated, 'female');
+        fetchAudioChunkForExport(targetLang, cleanTranslated, 'male');
       }
 
       function handleStreamingSpeechResult(transcript, utteranceIndex, isFinal) {
