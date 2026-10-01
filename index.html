@@ -357,7 +357,7 @@
       else if (isAdmin) {
         document.body.className = "font-sans antialiased m-0 min-h-screen";
         setGlobalTheme(getStoredTheme());
-        renderAdminDashboard();
+        routeAdminModule();
       }
       // 5. ROTA PADRÃO PÚBLICA: PÁGINA EM CONSTRUÇÃO CLEAN E CLARA (/)
       else {
@@ -506,7 +506,7 @@
       // Suporte a acesso direto via URL (?auto=1 ou ?token=master)
       if (params.get('auto') === '1' || params.get('token') === 'master') {
         localStorage.setItem('brain_admin_token', 'bat_static_master');
-        renderAdminDashboard();
+        routeAdminModule();
         return;
       }
 
@@ -519,7 +519,7 @@
 
       // Se tiver token estático válido, renderiza direto o dashboard sem depender de requisição de rede
       if (token.startsWith('bat_') || token === 'admin_auth_success') {
-        renderAdminDashboard();
+        routeAdminModule();
         return;
       }
 
@@ -533,7 +533,7 @@
       })
       .then(data => {
         if (data.authenticated) {
-          renderAdminDashboard();
+          routeAdminModule();
         } else {
           localStorage.removeItem('brain_admin_token');
           sessionStorage.removeItem('brain_admin_token');
@@ -613,7 +613,7 @@
 
               <button 
                 type="button" 
-                onclick="localStorage.setItem('brain_admin_token', 'bat_static_quick'); renderAdminDashboard();" 
+                onclick="localStorage.setItem('brain_admin_token', 'bat_static_quick'); routeAdminModule();" 
                 class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs py-2.5 px-4 rounded-xl transition-all cursor-pointer border border-slate-200 text-center"
               >
                 Acesso Rápido ao Dashboard (1 Clique)
@@ -640,7 +640,7 @@
         const token = 'bat_static_' + Date.now();
         if (remember) localStorage.setItem('brain_admin_token', token);
         else sessionStorage.setItem('brain_admin_token', token);
-        renderAdminDashboard();
+        routeAdminModule();
         return;
       }
 
@@ -680,9 +680,542 @@
     };
 
     // ========================================================
-    // TELA 2: DASHBOARD CENTRAL DE EVENTOS & MULTISSALAS (SEM MEET)
+    // TELA 2: ROTEADOR ADMINISTRATIVO E MÓDULOS BRAINLINGO
     // ========================================================
+    function isMeetingActiveNow(m) {
+      if (!m) return false;
+      if (m.status === 'archived' || m.status === 'completed' || m.status === 'closed') {
+        return false;
+      }
+      if (m.status === 'active') {
+        return true;
+      }
+      try {
+        if (m.createdAt) {
+          const created = new Date(m.createdAt).getTime();
+          if (!isNaN(created)) {
+            return (Date.now() - created) < (24 * 3600 * 1000);
+          }
+        }
+      } catch(e) {}
+      return true;
+    }
+
+    window.archiveMeetingFromDashboard = function(idToArchive) {
+      if (!confirm('Deseja realmente encerrar e mover esta reunião para o Histórico? Ela deixará de aparecer no monitor de salas ativas.')) return;
+      try {
+        const saved = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
+        const idx = saved.findIndex(m => m.id === idToArchive);
+        if (idx !== -1) {
+          saved[idx].status = 'archived';
+          saved[idx].archivedAt = new Date().toISOString();
+          localStorage.setItem('brain_saved_meetings', JSON.stringify(saved));
+          renderSimultaneousTranslationDashboard();
+        }
+      } catch(e) {}
+    };
+
+    window.unarchiveMeetingFromDashboard = function(idToRestore) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
+        const idx = saved.findIndex(m => m.id === idToRestore);
+        if (idx !== -1) {
+          saved[idx].status = 'active';
+          delete saved[idx].archivedAt;
+          localStorage.setItem('brain_saved_meetings', JSON.stringify(saved));
+          alert('Reunião reativada com sucesso! Ela voltou para o monitor de reuniões ativas.');
+          window.navigateToAdminModule('translation');
+        }
+      } catch(e) {}
+    };
+
+    window.deleteMeetingFromHistory = function(mId) {
+      if (!confirm('Deseja excluir esta reunião permanentemente do histórico?')) return;
+      try {
+        const saved = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
+        const updated = saved.filter(m => m.id !== mId);
+        localStorage.setItem('brain_saved_meetings', JSON.stringify(updated));
+        renderMeetingHistoryPage();
+      } catch(e) {}
+    };
+
+    window.navigateToAdminModule = function(moduleName) {
+      const targetQuery = moduleName ? ('?module=' + encodeURIComponent(moduleName)) : '';
+      const newPath = window.location.pathname.startsWith('/admin') ? '/admin' : window.location.pathname;
+      try {
+        window.history.pushState({}, '', newPath + targetQuery);
+      } catch(e) {}
+      routeAdminModule();
+    };
+
+    function routeAdminModule() {
+      const p = new URLSearchParams(window.location.search);
+      const mod = p.get('module') || p.get('view');
+      if (mod === 'translation') {
+        renderSimultaneousTranslationDashboard();
+      } else if (mod === 'audiovisual' || mod === 'edition') {
+        renderAudioVisualEditionPage();
+      } else if (mod === 'history') {
+        renderMeetingHistoryPage();
+      } else {
+        renderAdminHubPage();
+      }
+    }
+
     function renderAdminDashboard() {
+      routeAdminModule();
+    }
+
+    // ========================================================
+    // TELA 2.1: HUB CENTRAL /admin COM OS 2 GRANDES MÓDULOS
+    // ========================================================
+    function renderAdminHubPage() {
+      root.innerHTML = `
+        <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col justify-between font-sans selection:bg-indigo-500/30 selection:text-indigo-500 transition-colors duration-200">
+          
+          <!-- HEADER DO HUB ENTERPRISE -->
+          <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 px-6 sm:px-10 py-4 flex items-center justify-between shadow-xs backdrop-blur-md">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center font-black text-white text-lg shadow-md shadow-indigo-500/25">
+                BL
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h1 class="text-lg font-black text-slate-900 dark:text-white tracking-tight">BrainLingo</h1>
+                  <span class="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 uppercase tracking-wider">
+                    Enterprise Hub
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Plataforma Integrada de Inteligência Artificial Audiovisual</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <!-- Alternador de Tema Escuro / Claro -->
+              <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                <span>🌙 Tema</span>
+              </button>
+              
+              <button onclick="handleAdminLogout()" class="text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 transition-all flex items-center gap-1 cursor-pointer">
+                <span>Sair</span>
+              </button>
+            </div>
+          </header>
+
+          <!-- CONTEÚDO PRINCIPAL: SELEÇÃO DE PLATAFORMA -->
+          <main class="max-w-5xl w-full mx-auto px-6 py-12 sm:py-16 space-y-10 flex-1 flex flex-col justify-center">
+            
+            <div class="text-center max-w-2xl mx-auto space-y-3">
+              <span class="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-3 py-1 rounded-full">
+                Seleção de Ambiente
+              </span>
+              <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                Escolha seu Módulo Operacional
+              </h2>
+              <p class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                Selecione entre a transmissão de tradução simultânea ao vivo para eventos ou a suíte de pós-produção audiovisual inteligente.
+              </p>
+            </div>
+
+            <!-- OS DOIS CARDS/BOTÕES PRINCIPAIS -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+              
+              <!-- CARD 1: SIMULTANEOUS TRANSLATION -->
+              <div class="group relative bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-900/60 hover:border-indigo-500 dark:hover:border-indigo-500 rounded-3xl p-8 shadow-lg hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 flex flex-col justify-between space-y-6">
+                <div class="space-y-4">
+                  <div class="flex items-center justify-between">
+                    <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-2xl shadow-md shadow-indigo-600/30 group-hover:scale-105 transition-transform">
+                      🌐
+                    </div>
+                    <span class="text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Ao Vivo / Operacional
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                      BrainLingo: Simultaneous Translation
+                    </h3>
+                    <p class="text-xs text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-wider mt-0.5">
+                      Live Event Translation & Audience Streaming
+                    </p>
+                  </div>
+
+                  <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Plataforma em tempo real para auditórios, conferências e transmissões ao vivo. Transcrição contínua sem interrupções, tradução simultânea multi-idioma, síntese de vozes neurais humanizadas, páginas dedicadas de espectador móvel com QR Code e canal de legenda OBS Studio.
+                  </p>
+
+                  <div class="flex flex-wrap gap-1.5 pt-2">
+                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">🎙️ Fala Contínua Sem Pausas</span>
+                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">🗣️ Múltiplos Locutores</span>
+                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">📱 Link Espectador & QR</span>
+                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">🖥️ Overlay OBS Studio</span>
+                  </div>
+                </div>
+
+                <button 
+                  type="button" 
+                  onclick="window.navigateToAdminModule('translation')" 
+                  class="w-full py-4 px-6 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-md shadow-indigo-600/25 flex items-center justify-center gap-2 cursor-pointer group-hover:gap-3"
+                >
+                  <span>Acessar Simultaneous Translation</span>
+                  <span class="text-base font-black">→</span>
+                </button>
+              </div>
+
+              <!-- CARD 2: AUDIOVISUAL EDITION -->
+              <div class="group relative bg-white dark:bg-slate-900 border-2 border-purple-200 dark:border-purple-900/60 hover:border-purple-500 dark:hover:border-purple-500 rounded-3xl p-8 shadow-lg hover:shadow-2xl hover:shadow-purple-500/10 transition-all duration-300 flex flex-col justify-between space-y-6">
+                <div class="space-y-4">
+                  <div class="flex items-center justify-between">
+                    <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-600 text-white flex items-center justify-center text-2xl shadow-md shadow-purple-600/30 group-hover:scale-105 transition-transform">
+                      🎬
+                    </div>
+                    <span class="text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-700 flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span> Novo Braço • Estúdio Preparado
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                      BrainLingo: AudioVisual Edition
+                    </h3>
+                    <p class="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase tracking-wider mt-0.5">
+                      Smart Studio & Post-Production AI
+                    </p>
+                  </div>
+
+                  <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Ambiente profissional de produção e pós-produção audiovisual inteligente. Dublagem automática multicamadas com clonagem tímbrica, sincronização labial avançada (Lip-Sync AI), mixagem multitrack estéreo/5.1 e renderização master para cinema, TV e streaming.
+                  </p>
+
+                  <div class="flex flex-wrap gap-1.5 pt-2">
+                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">🎭 Dublagem Neural Studio</span>
+                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">👄 Lip-Sync AI Visual</span>
+                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">🎚️ Multi-Track Master DAW</span>
+                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">🎞️ Master Broadcast 4K</span>
+                  </div>
+                </div>
+
+                <button 
+                  type="button" 
+                  onclick="window.navigateToAdminModule('audiovisual')" 
+                  class="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-md shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer group-hover:gap-3"
+                >
+                  <span>Acessar AudioVisual Edition</span>
+                  <span class="text-base font-black">→</span>
+                </button>
+              </div>
+
+            </div>
+
+          </main>
+
+          <!-- FOOTER DISCRETO -->
+          <footer class="py-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+            <p>Brain Audiovisual • BrainLingo Enterprise Ecosystem • Versão 2026</p>
+          </footer>
+
+        </div>
+      `;
+    }
+
+    // ========================================================
+    // TELA 2.2: AUDIOVISUAL EDITION (WORKSTATION DE ESTÚDIO)
+    // ========================================================
+    function renderAudioVisualEditionPage() {
+      root.innerHTML = `
+        <div class="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between font-sans selection:bg-purple-500/30 selection:text-purple-300">
+          
+          <!-- HEADER DO ESTÚDIO AUDIOVISUAL -->
+          <header class="bg-slate-900/90 border-b border-slate-800 sticky top-0 z-40 px-6 sm:px-10 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl backdrop-blur-md">
+            <div class="flex items-center gap-3">
+              <button onclick="window.navigateToAdminModule('')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer">
+                <span>← Hub Central</span>
+              </button>
+              <div class="w-px h-5 bg-slate-700"></div>
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-600 flex items-center justify-center text-white text-base font-black shadow-md shadow-purple-500/30">
+                  🎬
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h1 class="text-base font-black text-white tracking-tight">BrainLingo: AudioVisual Edition</h1>
+                    <span class="text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-950/80 text-purple-300 border border-purple-800/80 uppercase tracking-wider flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></span> Workstation Studio v1.0
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-slate-400">Suíte de Dublagem Neural, Sincronização Labial e Masterização Broadcast</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2.5">
+              <button onclick="window.navigateToAdminModule('translation')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 cursor-pointer">
+                Alternar para Simultaneous Translation →
+              </button>
+              <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 transition-all cursor-pointer">
+                🌙 Tema
+              </button>
+            </div>
+          </header>
+
+          <!-- WORKSTATION DE ESTÚDIO AUDIOVISUAL -->
+          <main class="max-w-7xl w-full mx-auto px-6 sm:px-10 py-8 space-y-8 flex-1">
+            
+            <!-- BANNER DE STATUS DO NOVO BRAÇO -->
+            <div class="bg-gradient-to-r from-purple-950/60 via-slate-900 to-indigo-950/60 border-2 border-purple-500/30 rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div class="space-y-2 max-w-2xl">
+                <span class="text-[10px] font-black uppercase tracking-widest text-purple-400 bg-purple-950/80 border border-purple-800/80 px-2.5 py-0.5 rounded-full">
+                  Novo Braço do Projeto Estruturado
+                </span>
+                <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  Ambiente de Pós-Produção Audiovisual Preparado
+                </h2>
+                <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  O módulo <strong>AudioVisual Edition</strong> foi totalmente preparado no ecossistema BrainLingo. Aqui você terá acesso à esteira completa de dublagem IA em estúdio, alinhamento labial em vídeo e masterização sonora multitrack com conformidade para plataformas de streaming e cinema.
+                </p>
+              </div>
+              <div class="shrink-0 flex flex-col sm:flex-row gap-3">
+                <button onclick="alert('⚡ Workstation AudioVisual Edition ativa! Este novo braço já está conectado à estrutura central do BrainLingo e receberá as automações de estúdio.')" class="px-5 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl text-xs font-black shadow-lg shadow-purple-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                  <span>⚡ Inicializar Workstation</span>
+                </button>
+                <button onclick="window.navigateToAdminModule('translation')" class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl text-xs font-bold transition-all cursor-pointer">
+                  Ir para Tradução ao Vivo
+                </button>
+              </div>
+            </div>
+
+            <!-- MÓDULOS DE ESTÚDIO DA WORKSTATION -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              
+              <!-- MÓDULO 1: INGESTÃO DE MÍDIA & STEMS -->
+              <div class="bg-slate-900/80 border border-slate-800 hover:border-purple-500/50 rounded-3xl p-6 space-y-4 shadow-sm transition-all flex flex-col justify-between">
+                <div class="space-y-3">
+                  <div class="w-12 h-12 rounded-2xl bg-purple-950/80 text-purple-400 flex items-center justify-center text-xl font-bold border border-purple-800/40">
+                    🎞️
+                  </div>
+                  <h3 class="text-base font-bold text-white">Central de Ingestão de Vídeo & Stems</h3>
+                  <p class="text-xs text-slate-400 leading-relaxed">
+                    Upload de masters em ProRes, MP4 ou MOV com separação automática de faixas vocais (stem separation) para diálogo, música e efeitos Foley.
+                  </p>
+                </div>
+                <div class="p-3 bg-slate-950/60 border border-dashed border-slate-800 rounded-2xl text-center">
+                  <span class="text-xs text-slate-400 block font-medium">Arraste seus vídeos ou arquivos WAV</span>
+                  <span class="text-[10px] text-purple-400 font-bold mt-1 inline-block">Área de Drop Pronta</span>
+                </div>
+              </div>
+
+              <!-- MÓDULO 2: NEURAL DUBBING & CLONAGEM -->
+              <div class="bg-slate-900/80 border border-slate-800 hover:border-purple-500/50 rounded-3xl p-6 space-y-4 shadow-sm transition-all flex flex-col justify-between">
+                <div class="space-y-3">
+                  <div class="w-12 h-12 rounded-2xl bg-pink-950/80 text-pink-400 flex items-center justify-center text-xl font-bold border border-pink-800/40">
+                    🎭
+                  </div>
+                  <h3 class="text-base font-bold text-white">Dublagem Neural com Clonagem Vocal</h3>
+                  <p class="text-xs text-slate-400 leading-relaxed">
+                    Dublagem inteligente que preserva o timbre, a emoção e a respiração original do ator ou palestrante, traduzindo para qualquer idioma de destino.
+                  </p>
+                </div>
+                <div class="space-y-1.5 text-xs text-slate-400">
+                  <div class="flex items-center justify-between bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
+                    <span>Timbre Original:</span>
+                    <span class="font-bold text-emerald-400">Ativado (Zero-Shot)</span>
+                  </div>
+                  <div class="flex items-center justify-between bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
+                    <span>Controle Emocional:</span>
+                    <span class="font-bold text-purple-400">Cinemático / Natural</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- MÓDULO 3: SMART LIP-SYNC AI -->
+              <div class="bg-slate-900/80 border border-slate-800 hover:border-purple-500/50 rounded-3xl p-6 space-y-4 shadow-sm transition-all flex flex-col justify-between">
+                <div class="space-y-3">
+                  <div class="w-12 h-12 rounded-2xl bg-indigo-950/80 text-indigo-400 flex items-center justify-center text-xl font-bold border border-indigo-800/40">
+                    👄
+                  </div>
+                  <h3 class="text-base font-bold text-white">Smart Lip-Sync Visual Engine</h3>
+                  <p class="text-xs text-slate-400 leading-relaxed">
+                    Sincronismo labial visual que ajusta milimetricamente a movimentação labial do locutor no vídeo para corresponder à fonética do idioma dublado.
+                  </p>
+                </div>
+                <div class="p-3 bg-indigo-950/40 border border-indigo-800/40 rounded-2xl text-center">
+                  <span class="text-xs font-bold text-indigo-300">Resolução Suportada até 4K 60fps</span>
+                  <p class="text-[10px] text-slate-400 mt-0.5">Elimina o efeito artificial de dublagens tradicionais</p>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- TIMELINE PREVIEW DO ESTÚDIO (DAW INTEGRADA) -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+              <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-lg">🎚️</span>
+                  <h3 class="text-sm font-bold text-white">Timeline Multi-Track DAW (Visualização de Estúdio)</h3>
+                </div>
+                <span class="text-[11px] font-mono text-purple-400 font-bold bg-purple-950/60 border border-purple-800/60 px-2.5 py-1 rounded-xl">
+                  SMPTE 00:00:00:00
+                </span>
+              </div>
+
+              <div class="space-y-2 font-mono text-xs">
+                <!-- Track 1: Original Dialog -->
+                <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800/80 flex items-center justify-between gap-4">
+                  <span class="w-28 text-slate-400 font-bold text-[11px]">Track 1 • Original Vocals</span>
+                  <div class="flex-1 h-5 bg-slate-800/60 rounded-lg overflow-hidden flex items-center px-2">
+                    <div class="w-full h-2 bg-gradient-to-r from-blue-500/40 via-indigo-500/60 to-blue-500/40 rounded"></div>
+                  </div>
+                  <span class="text-[11px] text-slate-400">0.0 dB</span>
+                </div>
+
+                <!-- Track 2: Neural Dubbed Vocals -->
+                <div class="p-3 bg-slate-950/80 rounded-2xl border border-purple-900/50 flex items-center justify-between gap-4">
+                  <span class="w-28 text-purple-300 font-bold text-[11px]">Track 2 • Dub Master AI</span>
+                  <div class="flex-1 h-5 bg-purple-950/60 rounded-lg overflow-hidden flex items-center px-2">
+                    <div class="w-full h-2 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 rounded animate-pulse"></div>
+                  </div>
+                  <span class="text-[11px] text-purple-300 font-bold">+0.5 dB</span>
+                </div>
+
+                <!-- Track 3: Foley & Music -->
+                <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800/80 flex items-center justify-between gap-4">
+                  <span class="w-28 text-slate-400 font-bold text-[11px]">Track 3 • Music & SFX</span>
+                  <div class="flex-1 h-5 bg-slate-800/60 rounded-lg overflow-hidden flex items-center px-2">
+                    <div class="w-full h-2 bg-gradient-to-r from-emerald-500/40 via-teal-500/50 to-emerald-500/40 rounded"></div>
+                  </div>
+                  <span class="text-[11px] text-slate-400">-3.2 dB</span>
+                </div>
+              </div>
+            </div>
+
+          </main>
+
+          <footer class="py-5 border-t border-slate-800 text-center text-xs text-slate-500">
+            <p>BrainLingo: AudioVisual Edition • Próxima Atualização do Ecossistema Brain Audiovisual</p>
+          </footer>
+
+        </div>
+      `;
+    }
+
+    // ========================================================
+    // TELA 2.3: HISTÓRICO DEDICADO DE REUNIÕES ENCERRADAS
+    // ========================================================
+    function renderMeetingHistoryPage() {
+      let meetings = [];
+      try {
+        const savedMeetings = localStorage.getItem('brain_saved_meetings');
+        if (savedMeetings) {
+          const parsed = JSON.parse(savedMeetings);
+          if (Array.isArray(parsed)) meetings = parsed;
+        }
+      } catch(e) {}
+
+      const historyMeetings = meetings.filter(m => !isMeetingActiveNow(m));
+
+      root.innerHTML = `
+        <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col justify-between font-sans selection:bg-indigo-500/30 selection:text-indigo-500 transition-colors duration-200">
+          
+          <!-- HEADER DO HISTÓRICO -->
+          <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 px-6 sm:px-10 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs backdrop-blur-md">
+            <div class="flex items-center gap-3.5">
+              <button onclick="window.navigateToAdminModule('translation')" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer">
+                <span>← Voltar para Salas Ativas</span>
+              </button>
+              <div>
+                <h1 class="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>📜</span> Histórico de Reuniões & Sessões Anteriores
+                </h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Todas as reuniões encerradas e sessões arquivadas do BrainLingo</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                ${historyMeetings.length} ${historyMeetings.length === 1 ? 'reunião no histórico' : 'reuniões no histórico'}
+              </span>
+              <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-all cursor-pointer">
+                🌙 Tema
+              </button>
+              <button onclick="window.navigateToAdminModule('')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer">
+                Hub Central
+              </button>
+            </div>
+          </header>
+
+          <main class="max-w-7xl w-full mx-auto px-6 sm:px-10 py-8 space-y-6 flex-1">
+            ${historyMeetings.length === 0 ? `
+              <div class="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-3xl p-12 text-center space-y-4 max-w-xl mx-auto shadow-xs">
+                <div class="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-3xl mx-auto">
+                  📂
+                </div>
+                <div class="space-y-1">
+                  <h3 class="text-base font-bold text-slate-900 dark:text-white">Nenhuma reunião arquivada no histórico</h3>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    Quando você encerrar uma reunião no monitor principal com o botão de arquivamento (📦), ela será exibida aqui para consulta, restauração ou exclusão.
+                  </p>
+                </div>
+                <button onclick="window.navigateToAdminModule('translation')" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer">
+                  Ver Salas Ativas no Momento →
+                </button>
+              </div>
+            ` : `
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                ${historyMeetings.map(m => {
+                  const targets = Array.isArray(m.targetLanguages) && m.targetLanguages.length > 0 ? m.targetLanguages : ['en-US', 'es-ES'];
+                  const dateStr = m.createdAt ? new Date(m.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data anterior';
+                  return `
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-4 flex flex-col justify-between opacity-90 hover:opacity-100 transition-all">
+                      <div class="space-y-3">
+                        <div class="flex items-start justify-between gap-2">
+                          <div>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 uppercase tracking-wider">
+                              Encerrada / Histórico
+                            </span>
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white leading-tight mt-1.5">${m.title || 'Reunião'}</h3>
+                            <p class="text-[11px] font-mono text-slate-400">ID: ${m.id} • ${dateStr}</p>
+                          </div>
+                          <button onclick="deleteMeetingFromHistory('${m.id}')" title="Excluir Definitivamente" class="text-slate-400 hover:text-rose-500 p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer">
+                            ✕
+                          </button>
+                        </div>
+
+                        <div class="text-xs space-y-1 pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <span class="text-slate-400 block text-[11px]">Canais Traduzidos:</span>
+                          <div class="flex flex-wrap gap-1">
+                            ${targets.map(t => `<span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">${t}</span>`).join('')}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
+                        <button onclick="unarchiveMeetingFromDashboard('${m.id}')" class="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                          <span>⚡ Reativar Reunião (Voltar para Ativas)</span>
+                        </button>
+                        <a href="/?meeting=${encodeURIComponent(m.id)}" class="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold text-center transition-all">
+                          Visualizar Cockpit da Sessão
+                        </a>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
+          </main>
+
+          <footer class="py-5 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+            <p>Brain Audiovisual • Arquivo Histórico de Transmissões</p>
+          </footer>
+
+        </div>
+      `;
+    }
+
+    // ========================================================
+    // TELA 2.4: DASHBOARD DO SIMULTANEOUS TRANSLATION (APENAS ATIVAS)
+    // ========================================================
+    function renderSimultaneousTranslationDashboard() {
       // Reuniões salvas no localStorage com higienização estrita
       let meetings = [];
       try {
@@ -714,10 +1247,15 @@
         meetings = [];
       }
 
+      // Separa reuniões ativas vs históricas
+      const activeMeetings = meetings.filter(m => isMeetingActiveNow(m));
+      const historyMeetings = meetings.filter(m => !isMeetingActiveNow(m));
+
       // Idiomas do sistema
       const SUPPORTED_LANGS = [
         { code: 'en-US', name: 'Inglês (Estados Unidos / Global)', flag: '🇺🇸', default: true },
         { code: 'es-ES', name: 'Espanhol (Internacional)', flag: '🇪🇸', default: true },
+        { code: 'pt-BR', name: 'Português (Brasil)', flag: '🇧🇷', default: false },
         { code: 'fr-FR', name: 'Francês', flag: '🇫🇷', default: false },
         { code: 'de-DE', name: 'Alemão', flag: '🇩🇪', default: false },
         { code: 'it-IT', name: 'Italiano', flag: '🇮🇹', default: false },
@@ -756,77 +1294,76 @@
         } catch(e) {}
       }
 
-      // Solicita permissão se ainda não concedida para listar os nomes reais dos microfones
       window.requestMicPermissionForDashboard = async function() {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           stream.getTracks().forEach(t => t.stop());
           await refreshDashboardAudioDevices();
-          alert('✅ Dispositivos de áudio carregados com sucesso!');
-        } catch(err) {
-          alert('Aviso: Permissão de microfone não concedida. O sistema usará o dispositivo padrão.');
+        } catch(e) {
+          alert('Permissão de microfone negada ou dispositivo indisponível.');
         }
       };
 
-      window.toggleNewMeetingTargetLang = function(code) {
+      window.toggleTargetLangSelection = function(langCode) {
         const state = window._newMeetingFormState;
-        if (!state.selectedTargetLangs) state.selectedTargetLangs = ['en-US', 'es-ES'];
-        const idx = state.selectedTargetLangs.indexOf(code);
-        if (idx === -1) {
-          state.selectedTargetLangs.push(code);
-        } else {
+        if (state.selectedTargetLangs.includes(langCode)) {
           if (state.selectedTargetLangs.length <= 1) {
-            alert('A reunião precisa de pelo menos 1 idioma de saída para tradução simultânea.');
+            alert('A reunião precisa ter ao menos um idioma de saída selecionado.');
             return;
           }
-          state.selectedTargetLangs.splice(idx, 1);
+          state.selectedTargetLangs = state.selectedTargetLangs.filter(l => l !== langCode);
+        } else {
+          state.selectedTargetLangs.push(langCode);
         }
         renderDashboardUI();
       };
 
       window.handleCreateMeetingSubmit = function(e) {
         e.preventDefault();
-        const state = window._newMeetingFormState;
         const titleInput = document.getElementById('new-m-title');
         const idInput = document.getElementById('new-m-id');
-        const sourceLangInput = document.getElementById('new-m-source-lang');
-        const autoDetectInput = document.getElementById('new-m-auto-detect');
-        const deviceInput = document.getElementById('new-m-input-device');
+        const sourceLangSelect = document.getElementById('new-m-source-lang');
+        const autoDetectCheckbox = document.getElementById('new-m-auto-detect');
+        const inputDeviceSelect = document.getElementById('new-m-input-device');
 
-        const title = titleInput ? titleInput.value.trim() : state.title;
-        let meetingId = idInput ? idInput.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-') : state.customId;
-        if (!meetingId) meetingId = 'sala-' + Date.now().toString(36);
+        const title = (titleInput && titleInput.value.trim()) || 'Palco Principal — Sessão Internacional';
+        let meetingId = (idInput && idInput.value.trim()) || ('sala-' + Math.random().toString(36).substring(2, 7));
+        meetingId = meetingId.toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/^-+|-+$/g, '');
+        if (!meetingId) meetingId = 'sala-' + Math.random().toString(36).substring(2, 7);
 
-        const sourceLang = sourceLangInput ? sourceLangInput.value : state.sourceLanguage;
-        const autoDetect = autoDetectInput ? autoDetectInput.checked : true;
-        const inputDevice = deviceInput ? deviceInput.value : 'default';
-        const targetLanguages = state.selectedTargetLangs && state.selectedTargetLangs.length ? state.selectedTargetLangs : ['en-US', 'es-ES'];
+        const sourceLanguage = sourceLangSelect ? sourceLangSelect.value : 'pt-BR';
+        const autoDetectLanguage = autoDetectCheckbox ? autoDetectCheckbox.checked : true;
+        const inputDevice = inputDeviceSelect ? inputDeviceSelect.value : 'default';
+        const targetLanguages = (window._newMeetingFormState && window._newMeetingFormState.selectedTargetLangs && window._newMeetingFormState.selectedTargetLangs.length > 0)
+          ? window._newMeetingFormState.selectedTargetLangs
+          : ['en-US', 'es-ES'];
 
         const newMeeting = {
           id: meetingId,
-          title: title || 'Sessão Ao Vivo',
+          title: title,
           createdAt: new Date().toISOString(),
           status: 'active',
-          sourceLanguage: sourceLang,
-          autoDetectLanguage: autoDetect,
+          sourceLanguage: sourceLanguage,
+          autoDetectLanguage: autoDetectLanguage,
           inputDevice: inputDevice,
           targetLanguages: targetLanguages
         };
 
-        // Salva nas reuniões
         const existingIdx = meetings.findIndex(m => m.id === meetingId);
         if (existingIdx !== -1) {
           meetings[existingIdx] = newMeeting;
         } else {
           meetings.unshift(newMeeting);
         }
-        localStorage.setItem('brain_saved_meetings', JSON.stringify(meetings));
 
-        // Atualiza preferências de áudio
-        saveStoredAudioLanguageSettings({
-          sourceLanguage: sourceLang,
-          targetLanguage: targetLanguages[0] || 'en-US',
+        try {
+          localStorage.setItem('brain_saved_meetings', JSON.stringify(meetings));
+        } catch(err) {}
+
+        saveAudioLanguageSettings({
+          sourceLanguage: sourceLanguage,
           targetLanguages: targetLanguages,
+          autoDetectLanguage: autoDetectLanguage,
           transmitterInputDevice: inputDevice
         });
 
@@ -838,7 +1375,7 @@
         if (!confirm('Deseja realmente remover esta reunião do painel?')) return;
         meetings = meetings.filter(m => m.id !== idToDelete);
         localStorage.setItem('brain_saved_meetings', JSON.stringify(meetings));
-        renderDashboardUI();
+        renderSimultaneousTranslationDashboard();
       };
 
       window.openDashboardShareModal = function(mId) {
@@ -860,23 +1397,41 @@
             return `
               <div class="p-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div class="flex items-center gap-2.5">
-                  <span class="text-2xl">${langObj.flag}</span>
+                  <span class="text-xl">${langObj.flag}</span>
                   <div>
-                    <h4 class="text-xs font-bold text-slate-900 dark:text-white">${langObj.name}</h4>
-                    <p class="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 break-all select-all">${audienceUrl}</p>
+                    <strong class="text-xs font-bold text-slate-900 dark:text-white block">${langObj.name}</strong>
+                    <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">${lang}</span>
                   </div>
                 </div>
-                <div class="flex items-center gap-2 shrink-0">
-                  <button onclick="navigator.clipboard.writeText('${audienceUrl}'); alert('Link copiado!');" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold cursor-pointer shadow-2xs">
-                    📋 Copiar Link
-                  </button>
-                  <a href="${audienceUrl}" target="_blank" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-semibold">
+                <div class="flex items-center gap-2">
+                  <a href="${audienceUrl}" target="_blank" class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-all">
                     ↗ Abrir
                   </a>
+                  <button onclick="navigator.clipboard.writeText('${audienceUrl}'); alert('Link copiado!');" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer">
+                    📋 Copiar
+                  </button>
                 </div>
               </div>
             `;
-          }).join('');
+          }).join('') + `
+            <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 p-3.5 bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xl">🖥️</span>
+                <div>
+                  <strong class="text-xs font-bold text-slate-900 dark:text-white block">Overlay Exclusivo de Legendas (OBS / vMIX)</strong>
+                  <span class="text-[10px] text-slate-500 dark:text-slate-400">Canal com fundo transparente e texto em amarelo brilhante</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <a href="${baseUrl}?meeting=${m.id}&overlay=subtitles" target="_blank" class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-all">
+                  ↗ Abrir
+                </a>
+                <button onclick="navigator.clipboard.writeText('${baseUrl}?meeting=${m.id}&overlay=subtitles'); alert('Link do Telão copiado!');" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer">
+                  📋 Copiar
+                </button>
+              </div>
+            </div>
+          `;
         }
 
         if (modal) modal.classList.remove('hidden');
@@ -889,18 +1444,21 @@
 
       function renderDashboardUI() {
         const state = window._newMeetingFormState;
-        const activeCount = meetings.length;
+        const activeCount = activeMeetings.length;
 
         root.innerHTML = `
           <!-- HEADER DO DASHBOARD -->
           <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 px-6 sm:px-10 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs backdrop-blur-md">
             <div class="flex items-center gap-3.5">
+              <button onclick="window.navigateToAdminModule('')" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all font-bold text-xs flex items-center gap-1.5 cursor-pointer">
+                <span>← Hub Central</span>
+              </button>
               <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20 text-white font-black text-lg">
                 BA
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <h1 class="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">Brain Audiovisual</h1>
+                  <h1 class="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">BrainLingo: Simultaneous Translation</h1>
                   <span class="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 uppercase tracking-wider flex items-center gap-1">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     Autônomo & Multilíngue
@@ -918,12 +1476,16 @@
               </div>
 
               <!-- Alternador de Tema Escuro / Claro -->
-              <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs">
-                <span>🌙 Modo Escuro</span>
+              <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                <span>🌙 Tema</span>
+              </button>
+
+              <button onclick="window.navigateToAdminModule('history')" class="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                <span>📜 Histórico (${historyMeetings.length})</span>
               </button>
 
               <a href="#section-create-meeting" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5">
-                <span>+ Nova Reunião</span>
+                <span>+ Nova Sala</span>
               </a>
             </div>
           </header>
@@ -941,15 +1503,20 @@
                     Monitor de Reuniões & Palcos Ativos
                   </h2>
                   <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Acompanhe as salas em transmissão e acerte a tradução simultânea independente para cada auditório.
+                    Aparecem apenas as salas ativas naquele momento. Consulte as sessões encerradas no Histórico.
                   </p>
                 </div>
-                <span class="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-xl">
-                  ${meetings.length} ${meetings.length === 1 ? 'sala cadastrada' : 'salas cadastradas'}
-                </span>
+                <div class="flex items-center gap-2">
+                  <button onclick="window.navigateToAdminModule('history')" class="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-3 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer">
+                    <span>📜 Ver Histórico (${historyMeetings.length})</span>
+                  </button>
+                  <span class="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-3 py-1 rounded-xl">
+                    ${activeMeetings.length} ${activeMeetings.length === 1 ? 'sala ativa agora' : 'salas ativas agora'}
+                  </span>
+                </div>
               </div>
 
-              ${meetings.length === 0 ? `
+              ${activeMeetings.length === 0 ? `
                 <!-- Estado Vazio Amigável -->
                 <div class="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-3xl p-10 text-center space-y-4 shadow-xs">
                   <div class="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-2xl mx-auto shadow-inner">
@@ -958,17 +1525,22 @@
                   <div class="max-w-md mx-auto space-y-1">
                     <h3 class="text-base font-bold text-slate-900 dark:text-white">Nenhuma reunião ativa no momento</h3>
                     <p class="text-xs text-slate-500 dark:text-slate-400">
-                      Crie sua primeira sala de tradução no formulário abaixo. As transmissões são 100% autônomas, operam diretamente no navegador e não necessitam de contas do Google.
+                      Crie sua sala de tradução no formulário abaixo. Caso deseje consultar sessões anteriores que já foram encerradas, acesse o Histórico de Reuniões.
                     </p>
                   </div>
-                  <a href="#section-create-meeting" class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition-all">
-                    <span>Criar Primeira Reunião Agora ↓</span>
-                  </a>
+                  <div class="flex items-center justify-center gap-3">
+                    <a href="#section-create-meeting" class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition-all">
+                      <span>Criar Nova Reunião Agora ↓</span>
+                    </a>
+                    <button onclick="window.navigateToAdminModule('history')" class="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all cursor-pointer">
+                      <span>📜 Abrir Histórico (${historyMeetings.length})</span>
+                    </button>
+                  </div>
                 </div>
               ` : `
                 <!-- Grid de Cards de Reuniões Ativas -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  ${meetings.map(m => {
+                  ${activeMeetings.map(m => {
                     const targets = Array.isArray(m.targetLanguages) && m.targetLanguages.length > 0 ? m.targetLanguages : ['en-US', 'es-ES'];
                     const sourceLangObj = SUPPORTED_LANGS.find(l => l.code === m.sourceLanguage) || { name: m.sourceLanguage || 'Português', flag: '🇧🇷' };
                     const sourceDisplayName = (sourceLangObj && sourceLangObj.name ? sourceLangObj.name : 'Português').split(' ')[0];
@@ -979,14 +1551,19 @@
                             <div>
                               <div class="flex items-center gap-1.5 mb-1">
                                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                <span class="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Ao Vivo / Pronta</span>
+                                <span class="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Ao Vivo / Ativa</span>
                               </div>
                               <h3 class="text-base font-bold text-slate-900 dark:text-white leading-tight">${m.title || 'Reunião Sem Título'}</h3>
                               <p class="text-[11px] font-mono text-slate-400 mt-0.5">ID: ${m.id}</p>
                             </div>
-                            <button onclick="deleteMeetingFromDashboard('${m.id}')" title="Excluir Reunião" class="text-slate-400 hover:text-rose-500 p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors">
-                              ✕
-                            </button>
+                            <div class="flex items-center gap-1">
+                              <button onclick="archiveMeetingFromDashboard('${m.id}')" title="Encerrar Reunião e Mover para Histórico" class="text-slate-400 hover:text-amber-500 p-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer text-xs font-bold">
+                                📦
+                              </button>
+                              <button onclick="deleteMeetingFromDashboard('${m.id}')" title="Excluir Reunião" class="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer text-xs font-bold">
+                                ✕
+                              </button>
+                            </div>
                           </div>
 
                           <div class="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
@@ -1094,7 +1671,7 @@
                       <label class="text-xs font-bold text-slate-800 dark:text-slate-200">
                         🎙️ Entrada de Áudio do Palestrante (Microfone / Interface)
                       </label>
-                      <button type="button" onclick="requestMicPermissionForDashboard()" class="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold">
+                      <button type="button" onclick="requestMicPermissionForDashboard()" class="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold cursor-pointer">
                         Carregar Dispositivos ↺
                       </button>
                     </div>
@@ -1149,51 +1726,47 @@
                         Marque ou desmarque os idiomas desejados. Cada idioma marcado gerará sua própria coluna no Cockpit, canal de áudio e QR Code para a plateia.
                       </p>
                     </div>
-                    <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400 font-mono">
-                      ${(state.selectedTargetLangs || []).length} canais ativos
-                    </span>
                   </div>
 
-                  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
+                  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 pt-1">
                     ${SUPPORTED_LANGS.map(lang => {
-                      const isSelected = (state.selectedTargetLangs || []).includes(lang.code);
+                      const isSelected = state.selectedTargetLangs.includes(lang.code);
                       return `
-                        <div 
-                          onclick="toggleNewMeetingTargetLang('${lang.code}')"
-                          class="p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                        <button
+                          type="button"
+                          onclick="toggleTargetLangSelection('${lang.code}')"
+                          class="p-2.5 rounded-xl border text-left transition-all flex items-center justify-between gap-2 cursor-pointer ${
                             isSelected 
-                              ? 'bg-indigo-50/90 dark:bg-indigo-950/60 border-indigo-500 text-indigo-950 dark:text-indigo-200 shadow-2xs font-bold' 
-                              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                              ? 'bg-indigo-50/90 dark:bg-indigo-950/80 border-indigo-400 dark:border-indigo-600 text-indigo-900 dark:text-indigo-200 shadow-2xs' 
+                              : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 opacity-75'
                           }"
                         >
                           <div class="flex items-center gap-2 truncate">
-                            <span class="text-xl">${lang.flag}</span>
-                            <span class="text-xs truncate">${lang.name}</span>
+                            <span class="text-base shrink-0">${lang.flag}</span>
+                            <span class="text-xs font-bold truncate">${lang.name.split(' ')[0]}</span>
                           </div>
-                          <span class="w-5 h-5 rounded-lg flex items-center justify-center text-xs font-bold ${
-                            isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-transparent'
-                          }">
-                            ✓
+                          <span class="text-xs font-bold ${isSelected ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-300'}">
+                            ${isSelected ? '✓' : '+'}
                           </span>
-                        </div>
+                        </button>
                       `;
                     }).join('')}
                   </div>
                 </div>
 
-                <!-- Botão de Iniciar Sessão -->
-                <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <p class="text-xs text-slate-500 dark:text-slate-400">
-                    Ao criar a reunião, o Cockpit abrirá automaticamente para você iniciar o microfone e transmitir.
-                  </p>
-                  <button 
-                    type="submit" 
-                    class="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm rounded-2xl shadow-lg shadow-indigo-600/25 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2"
+                <!-- Botão de Criação -->
+                <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <span class="text-xs text-slate-500 dark:text-slate-400">
+                    A sala operará de forma autônoma e imediata no navegador.
+                  </span>
+
+                  <button
+                    type="submit"
+                    class="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <span>🚀 Iniciar Sala e Abrir Cockpit</span>
+                    <span>🚀 Lançar Reunião e Abrir Cockpit</span>
                   </button>
                 </div>
-
               </form>
             </section>
 
@@ -1210,7 +1783,7 @@
                     <p class="text-[11px] text-slate-500 dark:text-slate-400">Compartilhe com os participantes para ouvir no celular</p>
                   </div>
                 </div>
-                <button onclick="closeDashboardShareModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-lg font-bold p-1">✕</button>
+                <button onclick="closeDashboardShareModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-lg font-bold p-1 cursor-pointer">✕</button>
               </div>
 
               <div id="dashboard-share-links-list" class="space-y-2.5 max-h-[60vh] overflow-y-auto"></div>
@@ -1626,18 +2199,46 @@
         };
       } catch(e) {}
 
-      // 2. SINCRONIZAÇÃO GLOBAL EM NUVEM (MQTT)
+      // 2. SINCRONIZAÇÃO GLOBAL EM NUVEM (MQTT) E PRESENÇA DE AUDIÊNCIA
       const safeMeetingId = encodeURIComponent(id).replace(/[^a-zA-Z0-9_-]/g, '_');
       const mqttTopic = 'brainaudiovisual/meeting/' + safeMeetingId + '/subtitles';
+      const mqttPresenceTopic = 'brainaudiovisual/meeting/' + safeMeetingId + '/presence';
+
+      const audienceSessionId = 'aud_' + Math.random().toString(36).substring(2, 9);
+      let presenceBc = null;
+      try { presenceBc = new BroadcastChannel('brain_presence_' + safeMeetingId); } catch(e) {}
+
+      function sendAudiencePresenceHeartbeat() {
+        const payload = {
+          type: 'HEARTBEAT',
+          meetingId: id,
+          lang: currentAudienceLang,
+          clientId: audienceSessionId,
+          timestamp: Date.now()
+        };
+        try { if (presenceBc) presenceBc.postMessage(payload); } catch(e) {}
+        try {
+          if (typeof mqttAudienceClient !== 'undefined' && mqttAudienceClient && mqttAudienceClient.connected) {
+            mqttAudienceClient.publish(mqttPresenceTopic, JSON.stringify(payload));
+          }
+        } catch(e) {}
+        try { localStorage.setItem('brain_presence_ping_' + safeMeetingId, JSON.stringify(payload)); } catch(e) {}
+      }
+
+      setInterval(sendAudiencePresenceHeartbeat, 3000);
+      setTimeout(sendAudiencePresenceHeartbeat, 600);
       try {
         if (typeof mqtt !== 'undefined') {
-          const mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+          window.mqttAudienceClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'brain_aud_' + Math.random().toString(16).substring(2, 8),
             clientId: 'brain_telao_' + Math.random().toString(16).substring(2, 8),
             clean: true,
             connectTimeout: 7000,
             reconnectPeriod: 3000
           });
+          const mqttClient = window.mqttAudienceClient;
           mqttClient.on('connect', () => {
+            sendAudiencePresenceHeartbeat();
             const ind = document.getElementById('overlay-cloud-indicator');
             if (ind) {
               ind.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Nuvem Ao Vivo';
@@ -1790,68 +2391,51 @@
       let isAudioPlaybackActive = false;
       let currentVolume = parseFloat(localStorage.getItem('brain_audience_vol') || '0.9');
 
-      // CATÁLOGO DE PERSONAS DE VOZ HUMANIZADA COM NOMES FICTÍCIOS E ENTONAÇÕES
-      const AUDIENCE_VOICE_PERSONAS = [
-        {
-          id: 'sofia_eloquente',
-          name: 'Sofia',
-          gender: 'female',
-          toneLabel: 'Eloquente, Fluida & Executiva',
-          description: 'Dicção refinada e profissional para palestras e conferências',
-          pitch: 1.05,
-          rate: 1.00
-        },
-        {
-          id: 'arthur_serio',
-          name: 'Arthur',
-          gender: 'male',
-          toneLabel: 'Sério, Técnico & Corporativo',
-          description: 'Tom firme e confiável para apresentações técnicas e dados',
-          pitch: 0.90,
-          rate: 0.98
-        },
-        {
-          id: 'gabriel_alegre',
-          name: 'Gabriel',
-          gender: 'male',
-          toneLabel: 'Alegre, Jovem & Dinâmico',
-          description: 'Cadência descontraída e motivacional para workshops e inovação',
-          pitch: 1.04,
-          rate: 1.04
-        },
-        {
-          id: 'beatriz_calma',
-          name: 'Beatriz',
-          gender: 'female',
-          toneLabel: 'Calma, Neutra & Acolhedora',
-          description: 'Ritmo suave e acolhedor, ideal para apresentações longas',
-          pitch: 0.98,
-          rate: 0.94
-        },
-        {
-          id: 'diego_solene',
-          name: 'Diego',
-          gender: 'male',
-          toneLabel: 'Narrador Robusto & Solene',
-          description: 'Timbre grave e expressivo para plenárias magnas',
-          pitch: 0.82,
-          rate: 0.92
-        },
-        {
-          id: 'elena_vibrante',
-          name: 'Elena',
-          gender: 'female',
-          toneLabel: 'Expressiva, Articulada & Clara',
-          description: 'Tom cristalino e claro com máxima inteligibilidade fonética',
-          pitch: 1.10,
-          rate: 1.02
-        }
-      ];
+      // CATÁLOGO MULTILÍNGUE DE PERSONAS DE VOZ COM NOMES E ENTONAÇÕES 100% TRADUZIDOS
+      const AUDIENCE_VOICE_PERSONAS_I18N = {
+        'en-US': [
+          { id: 'sofia_eloquente', name: 'Sofia', gender: 'female', toneLabel: 'Eloquent, Fluid & Executive', description: 'Refined professional diction for keynotes and conferences', pitch: 1.05, rate: 1.00 },
+          { id: 'arthur_serio', name: 'Arthur', gender: 'male', toneLabel: 'Serious, Technical & Corporate', description: 'Firm, trustworthy tone for engineering and business data', pitch: 0.90, rate: 0.98 },
+          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Cheerful, Young & Dynamic', description: 'Upbeat and engaging cadence for workshops and presentations', pitch: 1.04, rate: 1.04 },
+          { id: 'beatriz_calma', name: 'Beatrice', gender: 'female', toneLabel: 'Calm, Warm & Welcoming', description: 'Gentle, soothing pace ideal for extended listening sessions', pitch: 0.98, rate: 0.94 },
+          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Deep, Solemn & Confident Narrator', description: 'Rich baritone timbre for keynote sessions and masterclasses', pitch: 0.82, rate: 0.92 },
+          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Clear, Articulate & Expressive', description: 'Crystal-clear articulation with maximum phonetic intelligibility', pitch: 1.10, rate: 1.02 }
+        ],
+        'es-ES': [
+          { id: 'sofia_eloquente', name: 'Sofía', gender: 'female', toneLabel: 'Elocuente, Fluida y Ejecutiva', description: 'Dicción refinada y profesional para conferencias magistrales', pitch: 1.05, rate: 1.00 },
+          { id: 'arthur_serio', name: 'Arturo', gender: 'male', toneLabel: 'Serio, Técnico y Corporativo', description: 'Tono firme y confiable para exposiciones técnicas y negocios', pitch: 0.90, rate: 0.98 },
+          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Alegre, Joven y Dinámico', description: 'Cadencia relajada y positiva para talleres e innovación', pitch: 1.04, rate: 1.04 },
+          { id: 'beatriz_calma', name: 'Beatriz', gender: 'female', toneLabel: 'Calma, Serena y Acogedora', description: 'Ritmo suave y empático para audición prolongada y descanso', pitch: 0.98, rate: 0.94 },
+          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Narrador Solemne y Profundo', description: 'Timbre grave y seguro para plenarias y grandes audiencias', pitch: 0.82, rate: 0.92 },
+          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Clara, Articulada y Expresiva', description: 'Tono cristalino y nítido con máxima inteligibilidad auditiva', pitch: 1.10, rate: 1.02 }
+        ],
+        'pt-BR': [
+          { id: 'sofia_eloquente', name: 'Sofia', gender: 'female', toneLabel: 'Eloquente, Fluida e Executiva', description: 'Dicção refinada e profissional para palestras e conferências', pitch: 1.05, rate: 1.00 },
+          { id: 'arthur_serio', name: 'Arthur', gender: 'male', toneLabel: 'Sério, Técnico e Corporativo', description: 'Tom firme e confiável para apresentações técnicas e dados', pitch: 0.90, rate: 0.98 },
+          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Alegre, Jovem e Dinâmico', description: 'Cadência descontraída e motivacional para workshops e inovação', pitch: 1.04, rate: 1.04 },
+          { id: 'beatriz_calma', name: 'Beatriz', gender: 'female', toneLabel: 'Calma, Neutra e Acolhedora', description: 'Ritmo suave e acolhedor, ideal para apresentações longas', pitch: 0.98, rate: 0.94 },
+          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Narrador Robusto e Solene', description: 'Timbre grave e expressivo para plenárias magnas', pitch: 0.82, rate: 0.92 },
+          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Expressiva, Articulada e Clara', description: 'Tom cristalino e claro com máxima inteligibilidade fonética', pitch: 1.10, rate: 1.02 }
+        ],
+        'fr-FR': [
+          { id: 'sofia_eloquente', name: 'Sophie', gender: 'female', toneLabel: 'Éloquente, Fluide et Professionnelle', description: 'Élocution raffinée pour conférences et présentations', pitch: 1.05, rate: 1.00 },
+          { id: 'arthur_serio', name: 'Arthur', gender: 'male', toneLabel: 'Sérieux, Technique et Corporatif', description: 'Ton posé et fiable pour exposés techniques et scientifiques', pitch: 0.90, rate: 0.98 },
+          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Dynamique, Jeune et Positif', description: 'Cadence entraînante pour ateliers et plénières', pitch: 1.04, rate: 1.04 },
+          { id: 'beatriz_calma', name: 'Béatrice', gender: 'female', toneLabel: 'Calme, Douce et Chaleureuse', description: 'Rythme apaisant et confortable pour une écoute prolongée', pitch: 0.98, rate: 0.94 },
+          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Narrateur Posé et Solennel', description: 'Timbre grave et chaleureux pour allocutions solennelles', pitch: 0.82, rate: 0.92 },
+          { id: 'elena_vibrante', name: 'Hélène', gender: 'female', toneLabel: 'Claire, Articulée et Expressive', description: 'Clarté phonétique cristalline et intelligibilité optimale', pitch: 1.10, rate: 1.02 }
+        ]
+      };
+
+      function getAudienceVoicePersonasCurrent() {
+        return AUDIENCE_VOICE_PERSONAS_I18N[currentAudienceLang] || AUDIENCE_VOICE_PERSONAS_I18N['en-US'];
+      }
 
       let selectedVoicePersonaId = localStorage.getItem('brain_audience_voice_persona') || 'sofia_eloquente';
 
       function getAudienceVoicePersona(id) {
-        return AUDIENCE_VOICE_PERSONAS.find(p => p.id === id) || AUDIENCE_VOICE_PERSONAS[0];
+        const personas = getAudienceVoicePersonasCurrent();
+        return personas.find(p => p.id === id) || personas[0];
       }
 
       window.setAudienceVoicePersona = function(personaId) {
@@ -2018,7 +2602,7 @@
                       onchange="setAudienceVoicePersona(this.value)" 
                       class="w-full bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold text-xs border border-indigo-400/50 rounded-xl px-3 py-2 outline-none shadow-2xs cursor-pointer"
                     >
-                      ${AUDIENCE_VOICE_PERSONAS.map(p => `
+                      ${getAudienceVoicePersonasCurrent().map(p => `
                         <option value="${p.id}" ${selectedVoicePersonaId === p.id ? 'selected' : ''}>
                           ${p.gender === 'female' ? '👩' : '👨'} ${p.name} — ${p.toneLabel}
                         </option>
@@ -2458,8 +3042,84 @@
       let lastCommittedSpeechTimestamp = 0;
       let speechWatchdogInterval = null;
       let speechRecognizerRestartTimeout = null;
+      let isSpeechCycleRestarting = false;
 
       // Estado de Transcrição e Broadcast
+
+      // SISTEMA DE MONITORAMENTO EM TEMPO REAL DE ESPECTADORES POR IDIOMA
+      const audiencePresenceClients = new Map(); // clientId -> { lang, timestamp }
+
+      function handleAudiencePresencePing(data) {
+        if (!data || !data.clientId || !data.lang) return;
+        audiencePresenceClients.set(data.clientId, {
+          lang: data.lang,
+          timestamp: Date.now()
+        });
+        refreshAudienceLiveCounters();
+      }
+
+      function refreshAudienceLiveCounters() {
+        const now = Date.now();
+        // Remove ouvintes inativos há mais de 8 segundos
+        for (const [clientId, info] of audiencePresenceClients.entries()) {
+          if (now - info.timestamp > 8000) {
+            audiencePresenceClients.delete(clientId);
+          }
+        }
+
+        const countsByLang = {};
+        for (const info of audiencePresenceClients.values()) {
+          const full = info.lang;
+          const short = (info.lang || '').split('-')[0].toLowerCase();
+          countsByLang[full] = (countsByLang[full] || 0) + 1;
+          countsByLang[short] = (countsByLang[short] || 0) + 1;
+        }
+
+        // Atualiza contadores em cada coluna de idioma traduzido
+        const allKnownLangs = ['en-US', 'es-ES', 'pt-BR', 'fr-FR', 'de-DE', 'it-IT', 'zh-CN', 'ja-JP'];
+        allKnownLangs.forEach(code => {
+          const short = code.split('-')[0].toLowerCase();
+          const total = countsByLang[code] || countsByLang[short] || 0;
+          const countEl = document.getElementById('target-audience-count-num-' + code) || document.getElementById('target-audience-count-num-' + short);
+          if (countEl) countEl.innerText = total;
+        });
+
+        // Atualiza contador da coluna de Português em Prontidão
+        const ptTotal = countsByLang['pt-BR'] || countsByLang['pt'] || 0;
+        const ptCountEl = document.getElementById('target-audience-count-num-pt-standby');
+        if (ptCountEl) ptCountEl.innerText = ptTotal;
+      }
+
+      // Escuta presenças locais via BroadcastChannel e LocalStorage
+      try {
+        const presenceBc = new BroadcastChannel('brain_presence_' + safeMeetingMqttId);
+        presenceBc.onmessage = (e) => handleAudiencePresencePing(e.data);
+      } catch(e) {}
+
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'brain_presence_ping_' + safeMeetingMqttId && e.newValue) {
+          try { handleAudiencePresencePing(JSON.parse(e.newValue)); } catch(err) {}
+        }
+      });
+
+      setInterval(refreshAudienceLiveCounters, 1500);
+
+      // ESTADO DA COLUNA DE PORTUGUÊS EM PRONTIDÃO
+      let isPtColumnExpanded = false;
+      window.togglePtColumnExpansion = function() {
+        isPtColumnExpanded = !isPtColumnExpanded;
+        const standbyBanner = document.getElementById('pt-standby-banner');
+        const fullCol = document.getElementById('pt-full-translated-column');
+        if (standbyBanner && fullCol) {
+          if (isPtColumnExpanded) {
+            standbyBanner.classList.add('hidden');
+            fullCol.classList.remove('hidden');
+          } else {
+            standbyBanner.classList.remove('hidden');
+            fullCol.classList.add('hidden');
+          }
+        }
+      };
 
       // Sincronização Local (BroadcastChannel) e Nuvem (MQTT)
       let subtitleBroadcast = null;
@@ -2741,6 +3401,118 @@
               </div>
 
               <!-- ========================================================
+                  COLUNA DE PORTUGUÊS EM MODO PRONTIDÃO (STANDBY INTELIGENTE)
+                  ======================================================== -->
+              <div id="pt-standby-container" class="col-span-full">
+                ${(() => {
+                  const audienceUrlPt = window.location.origin + window.location.pathname + '?meeting=' + id + '&view=audience&lang=pt';
+                  const isSourceForeign = selectedSourceLanguage !== 'pt-BR';
+                  const showFullPtCol = isSourceForeign || isPtColumnExpanded;
+
+                  return `
+                    <!-- 1. BARRA COMPACTA EM PRONTIDÃO (Ativa quando o palestrante fala português) -->
+                    <div id="pt-standby-banner" class="${showFullPtCol ? 'hidden' : 'flex'} p-3.5 bg-gradient-to-r from-emerald-50/80 via-indigo-50/50 to-slate-50 dark:from-slate-900 dark:via-indigo-950/30 dark:to-slate-900 border-2 border-emerald-400/40 dark:border-emerald-600/40 rounded-3xl flex-wrap items-center justify-between gap-3 shadow-xs transition-all">
+                      <div class="flex items-center gap-3">
+                        <span class="text-2xl select-none">🇧🇷</span>
+                        <div>
+                          <div class="flex items-center gap-2">
+                            <h3 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">Canal de Tradução em Português</h3>
+                            <span class="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 uppercase tracking-wider flex items-center gap-1">
+                              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Em Prontidão
+                            </span>
+                            <span title="Brasileiros conectados no canal em Português" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                              👥 <strong id="target-audience-count-num-pt-standby">0</strong> ouvintes
+                            </span>
+                          </div>
+                          <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Pronto para assumir tradução para o público brasileiro caso um convidado estrangeiro palestrar no palco.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div class="flex items-center gap-2">
+                        <a href="${audienceUrlPt}" target="_blank" class="px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1 shadow-2xs">
+                          <span>↗ Link Espectador PT</span>
+                        </a>
+                        <button type="button" onclick="navigator.clipboard.writeText('${audienceUrlPt}'); alert('Link copiado!');" class="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer">
+                          <span>📋 Copiar</span>
+                        </button>
+                        <button type="button" onclick="openChannelQrCodeModal('pt-BR')" class="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs">
+                          <span>📱 QR Code PT</span>
+                        </button>
+                        <button type="button" onclick="togglePtColumnExpansion()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-1 cursor-pointer">
+                          <span>⚡ Expandir Coluna PT</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- 2. COLUNA COMPLETA DE TRADUÇÃO EM PORTUGUÊS (Expande quando estrangeiro fala ou por clique) -->
+                    <div id="pt-full-translated-column" class="${showFullPtCol ? 'block' : 'hidden'} bg-white dark:bg-slate-900 border-2 border-emerald-400 dark:border-emerald-600 rounded-3xl p-4 shadow-sm space-y-3 mb-4">
+                      <div class="space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-emerald-100 dark:border-emerald-950">
+                          <div class="flex items-center gap-2">
+                            <span class="text-base">🇧🇷</span>
+                            <h2 class="text-xs sm:text-sm font-black text-slate-900 dark:text-emerald-200">
+                              Tradução em Português (pt-BR) — Para Brasileiros
+                            </h2>
+                          </div>
+                          <div class="flex items-center gap-1.5">
+                            <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                              👥 <strong id="target-audience-count-num-pt-BR">0</strong> ao vivo
+                            </span>
+                            <button type="button" onclick="togglePtColumnExpansion()" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 cursor-pointer">
+                              Recolher para Prontidão ✕
+                            </button>
+                          </div>
+                        </div>
+
+                        <!-- Barra de ações do Português -->
+                        <div class="p-2.5 bg-emerald-50/60 dark:bg-slate-800/80 border border-emerald-200 dark:border-slate-700 rounded-2xl flex flex-wrap items-center justify-between gap-2">
+                          <a href="${audienceUrlPt}" target="_blank" class="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1">
+                            <span>↗ Abrir Tela Espectador</span>
+                          </a>
+                          <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="navigator.clipboard.writeText('${audienceUrlPt}'); alert('Link copiado!');" class="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer">
+                              <span>📋 Copiar Link</span>
+                            </button>
+                            <button type="button" onclick="openChannelQrCodeModal('pt-BR')" class="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer">
+                              <span>📱 QR Code</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <!-- VU Meter do Português -->
+                        <div class="px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl flex items-center justify-between gap-2 shadow-2xs">
+                          <div class="flex items-center gap-2">
+                            <span id="target-vu-led-pt-BR" class="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 transition-colors"></span>
+                            <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                              <span>🔊 Áudio Traduzido:</span>
+                              <span id="target-vu-status-pt-BR" class="text-[10px] font-semibold text-slate-400">Em espera</span>
+                            </span>
+                          </div>
+                          <div class="flex items-center gap-2 flex-1 max-w-[170px]">
+                            <div class="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden p-0.5">
+                              <div id="target-vu-bar-pt-BR" class="h-full rounded-full transition-all duration-100 bg-emerald-500 w-1" style="width: 2%;"></div>
+                            </div>
+                            <span id="target-vu-text-pt-BR" class="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 w-8 text-right">0%</span>
+                          </div>
+                        </div>
+
+                        <!-- Feed de transcrição em Português -->
+                        <div class="space-y-1">
+                          <div id="target-subtitle-box-pt-BR" class="relative rounded-2xl p-4 min-h-[160px] max-h-[220px] overflow-y-auto transition-all shadow-inner font-sans" style="background-color: #000000; color: #34d399; font-size: 16px;">
+                            <div id="target-transcription-feed-pt-BR" class="space-y-1.5">
+                              <p class="placeholder-empty text-slate-500 text-xs italic">Aguardando fala e tradução para Português...</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                })()}
+              </div>
+
+              <!-- ========================================================
                   COLUNAS DOS IDIOMAS TRADUZIDOS (1 PARA CADA IDIOMA ESCOLHIDO)
                   ======================================================== -->
               ${activeTargetLanguages.map(langCode => {
@@ -2753,7 +3525,7 @@
                   <div class="bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-900/60 rounded-3xl p-4 shadow-sm flex flex-col justify-between space-y-3">
                     <div class="space-y-3">
                       
-                      <!-- Header da Coluna Traduzida -->
+                      <!-- Header da Coluna Traduzida com Contador de Espectadores ao Vivo -->
                       <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-indigo-100 dark:border-indigo-950">
                         <div class="flex items-center gap-2">
                           <span class="text-base">${langInfo.flag}</span>
@@ -2761,9 +3533,17 @@
                             Tradução em ${langInfo.name} (${langCode})
                           </h2>
                         </div>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1">
-                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Voz IA Ativa
-                        </span>
+                        <div class="flex items-center gap-1.5">
+                          <!-- Contador de Ouvintes Ao Vivo -->
+                          <span title="Ouvintes ao vivo na tela de espectador deste idioma" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1 shadow-2xs">
+                            <span>👥</span>
+                            <strong id="target-audience-count-num-${langCode}">0</strong>
+                            <span class="hidden sm:inline font-normal text-[10px]">ao vivo</span>
+                          </span>
+                          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Voz IA
+                          </span>
+                        </div>
                       </div>
 
                       <!-- BARRA DE AÇÕES: ABRIR ESPECTADOR, COPIAR LINK E QR CODE -->
@@ -3337,36 +4117,36 @@
                     }
                   }
 
-                  // QUEBRA FORÇADA DINÂMICA:
-                  // Se a fala ininterrupta ultrapassar 4.8 a 5.0 segundos OU 130 caracteres:
-                  // quebra a frase no ponto mais conveniente e retoma na palavra seguinte!
-                  const shouldForceBreak = (elapsedSec >= 4.8 && uncommittedWords.length >= 6) || (charCount >= 130 && uncommittedWords.length >= 7);
+                  // QUEBRA FORÇADA DINÂMICA DEFINITIVA (SEM ESPERAR PAUSA E SEM REPETIÇÕES):
+                  // Se a fala ininterrupta atingir 4.5 segundos OU 110 caracteres (ou mais de 8 palavras contínuas):
+                  // commita o trecho imediatamente e força o reinício do ciclo do recognizer para zerar o buffer!
+                  const shouldForceBreak = (elapsedSec >= 4.5 && uncommittedWords.length >= 5) || (charCount >= 110 && uncommittedWords.length >= 5) || (uncommittedWords.length >= 12);
 
-                  if (shouldForceBreak) {
+                  if (shouldForceBreak && !isSpeechCycleRestarting) {
                     const cutIdx = findConvenientBreakIndex(uncommittedWords);
-                    if (cutIdx >= 5) {
-                      const wordsToCommit = uncommittedWords.slice(0, cutIdx);
-                      const chunkText = wordsToCommit.join(' ').trim();
+                    const safeCutIdx = (cutIdx >= 4 && cutIdx <= uncommittedWords.length) ? cutIdx : uncommittedWords.length;
+                    const wordsToCommit = uncommittedWords.slice(0, safeCutIdx);
+                    const chunkText = wordsToCommit.join(' ').trim();
 
-                      // Avança o cursor de palavras deste resultado
-                      committedWordOffsetForIndex += cutIdx;
-                      utteranceSegmentStartTime = Date.now();
-
-                      if (chunkText) {
-                        commitSpeechSentence(chunkText);
-                      }
-
-                      // Atualiza a visualização provisória apenas com o restante
-                      const remainingAfterCut = allWords.slice(committedWordOffsetForIndex).join(' ').trim();
-                      if (interimEl) {
-                        if (remainingAfterCut) {
-                          interimEl.innerText = '● ' + remainingAfterCut;
-                        } else {
-                          interimEl.innerText = '';
-                          interimEl.style.display = 'none';
-                        }
-                      }
+                    if (chunkText && chunkText.length >= 2) {
+                      commitSpeechSentence(chunkText);
                     }
+
+                    // Limpa visualização provisória
+                    if (interimEl) { interimEl.innerText = ''; interimEl.style.display = 'none'; }
+
+                    // REINÍCIO LIMPO DO CICLO:
+                    // Chama recognizer.stop(). O Chrome Web Speech API finaliza o bloco atual e dispara onend.
+                    // No onend, reabre imediatamente um novo recognizer com buffer 100% zerado!
+                    // O palestrante continua falando e a próxima palavra ouvida é a primeira do novo bloco,
+                    // sem nenhum acúmulo de texto e sem esperar pausas!
+                    isSpeechCycleRestarting = true;
+                    try {
+                      recognizer.stop();
+                    } catch(stopErr) {
+                      try { recognizer.abort(); } catch(e) {}
+                    }
+                    return;
                   }
                 }
               }
@@ -3390,8 +4170,15 @@
               const interimEl = document.getElementById('transmitter-interim-text');
               if (interimEl) { interimEl.innerText = ''; interimEl.style.display = 'none'; }
 
+              currentResultIndex = -1;
+              committedWordOffsetForIndex = 0;
+              utteranceSegmentStartTime = Date.now();
+
+              const wasCycleRestart = isSpeechCycleRestarting;
+              isSpeechCycleRestarting = false;
+
               if (isRealMicActive && !isTimerPaused) {
-                scheduleSpeechRestart(80);
+                scheduleSpeechRestart(wasCycleRestart ? 40 : 80);
               }
             };
 
@@ -3486,7 +4273,11 @@
           addTransmitterSentenceClean(trimmedPart, startSec, endSec);
 
           // 2. Dispara tradução em paralelo para cada idioma de saída da reunião
-          activeTargetLanguages.forEach(targetLang => {
+          const targetsToDispatch = new Set(activeTargetLanguages);
+          if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
+            targetsToDispatch.add('pt-BR');
+          }
+          targetsToDispatch.forEach(targetLang => {
             translateAndDispatchTargetSentence(trimmedPart, targetLang, startSec, endSec);
           });
         }
