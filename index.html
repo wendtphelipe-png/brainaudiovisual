@@ -4094,10 +4094,11 @@
 
       // ========================================================
       // MOTOR DE TRANSCRIÇÃO E TRADUÇÃO INSTANTÂNEA EM FLUXO CONTÍNUO
-      // (COMMIT EM TEMPO REAL, CORREÇÃO IN-PLACE, FEED DE BAIXO PRA CIMA)
+      // (1 FRASE POR LINHA, ATUALIZAÇÃO E CORREÇÃO IN-PLACE, SEM REPETIÇÃO)
       // ========================================================
       let liveBlockSeq = 0;
-      let currentActiveBlock = null;
+      let activeLiveBlock = null;
+      let finalizedUtteranceIndices = new Set();
       let liveTranslationDebounceTimer = null;
       let liveSilenceTimer = null;
 
@@ -4230,7 +4231,7 @@
 
           targets.forEach(async (targetLang) => {
             const translated = await fetchFastTranslation(currentText, selectedSourceLanguage, targetLang);
-            if (block.id === currentActiveBlock?.id && block.translationVersion === version) {
+            if (block.id === activeLiveBlock?.id && block.translationVersion === version && !block.isFinalized) {
               block.targetTranslations[targetLang] = translated;
               const tEl = block.targetEls[targetLang];
               if (tEl) {
@@ -4241,7 +4242,7 @@
               }
             }
           });
-        }, 130);
+        }, 160);
       }
 
       function finalizeLiveBlock(block) {
@@ -4257,14 +4258,14 @@
         if (cleanText.length < 2) {
           if (block.transmitterEl) block.transmitterEl.remove();
           Object.values(block.targetEls || {}).forEach(el => el && el.remove());
-          if (currentActiveBlock === block) currentActiveBlock = null;
+          if (activeLiveBlock === block) activeLiveBlock = null;
           return;
         }
 
         const startSec = block.startTime;
         const endSec = sessionElapsedSeconds > startSec ? sessionElapsedSeconds : startSec + Math.max(2.0, cleanText.length * 0.08);
 
-        // 1. Finaliza visualmente a linha no terminal do transmissor
+        // 1. Finaliza visualmente a linha no terminal do transmissor (linha permanente)
         if (block.transmitterEl) {
           block.transmitterEl.classList.remove('active-streaming-line', 'border-l-2', 'border-blue-500', 'bg-blue-500/10');
           block.transmitterEl.classList.add('border-b', 'border-white/5');
@@ -4277,7 +4278,7 @@
         transmitterTranscriptions.push({ text: cleanText, timeStart: startSec, timeEnd: endSec });
         broadcastSubtitleGlobally('transmitter', cleanText, startSec, endSec);
 
-        // 2. Finaliza cada coluna de tradução
+        // 2. Finaliza cada coluna de tradução (linha permanente)
         const targets = new Set(activeTargetLanguages);
         if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
           targets.add('pt-BR');
@@ -4321,80 +4322,60 @@
           if (els.box) els.box.scrollTop = els.box.scrollHeight;
         });
 
-        if (currentActiveBlock === block) {
-          currentActiveBlock = null;
+        if (activeLiveBlock === block) {
+          activeLiveBlock = null;
         }
       }
 
       function handleStreamingSpeechResult(transcript, utteranceIndex, isFinal) {
         lastSpeechActivityTimestamp = Date.now();
 
-        if (!currentActiveBlock || currentActiveBlock.isFinalized || currentActiveBlock.utteranceIndex !== utteranceIndex) {
-          if (currentActiveBlock && !currentActiveBlock.isFinalized) {
-            finalizeLiveBlock(currentActiveBlock);
-          }
-          liveBlockSeq++;
-          currentActiveBlock = createNewLiveBlock(liveBlockSeq, utteranceIndex, transcript);
-        } else {
-          // Bloco ativo continua: atualiza texto do palestrante (se corrigiu palavra, corrige in-place)
-          currentActiveBlock.rawTranscript = transcript;
-          updateLiveTransmitterUI(currentActiveBlock, transcript);
+        // 1. Se esta oração já foi concluída, ignora eventos residuais para evitar duplicação
+        if (finalizedUtteranceIndices.has(utteranceIndex)) {
+          return;
         }
 
-        // Dispara ou reagenda tradução imediata com debounce de 130ms
-        scheduleLiveBlockTranslation(currentActiveBlock);
+        // 2. Se mudou o índice da oração no SpeechRecognition, finaliza a anterior
+        if (activeLiveBlock && activeLiveBlock.utteranceIndex !== utteranceIndex) {
+          finalizedUtteranceIndices.add(activeLiveBlock.utteranceIndex);
+          finalizeLiveBlock(activeLiveBlock);
+          activeLiveBlock = null;
+        }
 
-        // Se o SpeechRecognition sinalizou finalização nativa da oração
+        // 3. Se ainda não há bloco ativo para este índice, cria EXATAMENTE UM elemento na tela
+        if (!activeLiveBlock) {
+          liveBlockSeq++;
+          activeLiveBlock = createNewLiveBlock(liveBlockSeq, utteranceIndex, transcript);
+        } else {
+          // ORAÇÃO CONTINUA: atualiza o MESMO elemento em tempo real (corrige palavras in-place)
+          activeLiveBlock.rawTranscript = transcript;
+          updateLiveTransmitterUI(activeLiveBlock, transcript);
+        }
+
+        // 4. Agenda tradução imediata in-place para as colunas de idiomas
+        scheduleLiveBlockTranslation(activeLiveBlock);
+
+        // 5. Se o SpeechRecognition nativo concluiu a oração
         if (isFinal) {
           if (liveSilenceTimer) {
             clearTimeout(liveSilenceTimer);
             liveSilenceTimer = null;
           }
-          finalizeLiveBlock(currentActiveBlock);
+          finalizedUtteranceIndices.add(utteranceIndex);
+          finalizeLiveBlock(activeLiveBlock);
+          activeLiveBlock = null;
           return;
         }
 
-        // Se o usuário falou uma oração longa com pontuação concluída (. , ; ? !)
-        const text = transcript.trim();
-        const punctMatch = text.match(/^(.+?[.,;!?])\s+(.+)$/);
-        if (punctMatch && punctMatch[1] && punctMatch[1].trim().split(/\s+/).length >= 6) {
-          const clause = punctMatch[1].trim();
-          currentActiveBlock.rawTranscript = clause;
-          updateLiveTransmitterUI(currentActiveBlock, clause);
-          finalizeLiveBlock(currentActiveBlock);
-
-          // Inicia próximo bloco com a continuação imediatamente
-          const remaining = punctMatch[2].trim();
-          if (remaining) {
-            liveBlockSeq++;
-            currentActiveBlock = createNewLiveBlock(liveBlockSeq, utteranceIndex, remaining);
-            scheduleLiveBlockTranslation(currentActiveBlock);
-          }
-          return;
-        }
-
-        // Rollover automático se a fala contínua atingir mais de 16 palavras sem pausas
-        const words = text.split(/\s+/);
-        if (words.length >= 16) {
-          const firstChunk = words.slice(0, 12).join(' ');
-          const secondChunk = words.slice(12).join(' ');
-          currentActiveBlock.rawTranscript = firstChunk;
-          updateLiveTransmitterUI(currentActiveBlock, firstChunk);
-          finalizeLiveBlock(currentActiveBlock);
-
-          liveBlockSeq++;
-          currentActiveBlock = createNewLiveBlock(liveBlockSeq, utteranceIndex, secondChunk);
-          scheduleLiveBlockTranslation(currentActiveBlock);
-          return;
-        }
-
-        // Timer de silêncio de 750ms: finaliza a frase com naturalidade e dispara o vocal
+        // 6. Watchdog de pausa longa (2 segundos de silêncio absoluto)
         if (liveSilenceTimer) clearTimeout(liveSilenceTimer);
         liveSilenceTimer = setTimeout(() => {
-          if (currentActiveBlock && !currentActiveBlock.isFinalized) {
-            finalizeLiveBlock(currentActiveBlock);
+          if (activeLiveBlock && !activeLiveBlock.isFinalized) {
+            finalizedUtteranceIndices.add(activeLiveBlock.utteranceIndex);
+            finalizeLiveBlock(activeLiveBlock);
+            activeLiveBlock = null;
           }
-        }, 750);
+        }, 2000);
       }
 
       function safelyDestroySpeechRecognizer() {
@@ -4407,8 +4388,10 @@
           liveTranslationDebounceTimer = null;
         }
 
-        if (currentActiveBlock && !currentActiveBlock.isFinalized) {
-          finalizeLiveBlock(currentActiveBlock);
+        if (activeLiveBlock && !activeLiveBlock.isFinalized) {
+          finalizedUtteranceIndices.add(activeLiveBlock.utteranceIndex);
+          finalizeLiveBlock(activeLiveBlock);
+          activeLiveBlock = null;
         }
 
         if (speechRecognizer) {
@@ -4490,6 +4473,8 @@
               isStartingSpeechRecognition = false;
               isTranscribingSpeech = true;
               lastSpeechActivityTimestamp = Date.now();
+              finalizedUtteranceIndices.clear();
+              activeLiveBlock = null;
               updateSpeechStatusIndicator(true);
             };
 
@@ -4528,8 +4513,10 @@
                 liveSilenceTimer = null;
               }
 
-              if (currentActiveBlock && !currentActiveBlock.isFinalized) {
-                finalizeLiveBlock(currentActiveBlock);
+              if (activeLiveBlock && !activeLiveBlock.isFinalized) {
+                finalizedUtteranceIndices.add(activeLiveBlock.utteranceIndex);
+                finalizeLiveBlock(activeLiveBlock);
+                activeLiveBlock = null;
               }
 
               if (isRealMicActive && !isTimerPaused) {
@@ -4587,8 +4574,9 @@
         lastCommittedSentenceText = cleanLower;
         lastCommittedSentenceTime = now;
 
-        if (currentActiveBlock && !currentActiveBlock.isFinalized) {
-          finalizeLiveBlock(currentActiveBlock);
+        if (activeLiveBlock && !activeLiveBlock.isFinalized) {
+          finalizeLiveBlock(activeLiveBlock);
+          activeLiveBlock = null;
         }
 
         liveBlockSeq++;
