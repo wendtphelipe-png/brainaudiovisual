@@ -2256,8 +2256,11 @@
 
       renderOverlayUI();
 
-      // RENDERIZAÇÃO UNIFICADA DE MENSAGENS COM DEDUPLICAÇÃO (DE BAIXO PARA CIMA)
+      // RENDERIZAÇÃO UNIFICADA DE MENSAGENS COM DEDUPLICAÇÃO E FLUXO CONTÍNUO (OBS OVERLAY)
       const seenSubtitles = new Set();
+      const overlayActiveParagraphs = {};
+      const overlayLastSubtitleTimes = {};
+
       function handleIncomingSubtitle(data) {
         if (!data || data.type !== 'NEW_SUBTITLE' || !data.text) return;
         const dedupeKey = data.channel + '_' + data.text.trim();
@@ -2286,20 +2289,32 @@
           const firstP = feed.querySelector('.italic');
           if (firstP) firstP.remove();
 
-          if (feed.lastElementChild) {
-            feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-3 whitespace-normal break-words';
-            feed.lastElementChild.style.opacity = '0.70';
-            feed.lastElementChild.style.fontWeight = '400';
-            feed.lastElementChild.style.color = overlayColConfigs[colKey].textColor;
-          }
+          const now = Date.now();
+          const lastTime = overlayLastSubtitleTimes[colKey] || 0;
+          const activeP = overlayActiveParagraphs[colKey];
+          const isPause = (now - lastTime) > 2500 || !activeP || !activeP.isConnected;
 
-          const p = document.createElement('p');
-          p.className = 'leading-relaxed transition-all duration-300 mb-3 font-bold drop-shadow-md whitespace-normal break-words';
-          p.style.opacity = '1.0';
-          p.style.fontWeight = '700';
-          p.style.color = overlayColConfigs[colKey].textColor;
-          p.innerText = data.text;
-          feed.appendChild(p);
+          if (isPause) {
+            if (feed.lastElementChild) {
+              feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-3 whitespace-normal break-words';
+              feed.lastElementChild.style.opacity = '0.70';
+              feed.lastElementChild.style.fontWeight = '400';
+              feed.lastElementChild.style.color = overlayColConfigs[colKey].textColor;
+            }
+
+            const p = document.createElement('p');
+            p.className = 'leading-relaxed transition-all duration-300 mb-3 font-bold drop-shadow-md whitespace-normal break-words';
+            p.style.opacity = '1.0';
+            p.style.fontWeight = '700';
+            p.style.color = overlayColConfigs[colKey].textColor;
+            p.innerText = data.text;
+            feed.appendChild(p);
+            overlayActiveParagraphs[colKey] = p;
+          } else {
+            // Continua na mesma linha/parágrafo sem quebrar
+            activeP.innerText += ' ' + data.text;
+          }
+          overlayLastSubtitleTimes[colKey] = now;
 
           while (feed.children.length > 25) {
             feed.removeChild(feed.firstChild);
@@ -2967,9 +2982,11 @@
         };
       }
 
-      // ROTEAMENTO DE LEGENDAS TRADUZIDAS PARA O ESPECTADOR
-      // ROTEAMENTO DE LEGENDAS TRADUZIDAS PARA O ESPECTADOR
+      // ROTEAMENTO DE LEGENDAS TRADUZIDAS PARA O ESPECTADOR (FLUXO CONTÍNUO)
       const audienceSeenSubtitles = new Map();
+      let audienceActiveParagraph = null;
+      let audienceLastSubtitleTime = 0;
+
       async function handleAudienceIncomingSubtitle(data) {
         if (!data || data.type !== 'NEW_SUBTITLE' || !data.text) return;
         const text = data.text.trim();
@@ -3002,14 +3019,22 @@
           const emptyP = feed.querySelector('.placeholder-empty');
           if (emptyP) emptyP.remove();
 
-          if (feed.lastElementChild) {
-            feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-2 whitespace-normal break-words opacity-70';
-          }
+          const isPause = (now - audienceLastSubtitleTime) > 2500 || !audienceActiveParagraph || !audienceActiveParagraph.isConnected;
+          if (isPause) {
+            if (feed.lastElementChild) {
+              feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-3 whitespace-normal break-words opacity-70';
+            }
 
-          const p = document.createElement('p');
-          p.className = 'leading-relaxed transition-all duration-300 mb-2 font-bold whitespace-normal break-words opacity-100 text-slate-900 dark:text-white';
-          p.innerText = text;
-          feed.appendChild(p);
+            const p = document.createElement('p');
+            p.className = 'leading-relaxed transition-all duration-300 mb-3 font-bold whitespace-normal break-words opacity-100 text-slate-900 dark:text-white';
+            p.innerText = text;
+            feed.appendChild(p);
+            audienceActiveParagraph = p;
+          } else {
+            // Continua no mesmo parágrafo com espaço
+            audienceActiveParagraph.innerText += ' ' + text;
+          }
+          audienceLastSubtitleTime = now;
 
           while (feed.children.length > 30) feed.removeChild(feed.firstChild);
           feed.scrollTop = feed.scrollHeight;
@@ -4094,13 +4119,17 @@
 
       // ========================================================
       // MOTOR DE TRANSCRIÇÃO E TRADUÇÃO INSTANTÂNEA EM FLUXO CONTÍNUO
-      // (1 FRASE POR LINHA, ATUALIZAÇÃO E CORREÇÃO IN-PLACE, SEM REPETIÇÃO)
+      // (PARÁGRAFO CONTÍNUO, SOFT-WRAP POR LARGURA, QUEBRA SÓ EM PAUSAS)
       // ========================================================
-      let liveBlockSeq = 0;
-      let activeLiveBlock = null;
-      let finalizedUtteranceIndices = new Set();
+      let activeSpeechParagraphSeq = 0;
+      let currentTransmitterParagraph = null; // { id, el, confirmedSpan, liveSpan, cursorEl, startTime }
+      let currentTargetParagraphs = {};       // { [langCode]: { id, el, confirmedSpan, liveSpan, cursorEl } }
+      let paragraphPauseTimer = null;         // Silêncio significante (2.5s) que fecha o parágrafo
       let liveTranslationDebounceTimer = null;
-      let liveSilenceTimer = null;
+      let liveTranslationSeq = 0;
+      let finalizedUtteranceIndices = new Set();
+      let lastConfirmedCleanTranscript = '';
+      let lastConfirmedTimestamp = 0;
 
       async function fetchFastTranslation(text, sourceLang, targetLang) {
         if (!text || !text.trim()) return '';
@@ -4145,254 +4174,286 @@
         return clean;
       }
 
-      function createNewLiveBlock(blockId, utteranceIndex, initialText) {
+      function getOrCreateActiveParagraph() {
         const feed = document.getElementById('transmitter-transcription-feed');
         const box = document.getElementById('transmitter-subtitle-box');
 
-        if (feed) {
-          const empty = feed.querySelector('.placeholder-empty');
-          if (empty) empty.remove();
+        if (!currentTransmitterParagraph || !currentTransmitterParagraph.el || !currentTransmitterParagraph.el.isConnected) {
+          activeSpeechParagraphSeq++;
+          const pId = 'speech-para-' + activeSpeechParagraphSeq;
+
+          if (feed) {
+            const empty = feed.querySelector('.placeholder-empty');
+            if (empty) empty.remove();
+
+            const div = document.createElement('div');
+            div.id = pId;
+            // Soft-wrap contínuo: texto corre normalmente e só quebra linha ao exceder a largura do container
+            div.className = 'speech-paragraph text-sm sm:text-base leading-relaxed whitespace-normal break-words mb-3 transition-opacity';
+            div.style.color = transSubtitleConfig.textColor;
+
+            const confirmedSpan = document.createElement('span');
+            confirmedSpan.className = 'para-confirmed';
+
+            const liveSpan = document.createElement('span');
+            liveSpan.className = 'para-live text-blue-400 font-medium';
+
+            const cursorEl = document.createElement('span');
+            cursorEl.className = 'streaming-cursor inline-block w-1.5 h-3.5 ml-1 bg-blue-500 animate-pulse align-middle rounded-xs';
+
+            div.appendChild(confirmedSpan);
+            div.appendChild(liveSpan);
+            div.appendChild(cursorEl);
+
+            feed.appendChild(div);
+            if (box) box.scrollTop = box.scrollHeight;
+
+            currentTransmitterParagraph = {
+              id: pId,
+              el: div,
+              confirmedSpan: confirmedSpan,
+              liveSpan: liveSpan,
+              cursorEl: cursorEl,
+              startTime: sessionElapsedSeconds
+            };
+          }
         }
 
-        const div = document.createElement('div');
-        div.id = 'trans-active-line-' + blockId;
-        div.className = 'transcription-line active-streaming-line text-sm leading-relaxed p-1.5 rounded-lg border-l-2 border-blue-500 bg-blue-500/10 transition-all';
-        div.style.color = transSubtitleConfig.textColor;
-        div.innerHTML = `<span class="line-content">${initialText}</span><span class="streaming-cursor bg-blue-500"></span>`;
-
-        if (feed) {
-          feed.appendChild(div);
-          if (box) box.scrollTop = box.scrollHeight;
-        }
-
-        const block = {
-          id: blockId,
-          utteranceIndex: utteranceIndex,
-          rawTranscript: initialText,
-          startTime: sessionElapsedSeconds,
-          transmitterEl: div,
-          targetEls: {},
-          targetTranslations: {},
-          translationVersion: 0,
-          isFinalized: false
-        };
-
+        // Garante e sincroniza parágrafos contínuos para as colunas traduzidas ativas
         const targets = new Set(activeTargetLanguages);
         if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
           targets.add('pt-BR');
         }
 
         targets.forEach(targetLang => {
-          const els = getTargetColumnElements(targetLang);
-          const cfg = targetColumnConfigs[targetLang] || { textColor: '#fde047' };
-          if (els.feed) {
-            const empty = els.feed.querySelector('.placeholder-empty');
-            if (empty) empty.remove();
+          const existing = currentTargetParagraphs[targetLang];
+          if (!existing || !existing.el || !existing.el.isConnected) {
+            const els = getTargetColumnElements(targetLang);
+            const cfg = targetColumnConfigs[targetLang] || { textColor: '#fde047' };
+            if (els.feed) {
+              const empty = els.feed.querySelector('.placeholder-empty');
+              if (empty) empty.remove();
 
-            const tDiv = document.createElement('div');
-            tDiv.id = `target-active-line-${targetLang}-${blockId}`;
-            tDiv.className = 'target-line active-streaming-line text-sm leading-relaxed p-1.5 rounded-lg border-l-2 border-amber-400 bg-amber-400/10 transition-all';
-            tDiv.style.color = cfg.textColor;
-            tDiv.innerHTML = `<span class="target-line-content">Traduzindo...</span><span class="streaming-cursor bg-amber-400"></span>`;
-            els.feed.appendChild(tDiv);
-            if (els.box) els.box.scrollTop = els.box.scrollHeight;
+              const tDiv = document.createElement('div');
+              tDiv.id = `target-para-${targetLang}-${activeSpeechParagraphSeq}`;
+              tDiv.className = 'target-speech-paragraph text-sm sm:text-base leading-relaxed whitespace-normal break-words mb-3 transition-opacity';
+              tDiv.style.color = cfg.textColor;
 
-            block.targetEls[targetLang] = tDiv;
+              const tConfirmed = document.createElement('span');
+              tConfirmed.className = 'target-para-confirmed';
+
+              const tLive = document.createElement('span');
+              tLive.className = 'target-para-live text-amber-300 font-medium';
+
+              const tCursor = document.createElement('span');
+              tCursor.className = 'streaming-cursor inline-block w-1.5 h-3.5 ml-1 bg-amber-400 animate-pulse align-middle rounded-xs';
+
+              tDiv.appendChild(tConfirmed);
+              tDiv.appendChild(tLive);
+              tDiv.appendChild(tCursor);
+
+              els.feed.appendChild(tDiv);
+              if (els.box) els.box.scrollTop = els.box.scrollHeight;
+
+              currentTargetParagraphs[targetLang] = {
+                id: tDiv.id,
+                el: tDiv,
+                confirmedSpan: tConfirmed,
+                liveSpan: tLive,
+                cursorEl: tCursor
+              };
+            }
           }
         });
 
-        return block;
+        return currentTransmitterParagraph;
       }
 
-      function updateLiveTransmitterUI(block, text) {
-        if (!block || !block.transmitterEl) return;
-        const span = block.transmitterEl.querySelector('.line-content');
-        if (span) span.innerText = text;
-        const box = document.getElementById('transmitter-subtitle-box');
-        if (box) box.scrollTop = box.scrollHeight;
+      function closeActiveParagraphs() {
+        if (paragraphPauseTimer) {
+          clearTimeout(paragraphPauseTimer);
+          paragraphPauseTimer = null;
+        }
+
+        if (currentTransmitterParagraph) {
+          if (currentTransmitterParagraph.liveSpan && currentTransmitterParagraph.liveSpan.innerText.trim()) {
+            const remaining = currentTransmitterParagraph.liveSpan.innerText.trim();
+            const prev = currentTransmitterParagraph.confirmedSpan.innerText.trim();
+            currentTransmitterParagraph.confirmedSpan.innerText = prev ? (prev + ' ' + remaining) : remaining;
+            currentTransmitterParagraph.liveSpan.innerText = '';
+          }
+          if (currentTransmitterParagraph.cursorEl) {
+            currentTransmitterParagraph.cursorEl.remove();
+            currentTransmitterParagraph.cursorEl = null;
+          }
+          currentTransmitterParagraph = null;
+        }
+
+        Object.keys(currentTargetParagraphs).forEach(targetLang => {
+          const tp = currentTargetParagraphs[targetLang];
+          if (tp) {
+            if (tp.liveSpan && tp.liveSpan.innerText.trim()) {
+              const remaining = tp.liveSpan.innerText.trim();
+              const prev = tp.confirmedSpan.innerText.trim();
+              tp.confirmedSpan.innerText = prev ? (prev + ' ' + remaining) : remaining;
+              tp.liveSpan.innerText = '';
+            }
+            if (tp.cursorEl) {
+              tp.cursorEl.remove();
+              tp.cursorEl = null;
+            }
+          }
+        });
+        currentTargetParagraphs = {};
       }
 
-      function scheduleLiveBlockTranslation(block) {
-        if (!block || block.isFinalized) return;
+      function scheduleLiveStreamTranslation(interimText) {
+        if (!interimText || !interimText.trim()) return;
         if (liveTranslationDebounceTimer) clearTimeout(liveTranslationDebounceTimer);
 
+        liveTranslationSeq++;
+        const currentSeq = liveTranslationSeq;
+
         liveTranslationDebounceTimer = setTimeout(() => {
-          if (!block || block.isFinalized) return;
-          const currentText = (block.rawTranscript || '').trim();
-          if (!currentText) return;
-
-          block.translationVersion++;
-          const version = block.translationVersion;
-
           const targets = new Set(activeTargetLanguages);
           if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
             targets.add('pt-BR');
           }
 
           targets.forEach(async (targetLang) => {
-            const translated = await fetchFastTranslation(currentText, selectedSourceLanguage, targetLang);
-            if (block.id === activeLiveBlock?.id && block.translationVersion === version && !block.isFinalized) {
-              block.targetTranslations[targetLang] = translated;
-              const tEl = block.targetEls[targetLang];
-              if (tEl) {
-                const span = tEl.querySelector('.target-line-content');
-                if (span) span.innerText = translated;
+            const translated = await fetchFastTranslation(interimText, selectedSourceLanguage, targetLang);
+            if (currentSeq === liveTranslationSeq) {
+              const tp = currentTargetParagraphs[targetLang];
+              if (tp && tp.liveSpan) {
+                const hasConfirmed = tp.confirmedSpan.innerText.trim().length > 0;
+                tp.liveSpan.innerText = (hasConfirmed ? ' ' : '') + translated;
                 const els = getTargetColumnElements(targetLang);
                 if (els.box) els.box.scrollTop = els.box.scrollHeight;
               }
             }
           });
-        }, 160);
+        }, 120);
       }
 
-      function finalizeLiveBlock(block) {
-        if (!block || block.isFinalized) return;
-        block.isFinalized = true;
+      function handleStreamingSpeechResult(transcript, utteranceIndex, isFinal) {
+        lastSpeechActivityTimestamp = Date.now();
 
+        // 1. Se este índice já foi concluído pelo reconhecedor, ignora eventos residuais
+        if (finalizedUtteranceIndices.has(utteranceIndex)) {
+          return;
+        }
+
+        // 2. Cancela temporizador de quebra de parágrafo (o palestrante continua falando)
+        if (paragraphPauseTimer) {
+          clearTimeout(paragraphPauseTimer);
+          paragraphPauseTimer = null;
+        }
+
+        const cleanTranscript = (transcript || '').trim();
+        if (!cleanTranscript) return;
+
+        // 3. Garante que existe um parágrafo ativo no terminal (ou cria um novo se veio de pausa)
+        getOrCreateActiveParagraph();
+        if (!currentTransmitterParagraph) return;
+
+        // 4. Se ainda NÃO é final: atualiza o streaming in-place com auto-correção
+        if (!isFinal) {
+          const hasConfirmed = currentTransmitterParagraph.confirmedSpan.innerText.trim().length > 0;
+          currentTransmitterParagraph.liveSpan.innerText = (hasConfirmed ? ' ' : '') + cleanTranscript;
+
+          const box = document.getElementById('transmitter-subtitle-box');
+          if (box) box.scrollTop = box.scrollHeight;
+
+          // Agenda tradução em tempo real para as colunas de idiomas
+          scheduleLiveStreamTranslation(cleanTranscript);
+
+          // Watchdog caso isFinal demore para ser emitido
+          if (paragraphPauseTimer) clearTimeout(paragraphPauseTimer);
+          paragraphPauseTimer = setTimeout(closeActiveParagraphs, 3500);
+          return;
+        }
+
+        // 5. Se É FINAL: commita a oração no parágrafo ativo (SEM QUEBRAR LINHA!)
+        finalizedUtteranceIndices.add(utteranceIndex);
         if (liveTranslationDebounceTimer) {
           clearTimeout(liveTranslationDebounceTimer);
           liveTranslationDebounceTimer = null;
         }
 
-        const cleanText = (block.rawTranscript || '').trim().replace(/\s+/g, ' ');
-        if (cleanText.length < 2) {
-          if (block.transmitterEl) block.transmitterEl.remove();
-          Object.values(block.targetEls || {}).forEach(el => el && el.remove());
-          if (activeLiveBlock === block) activeLiveBlock = null;
+        // Evita duplicatas consecutivas idênticas num intervalo curto
+        const now = Date.now();
+        const cleanLower = cleanTranscript.toLowerCase();
+        if (cleanLower === lastConfirmedCleanTranscript.toLowerCase() && (now - lastConfirmedTimestamp) < 2000) {
+          currentTransmitterParagraph.liveSpan.innerText = '';
           return;
         }
+        lastConfirmedCleanTranscript = cleanLower;
+        lastConfirmedTimestamp = now;
 
-        const startSec = block.startTime;
-        const endSec = sessionElapsedSeconds > startSec ? sessionElapsedSeconds : startSec + Math.max(2.0, cleanText.length * 0.08);
+        const startSec = currentTransmitterParagraph.startTime;
+        const endSec = sessionElapsedSeconds > startSec ? sessionElapsedSeconds : startSec + Math.max(1.5, cleanTranscript.length * 0.08);
 
-        // 1. Finaliza visualmente a linha no terminal do transmissor (linha permanente)
-        if (block.transmitterEl) {
-          block.transmitterEl.classList.remove('active-streaming-line', 'border-l-2', 'border-blue-500', 'bg-blue-500/10');
-          block.transmitterEl.classList.add('border-b', 'border-white/5');
-          const cursor = block.transmitterEl.querySelector('.streaming-cursor');
-          if (cursor) cursor.remove();
-          const span = block.transmitterEl.querySelector('.line-content');
-          if (span) span.innerText = cleanText;
-        }
+        // Anexa ao confirmedSpan na mesma linha contínua, separando por espaço
+        const prevConfirmed = currentTransmitterParagraph.confirmedSpan.innerText.trim();
+        currentTransmitterParagraph.confirmedSpan.innerText = prevConfirmed ? (prevConfirmed + ' ' + cleanTranscript) : cleanTranscript;
+        currentTransmitterParagraph.liveSpan.innerText = '';
 
-        transmitterTranscriptions.push({ text: cleanText, timeStart: startSec, timeEnd: endSec });
-        broadcastSubtitleGlobally('transmitter', cleanText, startSec, endSec);
+        transmitterTranscriptions.push({ text: cleanTranscript, timeStart: startSec, timeEnd: endSec });
+        broadcastSubtitleGlobally('transmitter', cleanTranscript, startSec, endSec);
 
-        // 2. Finaliza cada coluna de tradução (linha permanente)
+        const box = document.getElementById('transmitter-subtitle-box');
+        if (box) box.scrollTop = box.scrollHeight;
+
+        // Confirma nas colunas traduzidas (mesmo fluxo contínuo)
         const targets = new Set(activeTargetLanguages);
         if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
           targets.add('pt-BR');
         }
 
         targets.forEach(async (targetLang) => {
-          let translatedText = block.targetTranslations[targetLang];
-          if (!translatedText || !translatedText.trim()) {
-            translatedText = await fetchFastTranslation(cleanText, selectedSourceLanguage, targetLang);
-          }
-          translatedText = (translatedText || cleanText).trim();
+          const translated = await fetchFastTranslation(cleanTranscript, selectedSourceLanguage, targetLang);
+          const cleanTranslated = (translated || cleanTranscript).trim();
 
-          const tEl = block.targetEls[targetLang];
-          if (tEl) {
-            tEl.classList.remove('active-streaming-line', 'border-l-2', 'border-amber-400', 'bg-amber-400/10');
-            tEl.classList.add('border-b', 'border-white/5');
-            const cursor = tEl.querySelector('.streaming-cursor');
-            if (cursor) cursor.remove();
-            const span = tEl.querySelector('.target-line-content');
-            if (span) span.innerText = translatedText;
+          const tp = currentTargetParagraphs[targetLang];
+          if (tp) {
+            const prevTConfirmed = tp.confirmedSpan.innerText.trim();
+            tp.confirmedSpan.innerText = prevTConfirmed ? (prevTConfirmed + ' ' + cleanTranslated) : cleanTranslated;
+            tp.liveSpan.innerText = '';
+            const els = getTargetColumnElements(targetLang);
+            if (els.box) els.box.scrollTop = els.box.scrollHeight;
           }
 
           if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
-          targetTranscriptions[targetLang].push({ text: translatedText, timeStart: startSec, timeEnd: endSec });
+          targetTranscriptions[targetLang].push({ text: cleanTranslated, timeStart: startSec, timeEnd: endSec });
 
           const targetCode = targetLang.split('-')[0].toLowerCase();
-          broadcastSubtitleGlobally(targetCode, translatedText, startSec, endSec);
-          if (targetCode === 'en') broadcastSubtitleGlobally('receiver', translatedText, startSec, endSec);
-          if (targetCode === 'es') broadcastSubtitleGlobally('spanish', translatedText, startSec, endSec);
+          broadcastSubtitleGlobally(targetCode, cleanTranslated, startSec, endSec);
+          if (targetCode === 'en') broadcastSubtitleGlobally('receiver', cleanTranslated, startSec, endSec);
+          if (targetCode === 'es') broadcastSubtitleGlobally('spanish', cleanTranslated, startSec, endSec);
 
-          triggerTargetAudioMeter(targetLang, Math.max(3000, translatedText.length * 90));
-
-          fetchAudioChunkForExport(targetLang, translatedText, 'female');
-          fetchAudioChunkForExport(targetLang, translatedText, 'male');
+          triggerTargetAudioMeter(targetLang, Math.max(3000, cleanTranslated.length * 90));
+          fetchAudioChunkForExport(targetLang, cleanTranslated, 'female');
+          fetchAudioChunkForExport(targetLang, cleanTranslated, 'male');
         });
 
-        const box = document.getElementById('transmitter-subtitle-box');
-        if (box) box.scrollTop = box.scrollHeight;
-        targets.forEach(t => {
-          const els = getTargetColumnElements(t);
-          if (els.box) els.box.scrollTop = els.box.scrollHeight;
-        });
-
-        if (activeLiveBlock === block) {
-          activeLiveBlock = null;
-        }
-      }
-
-      function handleStreamingSpeechResult(transcript, utteranceIndex, isFinal) {
-        lastSpeechActivityTimestamp = Date.now();
-
-        // 1. Se esta oração já foi concluída, ignora eventos residuais para evitar duplicação
-        if (finalizedUtteranceIndices.has(utteranceIndex)) {
-          return;
-        }
-
-        // 2. Se mudou o índice da oração no SpeechRecognition, finaliza a anterior
-        if (activeLiveBlock && activeLiveBlock.utteranceIndex !== utteranceIndex) {
-          finalizedUtteranceIndices.add(activeLiveBlock.utteranceIndex);
-          finalizeLiveBlock(activeLiveBlock);
-          activeLiveBlock = null;
-        }
-
-        // 3. Se ainda não há bloco ativo para este índice, cria EXATAMENTE UM elemento na tela
-        if (!activeLiveBlock) {
-          liveBlockSeq++;
-          activeLiveBlock = createNewLiveBlock(liveBlockSeq, utteranceIndex, transcript);
-        } else {
-          // ORAÇÃO CONTINUA: atualiza o MESMO elemento em tempo real (corrige palavras in-place)
-          activeLiveBlock.rawTranscript = transcript;
-          updateLiveTransmitterUI(activeLiveBlock, transcript);
-        }
-
-        // 4. Agenda tradução imediata in-place para as colunas de idiomas
-        scheduleLiveBlockTranslation(activeLiveBlock);
-
-        // 5. Se o SpeechRecognition nativo concluiu a oração
-        if (isFinal) {
-          if (liveSilenceTimer) {
-            clearTimeout(liveSilenceTimer);
-            liveSilenceTimer = null;
-          }
-          finalizedUtteranceIndices.add(utteranceIndex);
-          finalizeLiveBlock(activeLiveBlock);
-          activeLiveBlock = null;
-          return;
-        }
-
-        // 6. Watchdog de pausa longa (2 segundos de silêncio absoluto)
-        if (liveSilenceTimer) clearTimeout(liveSilenceTimer);
-        liveSilenceTimer = setTimeout(() => {
-          if (activeLiveBlock && !activeLiveBlock.isFinalized) {
-            finalizedUtteranceIndices.add(activeLiveBlock.utteranceIndex);
-            finalizeLiveBlock(activeLiveBlock);
-            activeLiveBlock = null;
-          }
-        }, 2000);
+        // 6. INICIA TEMPORIZADOR DE PAUSA SIGNIFICANTE (2.5 segundos de silêncio)
+        // Se o palestrante falar antes de 2.5s, o timer é cancelado e o texto continua no mesmo parágrafo!
+        // Se houver silêncio de 2.5s, closeActiveParagraphs() é chamado e a próxima fala iniciará um novo parágrafo.
+        if (paragraphPauseTimer) clearTimeout(paragraphPauseTimer);
+        paragraphPauseTimer = setTimeout(closeActiveParagraphs, 2500);
       }
 
       function safelyDestroySpeechRecognizer() {
-        if (liveSilenceTimer) {
-          clearTimeout(liveSilenceTimer);
-          liveSilenceTimer = null;
+        if (paragraphPauseTimer) {
+          clearTimeout(paragraphPauseTimer);
+          paragraphPauseTimer = null;
         }
         if (liveTranslationDebounceTimer) {
           clearTimeout(liveTranslationDebounceTimer);
           liveTranslationDebounceTimer = null;
         }
 
-        if (activeLiveBlock && !activeLiveBlock.isFinalized) {
-          finalizedUtteranceIndices.add(activeLiveBlock.utteranceIndex);
-          finalizeLiveBlock(activeLiveBlock);
-          activeLiveBlock = null;
-        }
+        closeActiveParagraphs();
 
         if (speechRecognizer) {
           try {
@@ -4474,7 +4535,6 @@
               isTranscribingSpeech = true;
               lastSpeechActivityTimestamp = Date.now();
               finalizedUtteranceIndices.clear();
-              activeLiveBlock = null;
               updateSpeechStatusIndicator(true);
             };
 
@@ -4508,15 +4568,12 @@
               isTranscribingSpeech = false;
               updateSpeechStatusIndicator(false);
 
-              if (liveSilenceTimer) {
-                clearTimeout(liveSilenceTimer);
-                liveSilenceTimer = null;
-              }
-
-              if (activeLiveBlock && !activeLiveBlock.isFinalized) {
-                finalizedUtteranceIndices.add(activeLiveBlock.utteranceIndex);
-                finalizeLiveBlock(activeLiveBlock);
-                activeLiveBlock = null;
+              // Se havia algum texto interim pendente, fecha para o parágrafo
+              if (currentTransmitterParagraph && currentTransmitterParagraph.liveSpan && currentTransmitterParagraph.liveSpan.innerText.trim()) {
+                const remaining = currentTransmitterParagraph.liveSpan.innerText.trim();
+                const prev = currentTransmitterParagraph.confirmedSpan.innerText.trim();
+                currentTransmitterParagraph.confirmedSpan.innerText = prev ? (prev + ' ' + remaining) : remaining;
+                currentTransmitterParagraph.liveSpan.innerText = '';
               }
 
               if (isRealMicActive && !isTimerPaused) {
@@ -4574,36 +4631,27 @@
         lastCommittedSentenceText = cleanLower;
         lastCommittedSentenceTime = now;
 
-        if (activeLiveBlock && !activeLiveBlock.isFinalized) {
-          finalizeLiveBlock(activeLiveBlock);
-          activeLiveBlock = null;
-        }
-
-        liveBlockSeq++;
-        const block = createNewLiveBlock(liveBlockSeq, -1, clean);
-        block.rawTranscript = clean;
-        finalizeLiveBlock(block);
+        handleStreamingSpeechResult(clean, 'manual_' + now, true);
       }
 
       function addTransmitterSentenceClean(text, startSec, endSec) {
-        transmitterTranscriptions.push({ text: text, timeStart: startSec, timeEnd: endSec });
-        const feed = document.getElementById('transmitter-transcription-feed');
-        const box = document.getElementById('transmitter-subtitle-box');
+        if (!text || !text.trim()) return;
+        const clean = text.trim();
+        transmitterTranscriptions.push({ text: clean, timeStart: startSec, timeEnd: endSec });
 
-        if (feed) {
-          const emptyP = feed.querySelector('.placeholder-empty');
-          if (emptyP) emptyP.remove();
-
-          const div = document.createElement('div');
-          div.className = 'transcription-line text-sm leading-relaxed p-1.5 rounded-lg border-b border-white/5 transition-all';
-          div.style.color = transSubtitleConfig.textColor;
-          div.innerHTML = `<span>${text}</span>`;
-
-          feed.appendChild(div);
+        getOrCreateActiveParagraph();
+        if (currentTransmitterParagraph) {
+          const prev = currentTransmitterParagraph.confirmedSpan.innerText.trim();
+          currentTransmitterParagraph.confirmedSpan.innerText = prev ? (prev + ' ' + clean) : clean;
+          currentTransmitterParagraph.liveSpan.innerText = '';
+          const box = document.getElementById('transmitter-subtitle-box');
           if (box) box.scrollTop = box.scrollHeight;
         }
 
-        broadcastSubtitleGlobally('transmitter', text, startSec, endSec);
+        broadcastSubtitleGlobally('transmitter', clean, startSec, endSec);
+
+        if (paragraphPauseTimer) clearTimeout(paragraphPauseTimer);
+        paragraphPauseTimer = setTimeout(closeActiveParagraphs, 2500);
       }
 
       function getTargetColumnElements(lang) {
@@ -4643,32 +4691,22 @@
         if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
         targetTranscriptions[targetLang].push({ text: clean, timeStart: startSec, timeEnd: endSec });
 
-        const els = getTargetColumnElements(targetLang);
-        const cfg = targetColumnConfigs[targetLang] || { textColor: '#fde047' };
-
-        if (els.feed) {
-          const empty = els.feed.querySelector('.placeholder-empty');
-          if (empty) empty.remove();
-
-          const div = document.createElement('div');
-          div.className = 'text-sm leading-relaxed p-1.5 rounded-lg border-b border-white/5 transition-all';
-          div.style.color = cfg.textColor;
-          div.innerHTML = `<span>${clean}</span>`;
-
-          els.feed.appendChild(div);
+        getOrCreateActiveParagraph();
+        const tp = currentTargetParagraphs[targetLang];
+        if (tp) {
+          const prev = tp.confirmedSpan.innerText.trim();
+          tp.confirmedSpan.innerText = prev ? (prev + ' ' + clean) : clean;
+          tp.liveSpan.innerText = '';
+          const els = getTargetColumnElements(targetLang);
           if (els.box) els.box.scrollTop = els.box.scrollHeight;
         }
 
-        // Broadcast nos canais padrão (única transmissão desduplicada)
         const targetCode = targetLang.split('-')[0].toLowerCase();
         broadcastSubtitleGlobally(targetCode, clean, startSec, endSec);
         if (targetCode === 'en') broadcastSubtitleGlobally('receiver', clean, startSec, endSec);
         if (targetCode === 'es') broadcastSubtitleGlobally('spanish', clean, startSec, endSec);
 
-        // Feedback visual do canal de áudio traduzido no Cockpit (VU Meter)
         triggerTargetAudioMeter(targetLang, Math.max(3000, clean.length * 90));
-
-        // Pre-fetch silencioso do chunk de áudio em MP3 para gravação final (faixas feminina e masculina)
         fetchAudioChunkForExport(targetLang, clean, 'female');
         fetchAudioChunkForExport(targetLang, clean, 'male');
       }
@@ -4739,7 +4777,7 @@
         const el = document.getElementById('transmitter-subtitle-box');
         if (el) el.style.color = c;
         const feed = document.getElementById('transmitter-transcription-feed');
-        if (feed) feed.querySelectorAll('.transcription-line').forEach(d => { d.style.color = c; });
+        if (feed) feed.querySelectorAll('.transcription-line, .speech-paragraph').forEach(d => { d.style.color = c; });
         try { localStorage.setItem('brain_trans_subtitle_style', JSON.stringify(transSubtitleConfig)); } catch(e) {}
       };
       window.changeTransSubtitleFontSize = function(d) {
