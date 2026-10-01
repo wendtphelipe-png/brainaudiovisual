@@ -4349,52 +4349,95 @@
           }
         });
         currentTargetParagraphs = {};
+        // Reseta tracker de interim para a pr\u00f3xima frase
+        Object.keys(_interimTracker).forEach(lang => {
+          _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
+        });
       }
 
+      // Rastreamento por idioma para tradução interim (não cancela em-voo)
+      const _interimTracker = {}; // { [lang]: { lastShownLen, inFlight } }
+
+      // Caminho RÁPIDO para tradução em tempo real — só Google direct, sem fallbacks lentos
+      async function fetchInterimTranslation(text, sourceLang, targetLang) {
+        const clean = text.trim();
+        if (!clean) return null;
+        const sourceCode = (sourceLang || 'pt-BR').split('-')[0].toLowerCase();
+        const targetCode = (targetLang || 'en').split('-')[0].toLowerCase();
+        if (sourceCode === targetCode) return clean;
+
+        // Cache hit imediato
+        const cacheKey = `${sourceCode}|${targetCode}|${clean}`;
+        if (_translationCache.has(cacheKey)) return _translationCache.get(cacheKey);
+
+        // Google Translate direct — 1.5s timeout máximo para manter fluidez
+        try {
+          const ctrl = new AbortController();
+          const tid = setTimeout(() => ctrl.abort(), 1500);
+          const res = await fetch(
+            `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`,
+            { signal: ctrl.signal }
+          );
+          clearTimeout(tid);
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && Array.isArray(data[0])) {
+              const trans = data[0].map(i => i[0]).filter(Boolean).join('');
+              if (trans && trans.trim()) {
+                const result = trans.trim();
+                // Salva no cache compartilhado
+                _translationCache.set(cacheKey, result);
+                if (_translationCache.size > 500) {
+                  _translationCache.delete(_translationCache.keys().next().value);
+                }
+                return result;
+              }
+            }
+          }
+        } catch(e) {}
+        return null;
+      }
+
+      // TRADUÇÃO EM STREAMING — Padrão Google Tradutor:
+      // dispara palavra-a-palavra SEM debounce, SEM cancelar requests anteriores.
+      // Usa comprimento do texto para determinar recência (texto mais longo = mais recente).
       function scheduleLiveStreamTranslation(interimText) {
         if (!interimText || !interimText.trim()) return;
-        if (liveTranslationDebounceTimer) clearTimeout(liveTranslationDebounceTimer);
+        const textNow = interimText.trim();
 
-        liveTranslationSeq++;
-        const currentSeq = liveTranslationSeq;
+        const targets = new Set(activeTargetLanguages);
+        if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
+          targets.add('pt-BR');
+        }
 
-        // 50ms debounce — resposta rápida como Google Tradutor em tempo real
-        liveTranslationDebounceTimer = setTimeout(() => {
-          const targets = new Set(activeTargetLanguages);
-          if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
-            targets.add('pt-BR');
+        targets.forEach(async (targetLang) => {
+          if (!_interimTracker[targetLang]) {
+            _interimTracker[targetLang] = { lastShownLen: 0, inFlight: false };
           }
+          const tracker = _interimTracker[targetLang];
 
-          targets.forEach(async (targetLang) => {
+          // Se já está traduzindo um texto igual ou mais longo, aguarda (não dispara outra chamada)
+          if (tracker.inFlight && textNow.length <= tracker.lastShownLen) return;
+
+          tracker.inFlight = true;
+          const translated = await fetchInterimTranslation(textNow, selectedSourceLanguage, targetLang);
+          tracker.inFlight = false;
+
+          if (!translated) return;
+
+          // Só atualiza se o texto traduzido é referente a um texto igual ou mais longo que o atual mostrado
+          if (textNow.length >= tracker.lastShownLen) {
+            tracker.lastShownLen = textNow.length;
             const tp = currentTargetParagraphs[targetLang];
-            // Mostra indicador de tradução em andamento
-            if (tp && tp.liveSpan && currentSeq === liveTranslationSeq) {
-              tp.liveSpan.style.opacity = '0.5';
-            }
-
-            const translated = await fetchFastTranslation(interimText, selectedSourceLanguage, targetLang);
-
-            if (currentSeq !== liveTranslationSeq) return; // resultado expirado
-            const tp2 = currentTargetParagraphs[targetLang];
-            if (tp2 && tp2.liveSpan) {
-              if (translated) {
-                const hasConfirmed = tp2.confirmedSpan.textContent.trim().length > 0;
-                tp2.liveSpan.textContent = (hasConfirmed ? ' ' : '') + translated;
-                tp2.liveSpan.style.opacity = '1';
-              } else {
-                // Tradução falhou — mantém o texto anterior se existir, senão mostra '…'
-                if (!tp2.liveSpan.textContent.trim()) {
-                  tp2.liveSpan.textContent = ' …';
-                  tp2.liveSpan.style.opacity = '0.4';
-                } else {
-                  tp2.liveSpan.style.opacity = '0.6';
-                }
-              }
+            if (tp && tp.liveSpan) {
+              const hasConfirmed = tp.confirmedSpan.textContent.trim().length > 0;
+              tp.liveSpan.textContent = (hasConfirmed ? ' ' : '') + translated;
+              tp.liveSpan.style.opacity = '1';
               const els = getTargetColumnElements(targetLang);
               if (els.box) els.box.scrollTop = els.box.scrollHeight;
             }
-          });
-        }, 50);
+          }
+        });
       }
 
       // TRANSCRIÇÃO EM TEMPO REAL INSTANTÂNEA — PADRÃO BARRA DE PESQUISA DO GOOGLE
@@ -4440,6 +4483,11 @@
         }
         lastConfirmedCleanTranscript = cleanLower;
         lastConfirmedTimestamp = now;
+
+        // Reseta tracker interim para nova frase
+        Object.keys(_interimTracker).forEach(lang => {
+          _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
+        });
 
         const para = getOrCreateActiveParagraph();
         if (!para) return;
@@ -4531,6 +4579,10 @@
           clearTimeout(liveTranslationDebounceTimer);
           liveTranslationDebounceTimer = null;
         }
+        // Reseta rastreamento interim (sem debounce ativo para cancelar)
+        Object.keys(_interimTracker).forEach(lang => {
+          _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
+        });
 
         if (forceCloseParagraph) {
           closeActiveParagraphs();
