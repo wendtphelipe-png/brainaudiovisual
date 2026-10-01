@@ -4196,7 +4196,7 @@
             confirmedSpan.className = 'para-confirmed';
 
             const liveSpan = document.createElement('span');
-            liveSpan.className = 'para-live text-blue-400 font-medium';
+            liveSpan.className = 'para-live font-normal';
 
             const cursorEl = document.createElement('span');
             cursorEl.className = 'streaming-cursor inline-block w-1.5 h-3.5 ml-1 bg-blue-500 animate-pulse align-middle rounded-xs';
@@ -4243,7 +4243,7 @@
               tConfirmed.className = 'target-para-confirmed';
 
               const tLive = document.createElement('span');
-              tLive.className = 'target-para-live text-amber-300 font-medium';
+              tLive.className = 'target-para-live font-normal';
 
               const tCursor = document.createElement('span');
               tCursor.className = 'streaming-cursor inline-block w-1.5 h-3.5 ml-1 bg-amber-400 animate-pulse align-middle rounded-xs';
@@ -4567,14 +4567,6 @@
               isStartingSpeechRecognition = false;
               isTranscribingSpeech = false;
               updateSpeechStatusIndicator(false);
-
-              // Se havia algum texto interim pendente, fecha para o parágrafo
-              if (currentTransmitterParagraph && currentTransmitterParagraph.liveSpan && currentTransmitterParagraph.liveSpan.innerText.trim()) {
-                const remaining = currentTransmitterParagraph.liveSpan.innerText.trim();
-                const prev = currentTransmitterParagraph.confirmedSpan.innerText.trim();
-                currentTransmitterParagraph.confirmedSpan.innerText = prev ? (prev + ' ' + remaining) : remaining;
-                currentTransmitterParagraph.liveSpan.innerText = '';
-              }
 
               if (isRealMicActive && !isTimerPaused) {
                 scheduleSpeechRestart(40);
