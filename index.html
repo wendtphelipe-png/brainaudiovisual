@@ -4131,6 +4131,12 @@
       let lastConfirmedCleanTranscript = '';
       let lastConfirmedTimestamp = 0;
 
+      // Variáveis do motor de commit progressivo instantâneo em tempo real (sem esperar pausa)
+      let currentUtteranceIndex = -1;
+      let currentUtteranceCommittedWordsCount = 0;
+      let progressiveCommitTimer = null;
+      let lastProgressiveCommitTimestamp = 0;
+
       async function fetchFastTranslation(text, sourceLang, targetLang) {
         if (!text || !text.trim()) return '';
         const clean = text.trim();
@@ -4196,7 +4202,7 @@
             confirmedSpan.className = 'para-confirmed';
 
             const liveSpan = document.createElement('span');
-            liveSpan.className = 'para-live text-blue-400 font-medium';
+            liveSpan.className = 'para-live opacity-90 font-medium';
 
             const cursorEl = document.createElement('span');
             cursorEl.className = 'streaming-cursor inline-block w-1.5 h-3.5 ml-1 bg-blue-500 animate-pulse align-middle rounded-xs';
@@ -4243,7 +4249,7 @@
               tConfirmed.className = 'target-para-confirmed';
 
               const tLive = document.createElement('span');
-              tLive.className = 'target-para-live text-amber-300 font-medium';
+              tLive.className = 'target-para-live opacity-90 font-medium';
 
               const tCursor = document.createElement('span');
               tCursor.className = 'streaming-cursor inline-block w-1.5 h-3.5 ml-1 bg-amber-400 animate-pulse align-middle rounded-xs';
@@ -4269,19 +4275,102 @@
         return currentTransmitterParagraph;
       }
 
+      function commitTransmitterChunk(chunkText) {
+        if (!chunkText || !chunkText.trim()) return;
+        const clean = chunkText.trim();
+        if (clean.length < 2) return;
+
+        // Evita duplicatas consecutivas idênticas imediatas
+        const now = Date.now();
+        const cleanLower = clean.toLowerCase();
+        if (cleanLower === lastConfirmedCleanTranscript.toLowerCase() && (now - lastConfirmedTimestamp) < 1500) {
+          return;
+        }
+        lastConfirmedCleanTranscript = cleanLower;
+        lastConfirmedTimestamp = now;
+
+        const startSec = currentTransmitterParagraph ? currentTransmitterParagraph.startTime : sessionElapsedSeconds;
+        const endSec = sessionElapsedSeconds > startSec ? sessionElapsedSeconds : startSec + Math.max(1.0, clean.length * 0.08);
+
+        getOrCreateActiveParagraph();
+        if (currentTransmitterParagraph) {
+          const prev = currentTransmitterParagraph.confirmedSpan.innerText.trim();
+          currentTransmitterParagraph.confirmedSpan.innerText = prev ? (prev + ' ' + clean) : clean;
+          const box = document.getElementById('transmitter-subtitle-box');
+          if (box) box.scrollTop = box.scrollHeight;
+        }
+
+        transmitterTranscriptions.push({ text: clean, timeStart: startSec, timeEnd: endSec });
+        broadcastSubtitleGlobally('transmitter', clean, startSec, endSec);
+
+        // Despacha tradução em streaming contínuo para as colunas ativas
+        dispatchChunkTranslation(clean, startSec, endSec);
+
+        // Inicia ou reinicia temporizador de pausa significante (2.5s)
+        if (paragraphPauseTimer) clearTimeout(paragraphPauseTimer);
+        paragraphPauseTimer = setTimeout(closeActiveParagraphs, 2500);
+      }
+
+      async function dispatchChunkTranslation(cleanText, startSec, endSec) {
+        const targets = new Set(activeTargetLanguages);
+        if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
+          targets.add('pt-BR');
+        }
+
+        targets.forEach(async (targetLang) => {
+          const translated = await fetchFastTranslation(cleanText, selectedSourceLanguage, targetLang);
+          const cleanTranslated = (translated || cleanText).trim();
+
+          const tp = currentTargetParagraphs[targetLang];
+          if (tp) {
+            const prevT = tp.confirmedSpan.innerText.trim();
+            tp.confirmedSpan.innerText = prevT ? (prevT + ' ' + cleanTranslated) : cleanTranslated;
+            tp.liveSpan.innerText = '';
+            const els = getTargetColumnElements(targetLang);
+            if (els.box) els.box.scrollTop = els.box.scrollHeight;
+          }
+
+          if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
+          targetTranscriptions[targetLang].push({ text: cleanTranslated, timeStart: startSec, timeEnd: endSec });
+
+          const targetCode = targetLang.split('-')[0].toLowerCase();
+          broadcastSubtitleGlobally(targetCode, cleanTranslated, startSec, endSec);
+          if (targetCode === 'en') broadcastSubtitleGlobally('receiver', cleanTranslated, startSec, endSec);
+          if (targetCode === 'es') broadcastSubtitleGlobally('spanish', cleanTranslated, startSec, endSec);
+
+          triggerTargetAudioMeter(targetLang, Math.max(2500, cleanTranslated.length * 80));
+          fetchAudioChunkForExport(targetLang, cleanTranslated, 'female');
+          fetchAudioChunkForExport(targetLang, cleanTranslated, 'male');
+        });
+      }
+
+      function commitRemainingWordsOfUtterance() {
+        if (progressiveCommitTimer) {
+          clearTimeout(progressiveCommitTimer);
+          progressiveCommitTimer = null;
+        }
+        if (currentTransmitterParagraph && currentTransmitterParagraph.liveSpan) {
+          const remaining = currentTransmitterParagraph.liveSpan.innerText.trim();
+          if (remaining) {
+            currentTransmitterParagraph.liveSpan.innerText = '';
+            commitTransmitterChunk(remaining);
+          }
+        }
+      }
+
       function closeActiveParagraphs() {
         if (paragraphPauseTimer) {
           clearTimeout(paragraphPauseTimer);
           paragraphPauseTimer = null;
         }
+        if (progressiveCommitTimer) {
+          clearTimeout(progressiveCommitTimer);
+          progressiveCommitTimer = null;
+        }
+
+        commitRemainingWordsOfUtterance();
 
         if (currentTransmitterParagraph) {
-          if (currentTransmitterParagraph.liveSpan && currentTransmitterParagraph.liveSpan.innerText.trim()) {
-            const remaining = currentTransmitterParagraph.liveSpan.innerText.trim();
-            const prev = currentTransmitterParagraph.confirmedSpan.innerText.trim();
-            currentTransmitterParagraph.confirmedSpan.innerText = prev ? (prev + ' ' + remaining) : remaining;
-            currentTransmitterParagraph.liveSpan.innerText = '';
-          }
           if (currentTransmitterParagraph.cursorEl) {
             currentTransmitterParagraph.cursorEl.remove();
             currentTransmitterParagraph.cursorEl = null;
@@ -4292,12 +4381,6 @@
         Object.keys(currentTargetParagraphs).forEach(targetLang => {
           const tp = currentTargetParagraphs[targetLang];
           if (tp) {
-            if (tp.liveSpan && tp.liveSpan.innerText.trim()) {
-              const remaining = tp.liveSpan.innerText.trim();
-              const prev = tp.confirmedSpan.innerText.trim();
-              tp.confirmedSpan.innerText = prev ? (prev + ' ' + remaining) : remaining;
-              tp.liveSpan.innerText = '';
-            }
             if (tp.cursorEl) {
               tp.cursorEl.remove();
               tp.cursorEl = null;
@@ -4305,6 +4388,7 @@
           }
         });
         currentTargetParagraphs = {};
+        currentUtteranceCommittedWordsCount = 0;
       }
 
       function scheduleLiveStreamTranslation(interimText) {
@@ -4338,12 +4422,15 @@
       function handleStreamingSpeechResult(transcript, utteranceIndex, isFinal) {
         lastSpeechActivityTimestamp = Date.now();
 
-        // 1. Se este índice já foi concluído pelo reconhecedor, ignora eventos residuais
-        if (finalizedUtteranceIndices.has(utteranceIndex)) {
-          return;
+        // 1. Se mudou o índice do SpeechRecognition, commita o que restava do anterior
+        if (currentUtteranceIndex !== utteranceIndex) {
+          commitRemainingWordsOfUtterance();
+          currentUtteranceIndex = utteranceIndex;
+          currentUtteranceCommittedWordsCount = 0;
+          lastProgressiveCommitTimestamp = Date.now();
         }
 
-        // 2. Cancela temporizador de quebra de parágrafo (o palestrante continua falando)
+        // 2. Cancela temporizador de pausa de parágrafo (o palestrante continua falando)
         if (paragraphPauseTimer) {
           clearTimeout(paragraphPauseTimer);
           paragraphPauseTimer = null;
@@ -4356,91 +4443,82 @@
         getOrCreateActiveParagraph();
         if (!currentTransmitterParagraph) return;
 
-        // 4. Se ainda NÃO é final: atualiza o streaming in-place com auto-correção
-        if (!isFinal) {
-          const hasConfirmed = currentTransmitterParagraph.confirmedSpan.innerText.trim().length > 0;
-          currentTransmitterParagraph.liveSpan.innerText = (hasConfirmed ? ' ' : '') + cleanTranscript;
+        const allWords = cleanTranscript.split(/\s+/).filter(Boolean);
 
-          const box = document.getElementById('transmitter-subtitle-box');
-          if (box) box.scrollTop = box.scrollHeight;
-
-          // Agenda tradução em tempo real para as colunas de idiomas
-          scheduleLiveStreamTranslation(cleanTranscript);
-
-          // Watchdog caso isFinal demore para ser emitido
-          if (paragraphPauseTimer) clearTimeout(paragraphPauseTimer);
-          paragraphPauseTimer = setTimeout(closeActiveParagraphs, 3500);
-          return;
+        // Se o reconhecedor de repente reiniciou o índice ou o array encolheu
+        if (allWords.length < currentUtteranceCommittedWordsCount) {
+          currentUtteranceCommittedWordsCount = 0;
         }
 
-        // 5. Se É FINAL: commita a oração no parágrafo ativo (SEM QUEBRAR LINHA!)
-        finalizedUtteranceIndices.add(utteranceIndex);
-        if (liveTranslationDebounceTimer) {
-          clearTimeout(liveTranslationDebounceTimer);
-          liveTranslationDebounceTimer = null;
-        }
+        // Palavras não commitadas nesta oração
+        const uncommittedWords = allWords.slice(currentUtteranceCommittedWordsCount);
+        const uncommittedText = uncommittedWords.join(' ');
 
-        // Evita duplicatas consecutivas idênticas num intervalo curto
-        const now = Date.now();
-        const cleanLower = cleanTranscript.toLowerCase();
-        if (cleanLower === lastConfirmedCleanTranscript.toLowerCase() && (now - lastConfirmedTimestamp) < 2000) {
-          currentTransmitterParagraph.liveSpan.innerText = '';
-          return;
-        }
-        lastConfirmedCleanTranscript = cleanLower;
-        lastConfirmedTimestamp = now;
-
-        const startSec = currentTransmitterParagraph.startTime;
-        const endSec = sessionElapsedSeconds > startSec ? sessionElapsedSeconds : startSec + Math.max(1.5, cleanTranscript.length * 0.08);
-
-        // Anexa ao confirmedSpan na mesma linha contínua, separando por espaço
-        const prevConfirmed = currentTransmitterParagraph.confirmedSpan.innerText.trim();
-        currentTransmitterParagraph.confirmedSpan.innerText = prevConfirmed ? (prevConfirmed + ' ' + cleanTranscript) : cleanTranscript;
-        currentTransmitterParagraph.liveSpan.innerText = '';
-
-        transmitterTranscriptions.push({ text: cleanTranscript, timeStart: startSec, timeEnd: endSec });
-        broadcastSubtitleGlobally('transmitter', cleanTranscript, startSec, endSec);
+        // Atualiza liveSpan instantaneamente com as palavras novas em tempo real
+        const hasConfirmed = currentTransmitterParagraph.confirmedSpan.innerText.trim().length > 0;
+        currentTransmitterParagraph.liveSpan.innerText = (hasConfirmed && uncommittedText ? ' ' : '') + uncommittedText;
 
         const box = document.getElementById('transmitter-subtitle-box');
         if (box) box.scrollTop = box.scrollHeight;
 
-        // Confirma nas colunas traduzidas (mesmo fluxo contínuo)
-        const targets = new Set(activeTargetLanguages);
-        if (selectedSourceLanguage !== 'pt-BR' || isPtColumnExpanded) {
-          targets.add('pt-BR');
+        // Atualiza liveSpan da tradução rápida enquanto fala
+        if (uncommittedText) {
+          scheduleLiveStreamTranslation(uncommittedText);
         }
 
-        targets.forEach(async (targetLang) => {
-          const translated = await fetchFastTranslation(cleanTranscript, selectedSourceLanguage, targetLang);
-          const cleanTranslated = (translated || cleanTranscript).trim();
+        const now = Date.now();
+        const timeSinceLastCommit = now - lastProgressiveCommitTimestamp;
 
-          const tp = currentTargetParagraphs[targetLang];
-          if (tp) {
-            const prevTConfirmed = tp.confirmedSpan.innerText.trim();
-            tp.confirmedSpan.innerText = prevTConfirmed ? (prevTConfirmed + ' ' + cleanTranslated) : cleanTranslated;
-            tp.liveSpan.innerText = '';
-            const els = getTargetColumnElements(targetLang);
-            if (els.box) els.box.scrollTop = els.box.scrollHeight;
+        // CONDIÇÃO DE COMMIT INSTANTÂNEO PROGRESSIVO (SEM ESPERAR PAUSA!):
+        // 1. Se é final (reconhecedor concluiu este trecho)
+        // 2. OU se acumulou 4 ou mais palavras não commitadas E passou pelo menos 800ms
+        // 3. OU se passou mais de 1200ms e temos pelo menos 2 palavras
+        const shouldCommitNow = isFinal 
+          || (uncommittedWords.length >= 4 && timeSinceLastCommit >= 800)
+          || (uncommittedWords.length >= 2 && timeSinceLastCommit >= 1200);
+
+        if (shouldCommitNow && uncommittedWords.length > 0) {
+          if (progressiveCommitTimer) {
+            clearTimeout(progressiveCommitTimer);
+            progressiveCommitTimer = null;
           }
 
-          if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
-          targetTranscriptions[targetLang].push({ text: cleanTranslated, timeStart: startSec, timeEnd: endSec });
+          const chunkToCommit = uncommittedWords.join(' ');
+          currentUtteranceCommittedWordsCount = allWords.length;
+          lastProgressiveCommitTimestamp = now;
 
-          const targetCode = targetLang.split('-')[0].toLowerCase();
-          broadcastSubtitleGlobally(targetCode, cleanTranslated, startSec, endSec);
-          if (targetCode === 'en') broadcastSubtitleGlobally('receiver', cleanTranslated, startSec, endSec);
-          if (targetCode === 'es') broadcastSubtitleGlobally('spanish', cleanTranslated, startSec, endSec);
+          currentTransmitterParagraph.liveSpan.innerText = '';
+          commitTransmitterChunk(chunkToCommit);
 
-          triggerTargetAudioMeter(targetLang, Math.max(3000, cleanTranslated.length * 90));
-          fetchAudioChunkForExport(targetLang, cleanTranslated, 'female');
-          fetchAudioChunkForExport(targetLang, cleanTranslated, 'male');
-        });
+          if (isFinal) {
+            finalizedUtteranceIndices.add(utteranceIndex);
+            currentUtteranceCommittedWordsCount = 0;
+          }
+          return;
+        }
 
-        // 6. INICIA TEMPORIZADOR DE PAUSA SIGNIFICANTE (2.5 segundos de silêncio)
-        // Se o palestrante falar antes de 2.5s, o timer é cancelado e o texto continua no mesmo parágrafo!
-        // Se houver silêncio de 2.5s, closeActiveParagraphs() é chamado e a próxima fala iniciará um novo parágrafo.
-        if (paragraphPauseTimer) clearTimeout(paragraphPauseTimer);
-        paragraphPauseTimer = setTimeout(closeActiveParagraphs, 2500);
+        // Se ainda não atingiu o threshold de palavras, agenda commit em 1000ms
+        if (!progressiveCommitTimer && uncommittedWords.length > 0) {
+          progressiveCommitTimer = setTimeout(() => {
+            progressiveCommitTimer = null;
+            if (currentTransmitterParagraph && currentUtteranceIndex === utteranceIndex) {
+              const currentUncommitted = allWords.slice(currentUtteranceCommittedWordsCount);
+              if (currentUncommitted.length > 0) {
+                const chunk = currentUncommitted.join(' ');
+                currentUtteranceCommittedWordsCount = allWords.length;
+                lastProgressiveCommitTimestamp = Date.now();
+                currentTransmitterParagraph.liveSpan.innerText = '';
+                commitTransmitterChunk(chunk);
+              }
+            }
+          }, 1000);
+        }
+
+        if (isFinal) {
+          finalizedUtteranceIndices.add(utteranceIndex);
+          commitRemainingWordsOfUtterance();
+          currentUtteranceCommittedWordsCount = 0;
+        }
       }
 
       function safelyDestroySpeechRecognizer() {
