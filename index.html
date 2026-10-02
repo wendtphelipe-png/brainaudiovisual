@@ -3920,8 +3920,8 @@
           }
         }
 
-        // Se houver mais frases curtas acumuladas na fila, agrupa de forma fluida para não picotar a fala
-        while (speechQueue.length > 0 && nextText.split(/\s+/).length < 10) {
+        // Se houver mais frases na fila e a atual não terminou com pontuação conclusiva, conecta suavemente
+        while (speechQueue.length > 0 && !/[.!?]$/.test(nextText) && nextText.split(/\s+/).length < 24) {
           let peek = speechQueue[0];
           if (nextText) {
             peek = stripUtteranceBoundaryOverlap(peek, nextText) || peek;
@@ -3949,15 +3949,8 @@
         utterance.lang = currentAudienceLang || 'en-US';
         utterance.volume = Math.max(0.1, currentVolume);
 
-        // Se a fila acumulou frases (orador falando rápido), acelera ligeiramente para alcançar
-        // o tempo real de forma natural sem nunca cortar ou pular nenhuma palavra:
-        if (speechQueue.length >= 2) {
-          utterance.rate = 1.15;
-        } else if (speechQueue.length === 1) {
-          utterance.rate = 1.06;
-        } else {
-          utterance.rate = 1.00;
-        }
+        // Locução Premium: velocidade estável, confortável e humana (1.00x), sem correrias
+        utterance.rate = (speechQueue.length >= 2) ? 1.04 : 1.00;
 
         const voiceResult = getBestVoiceForCurrentLang(persona.gender);
         if (voiceResult && voiceResult.voice) utterance.voice = voiceResult.voice;
@@ -3980,8 +3973,8 @@
           window._activeAudienceUtterance = null;
           isSpeakingNow = false;
           startDiscreetVuMeter(false);
-          // Pausa de 80ms para respiração natural humana entre frases
-          setTimeout(processSpeechQueue, 80);
+          // Pausa natural de 280ms para respiração humana e rearmamento suave do sintetizador
+          setTimeout(processSpeechQueue, 280);
         };
 
         utterance.onstart = () => {
@@ -5854,11 +5847,95 @@
         return currentTransmitterParagraph;
       }
 
+      // ========================================================
+      // BUFFER INTELIGENTE DE LOCUÇÃO PREMIUM (THOUGHT ACCUMULATOR)
+      // Sacrifica velocidade imediata da locução em favor de frases maiores,
+      // cadência fluida, sem interrupções e com entonação humana natural.
+      // Legendas e transcrições na tela permanecem instantâneas.
+      // ========================================================
+      const _ttsLocutionBuffers = {}; // targetLang -> { chunks: [], timer: null, lastActivity: number }
+
+      function accumulateTTSLocution(targetLang, cleanSentence) {
+        if (!cleanSentence || !cleanSentence.trim()) return;
+        const sentence = cleanSentence.trim();
+
+        if (!_ttsLocutionBuffers[targetLang]) {
+          _ttsLocutionBuffers[targetLang] = { chunks: [], timer: null, lastActivity: Date.now() };
+        }
+        const buf = _ttsLocutionBuffers[targetLang];
+        buf.lastActivity = Date.now();
+
+        // Elimina sobreposição de palavras nas bordas com o fragmento anterior no buffer
+        let toAdd = sentence;
+        if (buf.chunks.length > 0) {
+          const lastChunk = buf.chunks[buf.chunks.length - 1];
+          toAdd = stripUtteranceBoundaryOverlap(toAdd, lastChunk) || toAdd;
+        }
+        toAdd = toAdd.trim();
+        if (toAdd) {
+          buf.chunks.push(toAdd);
+        }
+
+        const combined = buf.chunks.join(' ').trim();
+        const words = combined.split(/\s+/).filter(Boolean);
+
+        // Se o buffer acumulou um pensamento substancial (>= 16 palavras)
+        // OU se termina com pontuação forte (. ? !) e tem pelo menos 10 palavras:
+        const endsWithTerminalPunctuation = /[.!?]$/.test(toAdd);
+        const isSufficientlyLong = words.length >= 16;
+        const isNaturalSentenceClosure = endsWithTerminalPunctuation && words.length >= 10;
+
+        if (isSufficientlyLong || isNaturalSentenceClosure) {
+          if (buf.timer) clearTimeout(buf.timer);
+          buf.timer = null;
+          flushTTSLocutionBuffer(targetLang);
+          return;
+        }
+
+        // Aguarda pausa natural na fala do palestrante (2.8s de silêncio) para fechar o pensamento
+        if (buf.timer) clearTimeout(buf.timer);
+        buf.timer = setTimeout(() => {
+          flushTTSLocutionBuffer(targetLang);
+        }, 2800);
+      }
+
+      function flushTTSLocutionBuffer(targetLang) {
+        const buf = _ttsLocutionBuffers[targetLang];
+        if (!buf || buf.chunks.length === 0) return;
+        if (buf.timer) {
+          clearTimeout(buf.timer);
+          buf.timer = null;
+        }
+
+        let fullText = buf.chunks.join(' ').trim().replace(/\s+/g, ' ');
+        buf.chunks = [];
+
+        if (!fullText || fullText.length < 2) return;
+
+        // Higieniza pontuação final para entonação conclusiva agradável e humana
+        if (!/[.!?]$/.test(fullText)) {
+          fullText += '.';
+        }
+
+        const targetCode = (targetLang || 'en').split('-')[0].toLowerCase();
+        broadcastStreamTTS(targetCode, fullText);
+        triggerTargetAudioMeter(targetLang, Math.max(3000, fullText.length * 85));
+      }
+
+      function flushAllTTSLocutionBuffers() {
+        Object.keys(_ttsLocutionBuffers).forEach(lang => {
+          flushTTSLocutionBuffer(lang);
+        });
+      }
+
       function closeActiveParagraphs() {
         if (paragraphPauseTimer) {
           clearTimeout(paragraphPauseTimer);
           paragraphPauseTimer = null;
         }
+
+        // Flusha qualquer pensamento acumulado na fila de locução premium de todos os idiomas
+        flushAllTTSLocutionBuffers();
 
         if (currentTransmitterParagraph) {
           if (currentTransmitterParagraph.liveSpan && currentTransmitterParagraph.liveSpan.textContent.trim()) {
@@ -5901,19 +5978,6 @@
         // Reseta tracker de interim para a próxima frase
         Object.keys(_interimTracker).forEach(lang => {
           _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
-        });
-        // Cancela timers pendentes de TTS streaming e reseta estado
-        Object.keys(_liveTTSStreamState).forEach(lang => {
-          if (_liveTTSStreamState[lang].timer) {
-            clearTimeout(_liveTTSStreamState[lang].timer);
-            _liveTTSStreamState[lang].timer = null;
-          }
-          _liveTTSStreamState[lang] = {
-            spokenWordCount: 0,
-            firstWordTimestamp: 0,
-            timer: null,
-            latestTranslation: ''
-          };
         });
         // Notifica Espectador e OBS do fechamento do parágrafo
         broadcastCloseParagraphGlobally('all');
@@ -5962,34 +6026,6 @@
           } catch(e) {}
         }
         return null;
-      }
-
-      // RASTREAMENTO DE TTS STREAMING EM TEMPO REAL COM DELAY DE 4 SEGUNDOS
-      // Permite locução contínua acompanhando o ritmo em que a tradução é escrita na tela,
-      // com delay de 4s para acumular blocos sonoros completos, sem picotar e sem repetições.
-      const _liveTTSStreamState = {};
-
-      function extractNextTTSChunk(spokenCount, fullText, isFinal) {
-        const currentWords = (fullText || '').trim().split(/\s+/).filter(Boolean);
-        if (currentWords.length === 0) return { chunk: '', newCount: spokenCount };
-        if (spokenCount >= currentWords.length) return { chunk: '', newCount: spokenCount };
-
-        const unsaid = currentWords.slice(spokenCount);
-        // No interim, requer no mínimo 4 palavras para formar um bloco com ritmo e sentido pleno
-        if (!isFinal && unsaid.length < 4) {
-          return { chunk: '', newCount: spokenCount };
-        }
-
-        // Se não for final e tiver 6 ou mais palavras, reserva 1 palavra de margem para o próximo bloco
-        let countToTake = unsaid.length;
-        if (!isFinal && unsaid.length >= 6) {
-          countToTake = unsaid.length - 1;
-        }
-
-        const chunkWords = unsaid.slice(0, countToTake);
-        const chunk = chunkWords.join(' ');
-        const newCount = spokenCount + countToTake;
-        return { chunk, newCount };
       }
 
       // CATÁLOGO UNIVERSAL DE IDIOMAS DE TRANSMISSÃO
@@ -6204,18 +6240,15 @@
         const targetCode = targetLang.split('-')[0].toLowerCase();
 
         // 1. Broadcast IMEDIATO para exibição de legenda na tela (NEW_SUBTITLE) - apenas canal canônico
+        // Velocidade da transcrição e da legenda na tela mantida no máximo, sem qualquer atraso!
         broadcastSubtitleGlobally(targetCode, cleanTranslated, startSec, endSec);
 
-        // Limpa o interim nas janelas
+        // Limpa o interim nas janelas imediatamente
         broadcastLiveInterimGlobally(targetCode, '');
 
-        // 2. LOCUÇÃO EM TEMPO REAL: 1 segundo de delay confortável conforme solicitado pelo usuário
-        // Isso assegura que a legenda esteja 100% estabilizada na tela e que toda a frase traduzida
-        // seja falada de forma completa, natural e sem pular ou comer nenhuma palavra!
-        setTimeout(() => {
-          broadcastStreamTTS(targetCode, cleanTranslated);
-          triggerTargetAudioMeter(targetLang, Math.max(2500, cleanTranslated.length * 90));
-        }, 1000);
+        // 2. BUFFER INTELIGENTE DE LOCUÇÃO PREMIUM (THOUGHT ACCUMULATOR):
+        // Acumula pensamentos completos para ler pedaços maiores sem interrupções e com entonação humana perfeita
+        accumulateTTSLocution(targetLang, cleanTranslated);
 
         fetchAudioChunkForExport(targetLang, cleanTranslated, 'female');
         fetchAudioChunkForExport(targetLang, cleanTranslated, 'male');
@@ -6242,19 +6275,8 @@
         Object.keys(_interimTracker).forEach(lang => {
           _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
         });
-        // Cancela timers de streaming TTS
-        Object.keys(_liveTTSStreamState).forEach(lang => {
-          if (_liveTTSStreamState[lang].timer) {
-            clearTimeout(_liveTTSStreamState[lang].timer);
-            _liveTTSStreamState[lang].timer = null;
-          }
-          _liveTTSStreamState[lang] = {
-            spokenWordCount: 0,
-            firstWordTimestamp: 0,
-            timer: null,
-            latestTranslation: ''
-          };
-        });
+        // Flusha qualquer fala remanescente no buffer de locução
+        flushAllTTSLocutionBuffers();
 
         if (forceCloseParagraph) {
           closeActiveParagraphs();
@@ -7131,6 +7153,7 @@
       window.confirmAndExitMeeting = function() {
         if (confirm('Deseja realmente sair da sala e voltar ao painel?')) {
           if (isRealMicActive) stopMasterMicCapture();
+          try { flushAllTTSLocutionBuffers(); } catch(e) {}
           try {
             localStorage.removeItem('brain_room_heartbeat_' + id);
             if (typeof roomHeartbeatTimer !== 'undefined') clearInterval(roomHeartbeatTimer);
