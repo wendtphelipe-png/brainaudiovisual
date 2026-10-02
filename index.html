@@ -3961,7 +3961,7 @@
 
         // Elimina sobreposição de palavras nas bordas com a fala anterior
         if (lastSpokenAudienceText) {
-          nextText = stripUtteranceBoundaryOverlap(nextText, lastSpokenAudienceText);
+          nextText = stripUtteranceBoundaryOverlap(nextText, lastSpokenAudienceText) || nextText;
           nextText = (nextText || '').trim();
           if (!nextText) {
             setTimeout(processSpeechQueue, 40);
@@ -3969,25 +3969,15 @@
           }
         }
 
-        // Se houver mais frases na fila e a atual não terminou com pontuação conclusiva, conecta suavemente
-        while (speechQueue.length > 0 && !/[.!?]$/.test(nextText) && nextText.split(/\s+/).length < 24) {
-          let peek = speechQueue[0];
-          if (nextText) {
-            peek = stripUtteranceBoundaryOverlap(peek, nextText) || peek;
-          }
-          if (peek && peek.trim()) {
-            speechQueue.shift();
-            nextText += (/[.,!?;:]$/.test(nextText) ? ' ' : ', ') + peek.trim();
-          } else {
-            speechQueue.shift();
-          }
-        }
-
         lastSpokenAudienceText = nextText;
 
         // Garante pontuação final suave para cadência natural humana
         nextText = nextText.trim();
-        if (!/[.,!?;]$/.test(nextText)) nextText += '.';
+        const hasTerminalPunct = /[.!?]$/.test(nextText);
+        const hasCommaPunct = /[,;:]$/.test(nextText);
+        if (!hasTerminalPunct && !hasCommaPunct) {
+          nextText += '.';
+        }
 
         isSpeakingNow = true;
         const persona = getAudienceVoicePersona(selectedVoicePersonaId);
@@ -3998,20 +3988,18 @@
         utterance.lang = currentAudienceLang || 'en-US';
         utterance.volume = Math.max(0.1, currentVolume);
 
-        // Locução Premium: velocidade estável, confortável e humana (1.00x), sem correrias
-        utterance.rate = (speechQueue.length >= 2) ? 1.04 : 1.00;
+        // Locução Calma, Clara e Humana: velocidade 0.95x (sem correrias, estável e confortável)
+        utterance.rate = 0.95;
 
         const voiceResult = getBestVoiceForCurrentLang(persona.gender);
         if (voiceResult && voiceResult.voice) utterance.voice = voiceResult.voice;
 
         // AFINAÇÃO (PITCH): Se a voz do sistema já é nativamente masculina, preserva a afinação original.
-        // Se o celular tiver apenas a voz feminina padrão de fábrica, abaixamos a frequência fundamental (F0)
-        // para 0.76 - 0.82, produzindo um timbre masculino e encorpado de homem adulto sem parecer mulher!
         if (persona.gender === 'male') {
           if (voiceResult && voiceResult.isMale) {
-            utterance.pitch = (persona.id === 'diego_solene') ? 0.90 : 0.96;
+            utterance.pitch = (persona.id === 'diego_solene') ? 0.92 : 0.96;
           } else {
-            utterance.pitch = (persona.id === 'diego_solene') ? 0.72 : (persona.id === 'gabriel_alegre' ? 0.82 : 0.78);
+            utterance.pitch = (persona.id === 'diego_solene') ? 0.74 : (persona.id === 'gabriel_alegre' ? 0.82 : 0.78);
           }
         } else {
           utterance.pitch = (persona.id === 'elena_vibrante') ? 1.04 : 1.00;
@@ -4022,8 +4010,12 @@
           window._activeAudienceUtterance = null;
           isSpeakingNow = false;
           startDiscreetVuMeter(false);
-          // Pausa natural de 280ms para respiração humana e rearmamento suave do sintetizador
-          setTimeout(processSpeechQueue, 280);
+
+          // Pausa respiratória humana:
+          // Se terminou com ponto (. ? !): 480ms de respiração e reflexão
+          // Se terminou com vírgula: 320ms de pausa de oração
+          const breathPause = hasTerminalPunct ? 480 : 320;
+          setTimeout(processSpeechQueue, breathPause);
         };
 
         utterance.onstart = () => {
@@ -4035,8 +4027,8 @@
           finalizeSpeech();
         };
 
-        // Watchdog adaptado para a cadência humana (~120ms por caractere)
-        const maxExpectedMs = Math.max(4500, nextText.length * 130);
+        // Watchdog adaptado para a cadência humana (~150ms por caractere)
+        const maxExpectedMs = Math.max(4500, nextText.length * 150);
         if (speechQueueWatchdog) clearTimeout(speechQueueWatchdog);
         speechQueueWatchdog = setTimeout(() => {
           if (isSpeakingNow) {
@@ -4053,25 +4045,67 @@
         }
       }
 
+      function segmentTextIntoBreathClauses(text) {
+        if (!text) return [];
+        const clean = text.trim().replace(/\s+/g, ' ');
+        // Divide por pontuação conclusiva (. ! ? ; :)
+        const rawSentences = clean.split(/(?<=[.!?])\s+/);
+        const finalClauses = [];
+
+        for (const s of rawSentences) {
+          const trimmed = s.trim();
+          if (!trimmed) continue;
+          const words = trimmed.split(' ');
+          if (words.length <= 12) {
+            finalClauses.push(trimmed);
+          } else {
+            // Se a frase for longa (>12 palavras), divide por vírgulas
+            const subParts = trimmed.split(/(?<=[,;])\s+/);
+            for (const sp of subParts) {
+              const spTrimmed = sp.trim();
+              if (!spTrimmed) continue;
+              const spWords = spTrimmed.split(' ');
+              if (spWords.length <= 14) {
+                finalClauses.push(spTrimmed);
+              } else {
+                // Divide em blocos de 7 a 11 palavras em conjunções para respiração humana
+                let currentChunk = [];
+                for (let i = 0; i < spWords.length; i++) {
+                  currentChunk.push(spWords[i]);
+                  const wordLower = spWords[i].toLowerCase();
+                  const isConjunction = /^(and|but|because|so|that|which|when|while|y|pero|porque|que|cuando|e|mas|porque|quando|onde|como)$/i.test(wordLower);
+                  if (currentChunk.length >= 7 && (isConjunction || currentChunk.length >= 12)) {
+                    finalClauses.push(currentChunk.join(' ') + (/[.,!?;]$/.test(currentChunk[currentChunk.length - 1]) ? '' : ','));
+                    currentChunk = [];
+                  }
+                }
+                if (currentChunk.length > 0) {
+                  finalClauses.push(currentChunk.join(' '));
+                }
+              }
+            }
+          }
+        }
+        return finalClauses.filter(c => c.trim().length > 0);
+      }
+
       function queueAudienceSpeech(text) {
         if (!isAudioPlaybackActive || !text || !text.trim()) return;
         let clean = text.trim();
 
-        // Se a frase recebida tiver sobreposição de palavras finais da fala anterior, limpa
         if (lastSpokenAudienceText) {
-          clean = stripUtteranceBoundaryOverlap(clean, lastSpokenAudienceText);
-          clean = (clean || '').trim();
+          clean = stripUtteranceBoundaryOverlap(clean, lastSpokenAudienceText) || clean;
+          clean = clean.trim();
           if (!clean) return;
         }
 
-        const norm = cleanNorm(clean);
-        if (!norm) return;
-
-        // Evita frase duplicada acumulada na fila
-        if (speechQueue.some(item => cleanNorm(item) === norm)) return;
-
-        // NUNCA descarta sentenças para não pular palavras!
-        speechQueue.push(clean);
+        const clauses = segmentTextIntoBreathClauses(clean);
+        for (const clause of clauses) {
+          const c = clause.trim();
+          if (c) {
+            speechQueue.push(c);
+          }
+        }
         processSpeechQueue();
       }
 
@@ -4126,7 +4160,7 @@
 
         const now = Date.now();
 
-        // STREAM_TTS: locução sintetizada da frase traduzida completa
+        // 1. STREAM_TTS: locução sintetizada da frase traduzida completa
         if (isStreamTTS) {
           const text = (data.text || '').trim();
           if (!text) return;
@@ -4135,7 +4169,7 @@
           const normTTS = cleanNorm(text);
           if (audienceSeenTTS.has(normTTS)) {
             const lastTTSSeen = audienceSeenTTS.get(normTTS);
-            if (now - lastTTSSeen < 12000) return;
+            if (now - lastTTSSeen < 3000) return;
           }
           audienceSeenTTS.set(normTTS, now);
           if (audienceSeenTTS.size > 200) {
@@ -4146,12 +4180,14 @@
           return;
         }
 
-        // CLOSE_PARAGRAPH: fecha o parágrafo ativo e desativa cursor
+        // 2. CLOSE_PARAGRAPH: fecha o parágrafo ativo e desativa cursor (exatamente idêntico ao Cockpit)
         if (isCloseParagraph) {
           if (audienceActiveParagraphObj) {
             if (audienceActiveParagraphObj.cursorEl) audienceActiveParagraphObj.cursorEl.style.display = 'none';
             if (audienceActiveParagraphObj.liveSpan) audienceActiveParagraphObj.liveSpan.textContent = '';
-            audienceActiveParagraphObj.isFinalized = true;
+            if (audienceActiveParagraphObj.p) {
+              audienceActiveParagraphObj.p.className = 'leading-relaxed transition-all duration-300 mb-4 whitespace-normal break-words opacity-85 text-slate-800 dark:text-slate-200';
+            }
             audienceActiveParagraphObj = null;
           }
           return;
@@ -4163,7 +4199,7 @@
         const emptyP = feed.querySelector('.placeholder-empty');
         if (emptyP) emptyP.remove();
 
-        // LIVE_INTERIM: transcrição/tradução instantânea palavra a palavra com cursor
+        // 3. LIVE_INTERIM: transcrição/tradução instantânea palavra a palavra com cursor
         if (isLiveInterim) {
           const interimText = (data.text || '').trim();
           if (!interimText) {
@@ -4173,58 +4209,38 @@
             return;
           }
 
-          const normInterim = cleanNorm(interimText);
-
-          // Verifica se precisa de um novo parágrafo
-          const needNewPara = !audienceActiveParagraphObj 
-            || !audienceActiveParagraphObj.p 
-            || !audienceActiveParagraphObj.p.isConnected
-            || (audienceActiveParagraphObj.isFinalized && (now - audienceLastSubtitleTime > 2000));
-
-          if (needNewPara) {
-            // Suaviza o parágrafo anterior
+          if (!audienceActiveParagraphObj || !audienceActiveParagraphObj.p || !audienceActiveParagraphObj.p.isConnected) {
             if (feed.lastElementChild) {
-              feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-3 whitespace-normal break-words opacity-70';
+              feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-4 whitespace-normal break-words opacity-80 text-slate-700 dark:text-slate-300';
             }
 
             const p = document.createElement('p');
-            p.className = 'leading-relaxed transition-all duration-300 mb-3 font-bold whitespace-normal break-words opacity-100 text-slate-900 dark:text-white';
+            p.className = 'speech-paragraph leading-relaxed transition-all duration-300 mb-4 font-normal text-base sm:text-lg whitespace-normal break-words opacity-100 text-slate-900 dark:text-white';
 
             const tConfirmed = document.createElement('span');
             tConfirmed.className = 'audience-para-confirmed';
 
             const tLive = document.createElement('span');
-            tLive.className = 'audience-para-live font-normal opacity-90';
-            tLive.textContent = interimText;
+            tLive.className = 'audience-para-live font-normal opacity-90 text-indigo-600 dark:text-indigo-400';
+            tLive.textContent = ' ' + interimText;
 
             const tCursor = document.createElement('span');
-            tCursor.className = 'streaming-cursor inline-block w-1.5 h-3.5 ml-1 bg-amber-400 animate-pulse align-middle rounded-xs';
+            tCursor.className = 'streaming-cursor inline-block w-1.5 h-4 ml-1 bg-indigo-500 animate-pulse align-middle rounded-xs';
 
             p.appendChild(tConfirmed);
             p.appendChild(tLive);
             p.appendChild(tCursor);
             feed.appendChild(p);
 
-            audienceActiveParagraphObj = { 
-              p, 
-              confirmedSpan: tConfirmed, 
-              liveSpan: tLive, 
-              cursorEl: tCursor, 
-              confirmedText: '',
-              isFinalized: false 
+            audienceActiveParagraphObj = {
+              p,
+              confirmedSpan: tConfirmed,
+              liveSpan: tLive,
+              cursorEl: tCursor
             };
           } else {
-            // Atualiza o parágrafo ativo existente sem recriar <p>!
-            const prev = audienceActiveParagraphObj.confirmedSpan.textContent.trim();
-            const normPrev = cleanNorm(prev);
-
-            if (normInterim && (normPrev.endsWith(normInterim) || normPrev === normInterim)) {
-              audienceActiveParagraphObj.liveSpan.textContent = '';
-            } else {
-              const hasConfirmed = prev.length > 0;
-              audienceActiveParagraphObj.liveSpan.textContent = (hasConfirmed ? ' ' : '') + interimText;
-              if (audienceActiveParagraphObj.cursorEl) audienceActiveParagraphObj.cursorEl.style.display = 'inline-block';
-            }
+            audienceActiveParagraphObj.liveSpan.textContent = ' ' + interimText;
+            if (audienceActiveParagraphObj.cursorEl) audienceActiveParagraphObj.cursorEl.style.display = 'inline-block';
           }
 
           audienceLastSubtitleTime = now;
@@ -4232,17 +4248,17 @@
           return;
         }
 
-        // NEW_SUBTITLE: frase finalizada
+        // 4. NEW_SUBTITLE: frase traduzida finalizada
         const text = (data.text || '').trim();
         if (!text) return;
 
         const normText = cleanNorm(text);
         if (!normText) return;
 
-        // Deduplicação semântica de frases já exibidas recentemente
+        // Desduplicação instantânea apenas para mensagens idênticas consecutivas em < 1.5s
         if (audienceSeenSubtitles.has(normText)) {
           const lastTime = audienceSeenSubtitles.get(normText);
-          if (now - lastTime < 15000) return;
+          if (now - lastTime < 1500) return;
         }
         audienceSeenSubtitles.set(normText, now);
         if (audienceSeenSubtitles.size > 200) {
@@ -4251,37 +4267,23 @@
 
         audienceLastConfirmedTimestamp = data.timestamp || now;
 
-        // Se já temos um parágrafo ativo que estava exibindo o interim dessa frase:
-        // Consolidamos nele sem criar um novo <p> repetido!
-        if (audienceActiveParagraphObj && !audienceActiveParagraphObj.isFinalized && audienceActiveParagraphObj.p.isConnected) {
-          const prev = audienceActiveParagraphObj.confirmedSpan.textContent.trim();
-          const normPrev = cleanNorm(prev);
-
-          if (!normPrev || !normPrev.includes(normText)) {
-            audienceActiveParagraphObj.confirmedSpan.textContent = prev ? (prev + ' ' + text) : text;
-          }
-          audienceActiveParagraphObj.liveSpan.textContent = '';
-          if (audienceActiveParagraphObj.cursorEl) audienceActiveParagraphObj.cursorEl.style.display = 'none';
-          audienceActiveParagraphObj.isFinalized = true;
-          audienceActiveParagraphObj.confirmedText = text;
-        } else {
-          // Novo parágrafo para esta frase finalizada
+        if (!audienceActiveParagraphObj || !audienceActiveParagraphObj.p || !audienceActiveParagraphObj.p.isConnected) {
           if (feed.lastElementChild) {
-            feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-3 whitespace-normal break-words opacity-70';
+            feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-4 whitespace-normal break-words opacity-80 text-slate-700 dark:text-slate-300';
           }
 
           const p = document.createElement('p');
-          p.className = 'leading-relaxed transition-all duration-300 mb-3 font-bold whitespace-normal break-words opacity-100 text-slate-900 dark:text-white';
+          p.className = 'speech-paragraph leading-relaxed transition-all duration-300 mb-4 font-normal text-base sm:text-lg whitespace-normal break-words opacity-100 text-slate-900 dark:text-white';
 
           const tConfirmed = document.createElement('span');
           tConfirmed.className = 'audience-para-confirmed';
           tConfirmed.textContent = text;
 
           const tLive = document.createElement('span');
-          tLive.className = 'audience-para-live font-normal opacity-90';
+          tLive.className = 'audience-para-live font-normal opacity-90 text-indigo-600 dark:text-indigo-400';
 
           const tCursor = document.createElement('span');
-          tCursor.className = 'streaming-cursor inline-block w-1.5 h-3.5 ml-1 bg-amber-400 animate-pulse align-middle rounded-xs';
+          tCursor.className = 'streaming-cursor inline-block w-1.5 h-4 ml-1 bg-indigo-500 animate-pulse align-middle rounded-xs';
           tCursor.style.display = 'none';
 
           p.appendChild(tConfirmed);
@@ -4289,18 +4291,29 @@
           p.appendChild(tCursor);
           feed.appendChild(p);
 
-          audienceActiveParagraphObj = { 
-            p, 
-            confirmedSpan: tConfirmed, 
-            liveSpan: tLive, 
-            cursorEl: tCursor, 
-            confirmedText: text, 
-            isFinalized: true 
+          audienceActiveParagraphObj = {
+            p,
+            confirmedSpan: tConfirmed,
+            liveSpan: tLive,
+            cursorEl: tCursor
           };
+        } else {
+          // Acrescenta a frase ao parágrafo ativo contínuo (idêntico ao Cockpit original!)
+          const prev = audienceActiveParagraphObj.confirmedSpan.textContent.trim();
+          let cleanToAdd = text;
+          if (prev) {
+            cleanToAdd = stripUtteranceBoundaryOverlap(cleanToAdd, prev) || cleanToAdd;
+          }
+          cleanToAdd = cleanToAdd.trim();
+          if (cleanToAdd) {
+            audienceActiveParagraphObj.confirmedSpan.textContent = prev ? (prev + ' ' + cleanToAdd) : cleanToAdd;
+          }
+          audienceActiveParagraphObj.liveSpan.textContent = '';
+          if (audienceActiveParagraphObj.cursorEl) audienceActiveParagraphObj.cursorEl.style.display = 'none';
         }
 
         audienceLastSubtitleTime = now;
-        while (feed.children.length > 40) feed.removeChild(feed.firstChild);
+        while (feed.children.length > 50) feed.removeChild(feed.firstChild);
         feed.scrollTop = feed.scrollHeight;
       }
 
@@ -6554,24 +6567,21 @@
         const combined = buf.chunks.join(' ').trim();
         const words = combined.split(/\s+/).filter(Boolean);
 
-        // Se o buffer acumulou um pensamento substancial (>= 16 palavras)
-        // OU se termina com pontuação forte (. ? !) e tem pelo menos 10 palavras:
+        // Se a sentença tem pontuação terminal (. ? !) ou tem 5+ palavras:
+        // Despacha imediatamente para leitura fluida e pausada, sem correrias nem acúmulo excessivo!
         const endsWithTerminalPunctuation = /[.!?]$/.test(toAdd);
-        const isSufficientlyLong = words.length >= 16;
-        const isNaturalSentenceClosure = endsWithTerminalPunctuation && words.length >= 10;
-
-        if (isSufficientlyLong || isNaturalSentenceClosure) {
+        if (endsWithTerminalPunctuation || words.length >= 6) {
           if (buf.timer) clearTimeout(buf.timer);
           buf.timer = null;
           flushTTSLocutionBuffer(targetLang);
           return;
         }
 
-        // Aguarda pausa natural na fala do palestrante (2.8s de silêncio) para fechar o pensamento
+        // Se for um fragmento curto (1 a 4 palavras sem ponto), aguarda apenas 700ms
         if (buf.timer) clearTimeout(buf.timer);
         buf.timer = setTimeout(() => {
           flushTTSLocutionBuffer(targetLang);
-        }, 2800);
+        }, 700);
       }
 
       function flushTTSLocutionBuffer(targetLang) {
