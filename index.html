@@ -4910,14 +4910,22 @@
                     </select>
 
                     <!-- Banner Informativo quando Áudio de Aplicativo/Guia está Selecionado -->
-                    <div id="transmitter-app-audio-banner" class="hidden flex items-center justify-between gap-2 p-2 rounded-xl bg-blue-100/90 dark:bg-blue-950/70 border border-blue-300 dark:border-blue-700 text-blue-950 dark:text-blue-100 text-[11px] font-semibold">
-                      <div class="flex items-center gap-1.5 min-w-0 truncate">
-                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0"></span>
-                        <span id="transmitter-app-audio-label" class="truncate">Captura Digital de Aplicativo Ativa</span>
+                    <div id="transmitter-app-audio-banner" class="hidden flex flex-col gap-1.5 p-2.5 rounded-xl bg-blue-100/90 dark:bg-blue-950/70 border border-blue-300 dark:border-blue-700 text-blue-950 dark:text-blue-100 text-[11px] font-semibold">
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-1.5 min-w-0 truncate">
+                          <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0"></span>
+                          <span id="transmitter-app-audio-label" class="truncate font-bold">Captura Digital de Guia/VLC Ativa</span>
+                        </div>
+                        <button type="button" id="btn-toggle-local-monitor" onclick="toggleLocalAudioMonitor()" class="text-[10px] px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all cursor-pointer shadow-2xs shrink-0" title="Controla a reprodução nos alto-falantes do computador para o microfone transcrever">
+                          Alto-falantes: [LIGADO]
+                        </button>
                       </div>
-                      <button type="button" id="btn-toggle-local-monitor" onclick="toggleLocalAudioMonitor()" class="text-[10px] px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-blue-300 dark:border-slate-600 text-blue-900 dark:text-blue-200 font-bold transition-all cursor-pointer shadow-2xs shrink-0" title="Permite que você escute o áudio capturado nos seus fones de ouvido">
-                        Ouvir no Fone: [DESLIGADO]
-                      </button>
+                      <div class="text-[10px] leading-relaxed text-blue-800 dark:text-blue-300 bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-blue-200 dark:border-slate-700 space-y-0.5">
+                        <p class="font-bold">Para a aula ser transcrita em tempo real:</p>
+                        <p>1. O som da aula deve sair nos alto-falantes para o microfone do laptop ouvir e transcrever.</p>
+                        <p>2. Certifique-se de que o <strong>Idioma de Entrada</strong> abaixo seja igual ao idioma do orador no vídeo.</p>
+                        <p>3. <strong>Usa fones de ouvido?</strong> Ative a <em>Mixagem Estéreo</em> no Windows para transcrever direto sem precisar dos alto-falantes (<a href="javascript:void(0)" onclick="showAudioInputHelpModal()" class="underline font-bold text-blue-700 dark:text-blue-200">ver instruções</a>).</p>
+                      </div>
                     </div>
 
                     <!-- VU Meter do Palestrante / Aplicativo com Barra Real e LEDs -->
@@ -5569,10 +5577,10 @@
         isLocalAudioMonitoringActive = !isLocalAudioMonitoringActive;
         const btn = document.getElementById('btn-toggle-local-monitor');
         if (btn) {
-          btn.innerText = isLocalAudioMonitoringActive ? "Ouvir no Fone: [LIGADO]" : "Ouvir no Fone: [DESLIGADO]";
+          btn.innerText = isLocalAudioMonitoringActive ? "Alto-falantes: [LIGADO]" : "Alto-falantes: [MUTADO]";
           btn.className = isLocalAudioMonitoringActive 
             ? "text-[10px] px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all cursor-pointer shadow-2xs shrink-0"
-            : "text-[10px] px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-blue-300 dark:border-slate-600 text-blue-900 dark:text-blue-200 font-bold transition-all cursor-pointer shadow-2xs shrink-0";
+            : "text-[10px] px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition-all cursor-pointer shadow-2xs shrink-0";
         }
 
         if (micAudioContext && micAudioContext.state !== 'closed' && window._currentMicCompressorNode) {
@@ -5632,17 +5640,25 @@
         const btnMaster = document.getElementById('btn-toggle-mic-master');
         const btnMasterText = document.getElementById('btn-toggle-mic-master-text');
         const vuTitle = document.getElementById('transmitter-vu-title');
+        const btnLocal = document.getElementById('btn-toggle-local-monitor');
 
         if (banner) {
           banner.className = isDisplay 
-            ? 'flex items-center justify-between gap-2 p-2 rounded-xl bg-blue-100/90 dark:bg-blue-950/70 border border-blue-300 dark:border-blue-700 text-blue-950 dark:text-blue-100 text-[11px] font-semibold'
+            ? 'flex flex-col gap-1.5 p-2.5 rounded-xl bg-blue-100/90 dark:bg-blue-950/70 border border-blue-300 dark:border-blue-700 text-blue-950 dark:text-blue-100 text-[11px] font-semibold'
             : 'hidden';
         }
 
         if (bannerLabel) {
-          if (devVal === 'display_media_tab') bannerLabel.innerText = 'Captura de Guia do Chrome (YouTube / Web) Conectada';
+          if (devVal === 'display_media_tab') bannerLabel.innerText = 'Captura de Guia do Chrome (YouTube / Vimeo / Web) Conectada';
           else if (devVal === 'display_media_window') bannerLabel.innerText = 'Captura de Janela de Aplicativo (VLC / Player) Conectada';
           else if (devVal === 'display_media_desktop') bannerLabel.innerText = 'Captura de Áudio do Desktop / Computador Conectada';
+        }
+
+        if (btnLocal) {
+          btnLocal.innerText = isLocalAudioMonitoringActive ? "Alto-falantes: [LIGADO]" : "Alto-falantes: [MUTADO]";
+          btnLocal.className = isLocalAudioMonitoringActive 
+            ? "text-[10px] px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all cursor-pointer shadow-2xs shrink-0"
+            : "text-[10px] px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition-all cursor-pointer shadow-2xs shrink-0";
         }
 
         if (vuTitle) {
@@ -5844,7 +5860,13 @@
           micCompressor.connect(micAnalyserNode);
           micCompressor.connect(micDestination);
 
-          // Se o monitor nos fones estiver ativo, conecta à saída do sistema
+          // Se for captura digital de aplicativo/guia (Vimeo, YouTube, VLC, Desktop),
+          // ativa a saída nos alto-falantes por padrão para que o som saia do silêncio do sandbox
+          // e possa ser ouvido pelo microfone físico do computador e pelo usuário!
+          if (isDisplayMedia) {
+            isLocalAudioMonitoringActive = true;
+          }
+
           if (isLocalAudioMonitoringActive) {
             micCompressor.connect(micAudioContext.destination);
           }
