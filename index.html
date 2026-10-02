@@ -4916,15 +4916,13 @@
                           <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0"></span>
                           <span id="transmitter-app-audio-label" class="truncate font-bold">Captura Digital de Guia/VLC Ativa</span>
                         </div>
-                        <button type="button" id="btn-toggle-local-monitor" onclick="toggleLocalAudioMonitor()" class="text-[10px] px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all cursor-pointer shadow-2xs shrink-0" title="Controla a reprodução nos alto-falantes do computador para o microfone transcrever">
-                          Alto-falantes: [LIGADO]
-                        </button>
+                        <span class="text-[9px] px-2 py-0.5 rounded-full bg-slate-800 text-emerald-400 font-mono font-bold shrink-0 border border-slate-700">
+                          Alto-falantes: Silenciados (0 Som)
+                        </span>
                       </div>
-                      <div class="text-[10px] leading-relaxed text-blue-800 dark:text-blue-300 bg-white/70 dark:bg-slate-900/70 p-2 rounded-lg border border-blue-200 dark:border-slate-700 space-y-0.5">
-                        <p class="font-bold">Para a aula ser transcrita em tempo real:</p>
-                        <p>1. O som da aula deve sair nos alto-falantes para o microfone do laptop ouvir e transcrever.</p>
-                        <p>2. Certifique-se de que o <strong>Idioma de Entrada</strong> abaixo seja igual ao idioma do orador no vídeo.</p>
-                        <p>3. <strong>Usa fones de ouvido?</strong> Ative a <em>Mixagem Estéreo</em> no Windows para transcrever direto sem precisar dos alto-falantes (<a href="javascript:void(0)" onclick="showAudioInputHelpModal()" class="underline font-bold text-blue-700 dark:text-blue-200">ver instruções</a>).</p>
+                      <div id="whisper-neural-badge" class="hidden">
+                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+                        <span id="whisper-neural-text">Iniciando IA Neural de Transcrição Direta...</span>
                       </div>
                     </div>
 
@@ -5556,19 +5554,168 @@
       let isLocalAudioMonitoringActive = false;
       let currentAudioSourceMode = 'mic'; // 'mic' | 'tab' | 'app' | 'desktop'
 
+      // ========================================================
+      // TRANSCRIÇÃO NEURAL DIRETA EM MEMÓRIA (WHISPER) PARA GUIAS / VÍDEOS
+      // Transcreve diretamente os dados PCM da guia sem emitir NENHUM som nos alto-falantes
+      // ========================================================
+      let whisperAudioCtx = null;
+      let whisperScriptProcessor = null;
+      let whisperAudioBuffer = [];
+      let isWhisperTranscribing = false;
+      let whisperPipeline = null;
+      let isWhisperLoading = false;
+
+      async function initWhisperPipelineIfNeeded() {
+        if (whisperPipeline) return whisperPipeline;
+        if (isWhisperLoading) return null;
+        isWhisperLoading = true;
+
+        updateWhisperLoadingUI(true, 15, 'Carregando motor neural de transcrição direta...');
+        try {
+          const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+          env.allowLocalModels = false;
+          env.useBrowserCache = true;
+
+          updateWhisperLoadingUI(true, 40, 'Baixando modelo neural Whisper...');
+          whisperPipeline = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
+            progress_callback: (progress) => {
+              if (progress.status === 'progress' && progress.total) {
+                const pct = Math.round((progress.loaded / progress.total) * 100);
+                updateWhisperLoadingUI(true, pct, `Baixando modelo Whisper (${pct}%)...`);
+              } else if (progress.status === 'done') {
+                updateWhisperLoadingUI(true, 95, 'Compilando modelo para WebAssembly/WebGPU...');
+              }
+            }
+          });
+          updateWhisperLoadingUI(false, 100, 'Motor neural ativo (Alto-falantes silenciados)');
+          return whisperPipeline;
+        } catch(err) {
+          console.error('[BrainLingo] Erro ao carregar Transformers.js Whisper:', err);
+          updateWhisperLoadingUI(false, 0, 'Erro ao carregar IA: ' + err.message);
+          return null;
+        } finally {
+          isWhisperLoading = false;
+        }
+      }
+
+      function updateWhisperLoadingUI(isLoading, percent, message) {
+        const badge = document.getElementById('whisper-neural-badge');
+        const text = document.getElementById('whisper-neural-text');
+        if (badge && text) {
+          badge.className = isLoading 
+            ? 'flex items-center gap-1.5 p-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-[10px] font-bold'
+            : (percent === 100 
+                ? 'flex items-center gap-1.5 p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 text-[10px] font-bold' 
+                : 'hidden');
+          text.innerText = message || (isLoading ? `Carregando IA (${percent}%)...` : 'IA Neural Pronta');
+        }
+      }
+
+      function startDirectStreamWhisperTranscription(mediaStream) {
+        stopDirectStreamWhisperTranscription();
+        whisperAudioBuffer = [];
+
+        // Inicializa o modelo neural em segundo plano
+        initWhisperPipelineIfNeeded().then(() => {
+          console.log('[BrainLingo] Whisper neural pronto para transcrever o áudio da aula.');
+        });
+
+        try {
+          whisperAudioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+          const source = whisperAudioCtx.createMediaStreamSource(mediaStream);
+          whisperScriptProcessor = whisperAudioCtx.createScriptProcessor(4096, 1, 1);
+
+          whisperScriptProcessor.onaudioprocess = (e) => {
+            if (!isRealMicActive) return;
+            const channel = e.inputBuffer.getChannelData(0);
+            for (let i = 0; i < channel.length; i++) {
+              whisperAudioBuffer.push(channel[i]);
+            }
+
+            // A cada ~3.5 a 4.5 segundos de áudio acumulado (cerca de 56.000 amostras a 16kHz)
+            if (whisperAudioBuffer.length >= 56000 && !isWhisperTranscribing && whisperPipeline) {
+              processDirectWhisperChunk();
+            }
+          };
+
+          source.connect(whisperScriptProcessor);
+          // Conecta a um nó com ganho 0 para ativar o processamento sem emitir nenhum som no alto-falante
+          const muteNode = whisperAudioCtx.createGain();
+          muteNode.gain.value = 0.0;
+          whisperScriptProcessor.connect(muteNode);
+          muteNode.connect(whisperAudioCtx.destination);
+
+          updateSpeechStatusIndicator(true);
+        } catch(err) {
+          console.warn('[BrainLingo] Erro ao iniciar captura direta para Whisper:', err);
+        }
+      }
+
+      async function processDirectWhisperChunk() {
+        if (isWhisperTranscribing || !whisperPipeline || whisperAudioBuffer.length === 0) return;
+        isWhisperTranscribing = true;
+
+        const countToTake = Math.min(whisperAudioBuffer.length, 72000); // máx ~4.5s
+        const rawSamples = whisperAudioBuffer.splice(0, countToTake);
+        const floatArray = new Float32Array(rawSamples);
+
+        // Verifica energia de sinal para não gastar inferência com silêncio absoluto
+        let sumSq = 0;
+        for (let i = 0; i < floatArray.length; i++) sumSq += floatArray[i] * floatArray[i];
+        const rms = Math.sqrt(sumSq / floatArray.length);
+
+        if (rms < 0.005) {
+          isWhisperTranscribing = false;
+          return;
+        }
+
+        try {
+          const langCode = (selectedSourceLanguage || 'pt-BR').split('-')[0].toLowerCase();
+          const langName = (langCode === 'en') ? 'english' : (langCode === 'es' ? 'spanish' : 'portuguese');
+
+          const res = await whisperPipeline(floatArray, {
+            language: langName,
+            task: 'transcribe',
+            return_timestamps: false
+          });
+
+          const text = (res && res.text) ? res.text.trim() : '';
+          if (text && text.length > 1) {
+            console.log('[BrainLingo Whisper Neural Text]:', text);
+            commitFinalSentence(text);
+          }
+        } catch(err) {
+          console.warn('[BrainLingo Whisper Infer Error]:', err);
+        } finally {
+          isWhisperTranscribing = false;
+        }
+      }
+
+      function stopDirectStreamWhisperTranscription() {
+        if (whisperScriptProcessor) {
+          try { whisperScriptProcessor.disconnect(); } catch(e) {}
+          whisperScriptProcessor = null;
+        }
+        if (whisperAudioCtx && whisperAudioCtx.state !== 'closed') {
+          try { whisperAudioCtx.close(); } catch(e) {}
+          whisperAudioCtx = null;
+        }
+        whisperAudioBuffer = [];
+        isWhisperTranscribing = false;
+      }
+
       window.showAudioInputHelpModal = function() {
         alert(
           "COMO TESTAR COM AULAS GRAVADAS, VÍDEOS DO YOUTUBE OU VLC:\n\n" +
-          "1. GUIA DO YOUTUBE / NAVEGADOR:\n" +
+          "1. GUIA DO YOUTUBE / VIMEO / NAVEGADOR:\n" +
           "   - Clique no botão 'Guia YouTube' e depois em 'Ativar Entrada & Transcrição'.\n" +
-          "   - Na janela do Chrome, selecione a aba onde o YouTube ou a aula está aberta.\n" +
-          "   - IMPORTANTE: Marque a caixinha 'Compartilhar áudio' no canto inferior da janela!\n\n" +
+          "   - Na janela do Chrome, selecione a aba onde o vídeo está aberto e marque 'Compartilhar áudio'.\n" +
+          "   - O BrainLingo transcreve diretamente os dados digitais de áudio na memória, com alto-falantes 100% silenciados!\n\n" +
           "2. JANELA DO VLC MEDIA PLAYER:\n" +
           "   - Abra o VLC com o vídeo da aula gravada.\n" +
-          "   - Clique em 'VLC / Desktop' e selecione a janela do VLC ou 'Tela Inteira'.\n" +
-          "   - Marque 'Compartilhar áudio'.\n\n" +
-          "3. DICA PARA TESTES COM FONES DE OUVIDO (100% SILENCIOSO):\n" +
-          "   - Se estiver usando fones de ouvido e quiser transcrever sem depender do microfone do laptop, você pode ativar a 'Mixagem Estéreo' no Windows (Configurações de Som > Gravação > Mixagem Estéreo > Habilitar).\n" +
+          "   - Clique em 'VLC / Desktop', selecione a janela do VLC e marque 'Compartilhar áudio'.\n\n" +
+          "3. OPÇÃO NATIVA COM MIXAGEM ESTÉREO (WINDOWS):\n" +
+          "   - Você também pode ativar a 'Mixagem Estéreo' no Windows (Configurações de Som > Gravação > Mixagem Estéreo > Habilitar).\n" +
           "   - Ela aparecerá automaticamente na lista com o marcador [Áudio do Sistema / VLC / YouTube]."
         );
       };
@@ -5860,13 +6007,8 @@
           micCompressor.connect(micAnalyserNode);
           micCompressor.connect(micDestination);
 
-          // Se for captura digital de aplicativo/guia (Vimeo, YouTube, VLC, Desktop),
-          // ativa a saída nos alto-falantes por padrão para que o som saia do silêncio do sandbox
-          // e possa ser ouvido pelo microfone físico do computador e pelo usuário!
-          if (isDisplayMedia) {
-            isLocalAudioMonitoringActive = true;
-          }
-
+          // ALTO-FALANTES SILENCIADOS: O áudio da guia/vídeo NÃO é emitido nos alto-falantes
+          isLocalAudioMonitoringActive = false;
           if (isLocalAudioMonitoringActive) {
             micCompressor.connect(micAudioContext.destination);
           }
@@ -5889,8 +6031,16 @@
             isRecordingTransmitter = true;
           } catch(e) {}
 
-          // Inicia reconhecimento contínuo de fala
-          startContinuousSpeechTranscription();
+          // Se for captura digital de aplicativo/guia (Vimeo, YouTube, VLC, Desktop),
+          // transcreve o fluxo de áudio diretamente da memória usando o motor neural Whisper (sem usar microfone acústico ou alto-falante)
+          if (isDisplayMedia) {
+            safelyDestroySpeechRecognizer(true);
+            startDirectStreamWhisperTranscription(micMediaStream);
+          } else {
+            // Se for microfone físico ou Mixagem Estéreo, usa o Web Speech API nativo
+            stopDirectStreamWhisperTranscription();
+            startContinuousSpeechTranscription();
+          }
         } catch(err) {
           if (err.name !== 'NotAllowedError') {
             alert('Erro ao ativar entrada de áudio: ' + err.message + '\n\nCertifique-se de que o dispositivo ou aplicativo está disponível.');
@@ -5901,6 +6051,7 @@
       }
 
       function stopMasterMicCapture() {
+        stopDirectStreamWhisperTranscription();
         if (micMediaStream) {
           micMediaStream.getTracks().forEach(t => t.stop());
           micMediaStream = null;
