@@ -4395,16 +4395,16 @@
         // Reseta tracker TTS streaming e cancela timers pendentes
         Object.keys(_liveTTSTracker).forEach(lang => {
           if (_liveTTSTracker[lang].timer) clearTimeout(_liveTTSTracker[lang].timer);
-          _liveTTSTracker[lang] = { lastSpokenText: '', latestTranslation: '', timer: null };
+          _liveTTSTracker[lang] = { lastSpokenText: '', latestTranslation: '', timer: null, hasFiredOnce: false };
         });
       }
 
       // Rastreamento por idioma para tradução interim (não cancela em-voo)
       const _interimTracker = {}; // { [lang]: { lastShownLen, inFlight } }
 
-      // TTS Streaming por buffer temporal — a cada ~2s dispara o que há de novo.
-      // Rastreia o TEXTO COMPLETO que já foi enviado para TTS (não por word-count).
-      const _liveTTSTracker = {}; // { [lang]: { lastSpokenText, latestTranslation, timer } }
+      // TTS Streaming one-shot — dispara UMA VEZ no interim (~2s), depois completa no final.
+      // Não repete porque só fala 1x no interim + 1x no final (máx 2 dispatches por frase).
+      const _liveTTSTracker = {}; // { [lang]: { lastSpokenText, latestTranslation, timer, hasFiredOnce } }
 
       // Caminho RÁPIDO para tradução em tempo real — só Google direct, sem fallbacks lentos
       async function fetchInterimTranslation(text, sourceLang, targetLang) {
@@ -4486,38 +4486,25 @@
               if (els.box) els.box.scrollTop = els.box.scrollHeight;
             }
 
-            // ---- TTS STREAMING por buffer temporal ----
+            // ---- TTS STREAMING one-shot: fala 1x no interim, completa no final ----
             if (!_liveTTSTracker[targetLang]) {
-              _liveTTSTracker[targetLang] = { lastSpokenText: '', latestTranslation: '', timer: null };
+              _liveTTSTracker[targetLang] = { lastSpokenText: '', latestTranslation: '', timer: null, hasFiredOnce: false };
             }
             const ttsT = _liveTTSTracker[targetLang];
             ttsT.latestTranslation = translated.trim();
 
-            // Dispara TTS a cada ~1.8s se houver texto novo não falado
-            if (!ttsT.timer) {
+            // Só agenda timer se ainda não disparou neste ciclo interim
+            if (!ttsT.hasFiredOnce && !ttsT.timer) {
               ttsT.timer = setTimeout(() => {
                 ttsT.timer = null;
-                const latest = ttsT.latestTranslation;
-                const spoken = ttsT.lastSpokenText;
-
-                if (!latest || latest === spoken) return;
-
-                // Tenta extrair apenas o novo sufixo
-                let newChunk = latest;
-                if (spoken && latest.toLowerCase().startsWith(spoken.toLowerCase())) {
-                  newChunk = latest.substring(spoken.length).trim();
-                } else if (spoken) {
-                  // Tradução mudou completamente — fala tudo do início
-                  // (Mas só se o anterior já foi falado, para não duplicar)
-                  newChunk = latest;
-                }
-
-                if (newChunk && newChunk.trim()) {
-                  ttsT.lastSpokenText = latest; // Marca TUDO como falado
+                ttsT.hasFiredOnce = true;
+                const textToSpeak = ttsT.latestTranslation;
+                if (textToSpeak && textToSpeak.trim()) {
+                  ttsT.lastSpokenText = textToSpeak;
                   const targetCode = targetLang.split('-')[0].toLowerCase();
-                  broadcastStreamTTS(targetCode, newChunk.trim());
+                  broadcastStreamTTS(targetCode, textToSpeak.trim());
                 }
-              }, 1800);
+              }, 2000);
             }
           }
         });
@@ -4635,32 +4622,25 @@
         if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
         targetTranscriptions[targetLang].push({ text: cleanTranslated, timeStart: startSec, timeEnd: endSec });
 
-        // TTS: fala apenas o que NÃO foi falado durante o streaming interim
-        const ttsT = _liveTTSTracker[targetLang] || { lastSpokenText: '', latestTranslation: '', timer: null };
+        // TTS: fala apenas o que NÃO foi falado durante o interim one-shot
+        const ttsT = _liveTTSTracker[targetLang] || { lastSpokenText: '', latestTranslation: '', timer: null, hasFiredOnce: false };
 
-        // Cancela timer pendente (a frase final chegou, não precisa mais)
+        // Cancela timer pendente se ainda não disparou
         if (ttsT.timer) { clearTimeout(ttsT.timer); ttsT.timer = null; }
 
         const spoken = ttsT.lastSpokenText || '';
-        let remainingChunk = cleanTranslated;
-
-        if (spoken && cleanTranslated.toLowerCase().startsWith(spoken.toLowerCase())) {
-          remainingChunk = cleanTranslated.substring(spoken.length).trim();
-        } else if (spoken && cleanTranslated.toLowerCase().includes(spoken.toLowerCase())) {
-          // O que foi falado está no meio — fala só o que vem depois
-          const idx = cleanTranslated.toLowerCase().indexOf(spoken.toLowerCase());
-          remainingChunk = cleanTranslated.substring(idx + spoken.length).trim();
-        }
-        // Se o spoken não é prefixo nem está contido, fala tudo (tradução mudou completamente)
-
         const targetCode = targetLang.split('-')[0].toLowerCase();
 
-        if (remainingChunk && remainingChunk.trim()) {
-          broadcastStreamTTS(targetCode, remainingChunk.trim());
+        if (!spoken) {
+          // Interim não chegou a falar nada — fala a tradução final completa
+          broadcastStreamTTS(targetCode, cleanTranslated.trim());
         }
+        // Se o interim já falou (spoken não vazio), NÃO re-fala.
+        // A audiência já ouviu o trecho inicial; a frase final vai para
+        // a legenda (NEW_SUBTITLE) e para os exports de áudio abaixo.
 
         // Reseta tracker para a próxima frase
-        _liveTTSTracker[targetLang] = { lastSpokenText: '', latestTranslation: '', timer: null };
+        _liveTTSTracker[targetLang] = { lastSpokenText: '', latestTranslation: '', timer: null, hasFiredOnce: false };
 
         // Broadcast completo para exibição de legenda (NEW_SUBTITLE) e gravadores externos
         broadcastSubtitleGlobally(targetCode, cleanTranslated, startSec, endSec);
