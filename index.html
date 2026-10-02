@@ -3009,6 +3009,13 @@
 
         // STREAM_TTS: direto para a fila de voz, sem exibir legenda
         if (isStreamTTS) {
+          // Desduplicação: evita que BroadcastChannel + MQTT entreguem o mesmo chunk 2x
+          const ttsDedupeKey = data.channel + '|' + text + '|' + (data.timestamp || 0);
+          if (audienceSeenSubtitles.has(ttsDedupeKey)) return;
+          audienceSeenSubtitles.set(ttsDedupeKey, Date.now());
+          if (audienceSeenSubtitles.size > 200) {
+            audienceSeenSubtitles.delete(audienceSeenSubtitles.keys().next().value);
+          }
           queueAudienceSpeech(text);
           return;
         }
@@ -4509,8 +4516,6 @@
                   ttsT.lastSpokenText = latest; // Marca TUDO como falado
                   const targetCode = targetLang.split('-')[0].toLowerCase();
                   broadcastStreamTTS(targetCode, newChunk.trim());
-                  if (targetCode === 'en') broadcastStreamTTS('receiver', newChunk.trim());
-                  if (targetCode === 'es') broadcastStreamTTS('spanish', newChunk.trim());
                 }
               }, 1800);
             }
@@ -4652,8 +4657,6 @@
 
         if (remainingChunk && remainingChunk.trim()) {
           broadcastStreamTTS(targetCode, remainingChunk.trim());
-          if (targetCode === 'en') broadcastStreamTTS('receiver', remainingChunk.trim());
-          if (targetCode === 'es') broadcastStreamTTS('spanish', remainingChunk.trim());
         }
 
         // Reseta tracker para a próxima frase
