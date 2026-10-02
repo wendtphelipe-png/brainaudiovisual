@@ -330,6 +330,7 @@
     // ROTEAMENTO DINÂMICO
     // ========================================================
     const params = new URLSearchParams(window.location.search);
+    const isAudiencePortal = params.get('portal') === 'audience' || params.get('view') === 'portal' || params.get('portal') === 'true' || params.has('pool') || window.location.pathname.startsWith('/portal');
     const isAudiencePage = params.get('view') === 'audience' || params.get('view') === 'listener' || params.get('listener') === 'true' || window.location.pathname.startsWith('/listener') || window.location.pathname.startsWith('/audience');
     const isOverlaySubtitles = params.get('overlay') === 'subtitles' || params.get('telao') === 'true' || window.location.pathname.startsWith('/overlay/subtitles') || window.location.pathname.startsWith('/telao');
     const isAdmin = params.get('admin') === 'true' || params.has('admin') || window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin');
@@ -338,8 +339,14 @@
     const root = document.getElementById('app-root') || document.body;
 
     try {
+      // 0. ROTA DEDICADA: PORTAL POOL CENTRAL DE IDIOMAS (1 ÚNICO QR CODE PARA O AUDITÓRIO)
+      if (isAudiencePortal && meetingId) {
+        document.body.className = "bg-slate-50 text-slate-800 font-sans antialiased m-0 min-h-screen selection:bg-indigo-500/30 selection:text-indigo-600";
+        setGlobalTheme(getStoredTheme());
+        renderAudiencePortalPage(meetingId);
+      }
       // 1. ROTA DEDICADA: PÁGINA DO ESPECTADOR / AUDIÊNCIA (?meeting=xyz&view=audience)
-      if (isAudiencePage && meetingId) {
+      else if (isAudiencePage && meetingId) {
         document.body.className = "bg-slate-50 text-slate-800 font-sans antialiased m-0 min-h-screen selection:bg-indigo-500/30 selection:text-indigo-600";
         setGlobalTheme(getStoredTheme());
         renderAudienceListenerPage(meetingId);
@@ -2466,6 +2473,144 @@
     }
 
 
+    // ========================================================
+    // PÁGINA PORTAL / POOL DE IDIOMAS (1 ÚNICO QR CODE PARA O AUDITÓRIO)
+    // ========================================================
+    function renderAudiencePortalPage(id) {
+      let meeting = null;
+      try {
+        const saved = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
+        meeting = saved.find(m => m.id === id);
+      } catch(e) {}
+
+      if (!meeting) {
+        meeting = {
+          id: id,
+          title: 'Tradução Simultânea do Evento',
+          sourceLanguage: 'pt-BR',
+          targetLanguages: ['en-US', 'es-ES']
+        };
+      }
+
+      const activeTargets = (meeting.targetLanguages && meeting.targetLanguages.length > 0)
+        ? meeting.targetLanguages
+        : ['en-US', 'es-ES'];
+
+      const LANG_META = {
+        'en-US': { name: 'English', native: 'English', flag: '🇺🇸', tag: 'EN', desc: 'Simultaneous Translation & Speech' },
+        'es-ES': { name: 'Espanhol', native: 'Español', flag: '🇪🇸', tag: 'ES', desc: 'Traducción Simultánea y Locución' },
+        'pt-BR': { name: 'Português', native: 'Português', flag: '🇧🇷', tag: 'PT', desc: 'Tradução Simultânea e Locução' },
+        'fr-FR': { name: 'Francês', native: 'Français', flag: '🇫🇷', tag: 'FR', desc: 'Traduction Simultanée et Voix' },
+        'de-DE': { name: 'Alemão', native: 'Deutsch', flag: '🇩🇪', tag: 'DE', desc: 'Simultanübersetzung und Stimme' },
+        'it-IT': { name: 'Italiano', native: 'Italiano', flag: '🇮🇹', tag: 'IT', desc: 'Traduzione Simultanea e Voce' }
+      };
+
+      root.innerHTML = `
+        <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col justify-between font-sans selection:bg-indigo-500/30 selection:text-indigo-600 transition-colors duration-200">
+          
+          <!-- HEADER DO PORTAL -->
+          <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 px-4 py-3 sm:px-6 shadow-xs backdrop-blur-md">
+            <div class="max-w-xl mx-auto flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center font-black text-white text-base shadow-sm">
+                  B
+                </div>
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <h1 class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white tracking-tight">BrainLingo Live</h1>
+                    <span class="px-2 py-0.2 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-[9px] font-black rounded-full flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> AO VIVO
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[210px] sm:max-w-none">${meeting.title || 'Evento ao Vivo'}</p>
+                </div>
+              </div>
+
+              <!-- Alternador de Tema Escuro / Claro -->
+              <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-[11px] font-bold px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
+                <span>Tema</span>
+              </button>
+            </div>
+          </header>
+
+          <!-- CONTEÚDO PRINCIPAL (SELETOR DE IDIOMAS) -->
+          <main class="max-w-xl w-full mx-auto p-4 sm:p-6 space-y-4 flex-1 flex flex-col justify-center">
+            
+            <!-- CARD DE BOAS-VINDAS MULTILÍNGUE -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm text-center space-y-2.5">
+              <div class="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 flex items-center justify-center text-2xl shadow-md text-white">
+                🌐
+              </div>
+              <h2 class="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                Portal de Tradução Simultânea
+              </h2>
+              <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                Escolha o idioma que deseja acompanhar. A tradução e locução com voz neural humanizada serão reproduzidas ao vivo no seu celular.
+              </p>
+              <div class="pt-1 text-[11px] text-slate-500 dark:text-slate-400 font-normal space-y-0.5 border-t border-slate-100 dark:border-slate-800/80">
+                <p>🇺🇸 <em>Select your language below to listen to live simultaneous translation.</em></p>
+                <p>🇪🇸 <em>Elige tu idioma abajo para escuchar la traducción simultánea en vivo.</em></p>
+              </div>
+            </div>
+
+            <!-- AVISO DE FONE DE OUVIDO -->
+            <div class="bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-3 flex items-center gap-3 text-indigo-950 dark:text-indigo-200 shadow-2xs">
+              <span class="text-xl">🎧</span>
+              <div class="text-xs font-medium leading-snug">
+                <strong>Recomendamos usar fones de ouvido</strong> para escuta individual e evitar retorno de som no auditório.
+              </div>
+            </div>
+
+            <!-- LISTA DE BOTÕES DOS IDIOMAS ATIVOS -->
+            <div class="space-y-2.5">
+              <h3 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+                Idiomas Disponíveis neste Evento:
+              </h3>
+              
+              <div class="grid grid-cols-1 gap-2.5">
+                ${activeTargets.map(langCode => {
+                  const info = LANG_META[langCode] || { name: langCode, native: langCode, flag: '🌐', tag: langCode.substring(0,2).toUpperCase(), desc: 'Tradução Simultânea' };
+                  const langParam = langCode.split('-')[0].toLowerCase();
+                  const targetAudienceUrl = window.location.origin + window.location.pathname + '?meeting=' + encodeURIComponent(id) + '&view=audience&lang=' + langParam;
+                  
+                  return `
+                    <a href="${targetAudienceUrl}" class="group block p-4 bg-white dark:bg-slate-900 hover:bg-indigo-50/60 dark:hover:bg-slate-800/80 border-2 border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 rounded-2xl transition-all duration-200 shadow-xs hover:shadow-md cursor-pointer">
+                      <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3.5">
+                          <span class="text-3xl">${info.flag}</span>
+                          <div>
+                            <div class="flex items-center gap-2">
+                              <strong class="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">${info.native}</strong>
+                              <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">${info.tag}</span>
+                            </div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">${info.desc}</p>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1 transition-transform">
+                          <span>Ouvir</span>
+                          <span>→</span>
+                        </div>
+                      </div>
+                    </a>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+          </main>
+
+          <!-- FOOTER -->
+          <footer class="py-4 px-6 text-center border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xs">
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">
+              Brain Audiovisual • Tradução Simultânea e Acessibilidade para Eventos
+            </p>
+          </footer>
+
+        </div>
+      `;
+    }
+
+
     function renderAudienceListenerPage(id) {
       let meeting = null;
       try {
@@ -2696,6 +2841,9 @@
 
       let isAudioPlaybackActive = false;
       let currentVolume = parseFloat(localStorage.getItem('brain_audience_vol') || '0.9');
+      let wakeLockObj = null;
+      let isWakeLockEnabled = true;
+      let backgroundAudioCarrier = null;
 
       // CATÁLOGO MULTILÍNGUE DE PERSONAS DE VOZ HUMANIZADAS
       // Pitch fixado em 1.00 para preservar integralmente os formantes e timbre natural das vozes neurais móveis
@@ -3056,10 +3204,6 @@
       };
 
       // CONTROLE DE TELA ATIVA (WAKE LOCK) E MANUTENÇÃO EM SEGUNDO PLANO
-      let wakeLockObj = null;
-      let isWakeLockEnabled = true;
-      let backgroundAudioCarrier = null;
-
       function ensureBackgroundAudioCarrier(play = true) {
         if (!backgroundAudioCarrier) {
           try {
@@ -3996,6 +4140,11 @@
                 <span>Modo Escuro</span>
               </button>
 
+              <!-- BOTÃO DE QR CODE GERAL DO EVENTO (POOL DE IDIOMAS) -->
+              <button onclick="openAudiencePortalModal()" class="text-xs font-bold text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 border border-emerald-400/50 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm" title="Abrir QR Code geral único que leva a plateia para escolher o idioma">
+                <span>📱 QR Code Geral (Todos os Idiomas)</span>
+              </button>
+
               <button onclick="openDedicatedSubtitleOverlay()" class="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 border border-indigo-500 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
                 <span>Janela OBS</span>
               </button>
@@ -4392,6 +4541,60 @@
 
             </div>
           </main>
+
+          <!-- MODAL DE QR CODE GERAL DO EVENTO (POOL DE IDIOMAS) COM DOWNLOAD PNG -->
+          <div id="audience-portal-qrcode-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 text-center">
+              
+              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="text-left">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xl">📱</span>
+                    <h3 class="text-base font-extrabold text-slate-900 dark:text-white">QR Code Geral do Evento</h3>
+                  </div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Portal Pool com todos os botões de idiomas ativos</p>
+                </div>
+                <button type="button" onclick="closeAudiencePortalModal()" class="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white text-xs font-bold px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">Fechar</button>
+              </div>
+
+              <div class="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl text-left text-xs text-emerald-900 dark:text-emerald-200">
+                <p class="font-medium leading-relaxed">
+                  Projete este <strong>único QR Code</strong> no telão do auditório. Ao apontar o celular, os participantes escolhem o idioma desejado (Inglês, Espanhol, etc.) e ouvem a tradução ao vivo com voz neural humanizada.
+                </p>
+              </div>
+
+              <!-- Container do QR Code renderizado -->
+              <div class="flex items-center justify-center p-4 bg-white rounded-2xl border border-slate-200 shadow-inner w-fit mx-auto">
+                <div id="portal-qrcode-container" class="w-[240px] h-[240px] flex items-center justify-center"></div>
+              </div>
+
+              <!-- URL e ações -->
+              <div class="space-y-2 text-xs">
+                <div class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-[11px] text-slate-600 dark:text-slate-300 break-all text-left">
+                  <span class="font-bold text-slate-400 block mb-0.5 font-sans text-[10px] uppercase">Link do Portal Geral:</span>
+                  <span id="portal-modal-url-text">Carregando...</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                  <button type="button" onclick="openAudiencePortalTab()" class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
+                    <span>↗ Abrir Portal</span>
+                  </button>
+                  <button type="button" onclick="copyAudiencePortalUrl()" class="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
+                    <span>Copiar Link</span>
+                  </button>
+                </div>
+
+                <button 
+                  type="button" 
+                  onclick="downloadPortalQrCodeAsPng()" 
+                  class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>📥 Salvar Imagem do QR Code (PNG)</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
 
           <!-- MODAL DE QR CODE DO IDIOMA COM BOTÃO DE SALVAR COMO IMAGEM PNG -->
           <div id="channel-qrcode-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
@@ -5819,6 +6022,74 @@
         if (dataUrl) {
           const langInfo = SUPPORTED_LANG_MAP[currentActiveQrModalLang] || { name: currentActiveQrModalLang };
           const fileName = `QRCode_Espectador_${langInfo.name}_${id}.png`;
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          alert('Aguarde o QR Code carregar completamente para salvar.');
+        }
+      };
+
+      // ========================================================
+      // MODAL DE QR CODE GERAL DO EVENTO (POOL DE IDIOMAS)
+      // ========================================================
+      const portalUrl = window.location.origin + window.location.pathname + '?meeting=' + encodeURIComponent(id) + '&portal=audience';
+
+      window.openAudiencePortalModal = function() {
+        const modal = document.getElementById('audience-portal-qrcode-modal');
+        const urlTextEl = document.getElementById('portal-modal-url-text');
+        const container = document.getElementById('portal-qrcode-container');
+
+        if (urlTextEl) urlTextEl.innerText = portalUrl;
+
+        if (container) {
+          container.innerHTML = '';
+          if (typeof QRCode !== 'undefined') {
+            new QRCode(container, {
+              text: portalUrl,
+              width: 240,
+              height: 240,
+              colorDark: '#0f172a',
+              colorLight: '#ffffff',
+              correctLevel: QRCode.CorrectLevel.H
+            });
+          }
+        }
+
+        if (modal) modal.classList.remove('hidden');
+      };
+
+      window.closeAudiencePortalModal = function() {
+        const modal = document.getElementById('audience-portal-qrcode-modal');
+        if (modal) modal.classList.add('hidden');
+      };
+
+      window.copyAudiencePortalUrl = function() {
+        navigator.clipboard.writeText(portalUrl);
+        alert('Link do Portal Geral copiado com sucesso!');
+      };
+
+      window.openAudiencePortalTab = function() {
+        window.open(portalUrl, '_blank');
+      };
+
+      window.downloadPortalQrCodeAsPng = function() {
+        const container = document.getElementById('portal-qrcode-container');
+        if (!container) return;
+        const canvas = container.querySelector('canvas');
+        let dataUrl = '';
+        if (canvas) {
+          dataUrl = canvas.toDataURL('image/png');
+        } else {
+          const img = container.querySelector('img');
+          if (img) dataUrl = img.src;
+        }
+
+        if (dataUrl) {
+          const fileName = `QRCode_Central_Idiomas_${id}.png`;
           const a = document.createElement('a');
           a.href = dataUrl;
           a.download = fileName;
