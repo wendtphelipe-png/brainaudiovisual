@@ -3959,23 +3959,10 @@
           return;
         }
 
-        // Elimina sobreposição de palavras nas bordas com a fala anterior
-        if (lastSpokenAudienceText) {
-          nextText = stripUtteranceBoundaryOverlap(nextText, lastSpokenAudienceText) || nextText;
-          nextText = (nextText || '').trim();
-          if (!nextText) {
-            setTimeout(processSpeechQueue, 40);
-            return;
-          }
-        }
-
-        lastSpokenAudienceText = nextText;
+        lastSpokenAudienceText = nextText.trim();
 
         // Garante pontuação final suave para cadência natural humana
-        nextText = nextText.trim();
-        const hasTerminalPunct = /[.!?]$/.test(nextText);
-        const hasCommaPunct = /[,;:]$/.test(nextText);
-        if (!hasTerminalPunct && !hasCommaPunct) {
+        if (!/[.!?]$/.test(nextText)) {
           nextText += '.';
         }
 
@@ -3988,8 +3975,8 @@
         utterance.lang = currentAudienceLang || 'en-US';
         utterance.volume = Math.max(0.1, currentVolume);
 
-        // Locução Calma, Clara e Humana: velocidade 0.95x (sem correrias, estável e confortável)
-        utterance.rate = 0.95;
+        // Locução Humana, Fluida e Coesa: velocidade 1.0x (ritmo confortável, natural e sem pressa)
+        utterance.rate = 1.00;
 
         const voiceResult = getBestVoiceForCurrentLang(persona.gender);
         if (voiceResult && voiceResult.voice) utterance.voice = voiceResult.voice;
@@ -4011,11 +3998,8 @@
           isSpeakingNow = false;
           startDiscreetVuMeter(false);
 
-          // Pausa respiratória humana:
-          // Se terminou com ponto (. ? !): 480ms de respiração e reflexão
-          // Se terminou com vírgula: 320ms de pausa de oração
-          const breathPause = hasTerminalPunct ? 480 : 320;
-          setTimeout(processSpeechQueue, breathPause);
+          // Pausa natural de 350ms entre pensamentos completos
+          setTimeout(processSpeechQueue, 350);
         };
 
         utterance.onstart = () => {
@@ -4027,8 +4011,8 @@
           finalizeSpeech();
         };
 
-        // Watchdog adaptado para a cadência humana (~150ms por caractere)
-        const maxExpectedMs = Math.max(4500, nextText.length * 150);
+        // Watchdog adaptado para trechos de áudio maiores (~140ms por caractere)
+        const maxExpectedMs = Math.max(5000, nextText.length * 140);
         if (speechQueueWatchdog) clearTimeout(speechQueueWatchdog);
         speechQueueWatchdog = setTimeout(() => {
           if (isSpeakingNow) {
@@ -4045,67 +4029,13 @@
         }
       }
 
-      function segmentTextIntoBreathClauses(text) {
-        if (!text) return [];
-        const clean = text.trim().replace(/\s+/g, ' ');
-        // Divide por pontuação conclusiva (. ! ? ; :)
-        const rawSentences = clean.split(/(?<=[.!?])\s+/);
-        const finalClauses = [];
-
-        for (const s of rawSentences) {
-          const trimmed = s.trim();
-          if (!trimmed) continue;
-          const words = trimmed.split(' ');
-          if (words.length <= 12) {
-            finalClauses.push(trimmed);
-          } else {
-            // Se a frase for longa (>12 palavras), divide por vírgulas
-            const subParts = trimmed.split(/(?<=[,;])\s+/);
-            for (const sp of subParts) {
-              const spTrimmed = sp.trim();
-              if (!spTrimmed) continue;
-              const spWords = spTrimmed.split(' ');
-              if (spWords.length <= 14) {
-                finalClauses.push(spTrimmed);
-              } else {
-                // Divide em blocos de 7 a 11 palavras em conjunções para respiração humana
-                let currentChunk = [];
-                for (let i = 0; i < spWords.length; i++) {
-                  currentChunk.push(spWords[i]);
-                  const wordLower = spWords[i].toLowerCase();
-                  const isConjunction = /^(and|but|because|so|that|which|when|while|y|pero|porque|que|cuando|e|mas|porque|quando|onde|como)$/i.test(wordLower);
-                  if (currentChunk.length >= 7 && (isConjunction || currentChunk.length >= 12)) {
-                    finalClauses.push(currentChunk.join(' ') + (/[.,!?;]$/.test(currentChunk[currentChunk.length - 1]) ? '' : ','));
-                    currentChunk = [];
-                  }
-                }
-                if (currentChunk.length > 0) {
-                  finalClauses.push(currentChunk.join(' '));
-                }
-              }
-            }
-          }
-        }
-        return finalClauses.filter(c => c.trim().length > 0);
-      }
-
       function queueAudienceSpeech(text) {
         if (!isAudioPlaybackActive || !text || !text.trim()) return;
-        let clean = text.trim();
+        const clean = text.trim();
+        if (!clean) return;
 
-        if (lastSpokenAudienceText) {
-          clean = stripUtteranceBoundaryOverlap(clean, lastSpokenAudienceText) || clean;
-          clean = clean.trim();
-          if (!clean) return;
-        }
-
-        const clauses = segmentTextIntoBreathClauses(clean);
-        for (const clause of clauses) {
-          const c = clause.trim();
-          if (c) {
-            speechQueue.push(c);
-          }
-        }
+        // Trecho de áudio maior e contínuo para locução humana
+        speechQueue.push(clean);
         processSpeechQueue();
       }
 
@@ -4255,16 +4185,6 @@
         const normText = cleanNorm(text);
         if (!normText) return;
 
-        // Desduplicação instantânea apenas para mensagens idênticas consecutivas em < 1.5s
-        if (audienceSeenSubtitles.has(normText)) {
-          const lastTime = audienceSeenSubtitles.get(normText);
-          if (now - lastTime < 1500) return;
-        }
-        audienceSeenSubtitles.set(normText, now);
-        if (audienceSeenSubtitles.size > 200) {
-          audienceSeenSubtitles.delete(audienceSeenSubtitles.keys().next().value);
-        }
-
         audienceLastConfirmedTimestamp = data.timestamp || now;
 
         if (!audienceActiveParagraphObj || !audienceActiveParagraphObj.p || !audienceActiveParagraphObj.p.isConnected) {
@@ -4298,16 +4218,9 @@
             cursorEl: tCursor
           };
         } else {
-          // Acrescenta a frase ao parágrafo ativo contínuo (idêntico ao Cockpit original!)
+          // Acrescenta a frase ao parágrafo ativo exatamente como o Cockpit original (1:1 sem perdas de palavras)
           const prev = audienceActiveParagraphObj.confirmedSpan.textContent.trim();
-          let cleanToAdd = text;
-          if (prev) {
-            cleanToAdd = stripUtteranceBoundaryOverlap(cleanToAdd, prev) || cleanToAdd;
-          }
-          cleanToAdd = cleanToAdd.trim();
-          if (cleanToAdd) {
-            audienceActiveParagraphObj.confirmedSpan.textContent = prev ? (prev + ' ' + cleanToAdd) : cleanToAdd;
-          }
+          audienceActiveParagraphObj.confirmedSpan.textContent = prev ? (prev + ' ' + text) : text;
           audienceActiveParagraphObj.liveSpan.textContent = '';
           if (audienceActiveParagraphObj.cursorEl) audienceActiveParagraphObj.cursorEl.style.display = 'none';
         }
@@ -6553,35 +6466,25 @@
         const buf = _ttsLocutionBuffers[targetLang];
         buf.lastActivity = Date.now();
 
-        // Elimina sobreposição de palavras nas bordas com o fragmento anterior no buffer
-        let toAdd = sentence;
-        if (buf.chunks.length > 0) {
-          const lastChunk = buf.chunks[buf.chunks.length - 1];
-          toAdd = stripUtteranceBoundaryOverlap(toAdd, lastChunk) || toAdd;
-        }
-        toAdd = toAdd.trim();
-        if (toAdd) {
-          buf.chunks.push(toAdd);
-        }
+        // Anexa a frase traduzida sem cortes
+        buf.chunks.push(sentence);
 
         const combined = buf.chunks.join(' ').trim();
         const words = combined.split(/\s+/).filter(Boolean);
 
-        // Se a sentença tem pontuação terminal (. ? !) ou tem 5+ palavras:
-        // Despacha imediatamente para leitura fluida e pausada, sem correrias nem acúmulo excessivo!
-        const endsWithTerminalPunctuation = /[.!?]$/.test(toAdd);
-        if (endsWithTerminalPunctuation || words.length >= 6) {
+        // Trechos de áudio maiores e humanos (18 a 28 palavras) para locução fluida, contínua e natural
+        if (words.length >= 18) {
           if (buf.timer) clearTimeout(buf.timer);
           buf.timer = null;
           flushTTSLocutionBuffer(targetLang);
           return;
         }
 
-        // Se for um fragmento curto (1 a 4 palavras sem ponto), aguarda apenas 700ms
+        // Aguarda pausa natural do palestrante (1.8s de silêncio) para despachar o trecho completo
         if (buf.timer) clearTimeout(buf.timer);
         buf.timer = setTimeout(() => {
           flushTTSLocutionBuffer(targetLang);
-        }, 700);
+        }, 1800);
       }
 
       function flushTTSLocutionBuffer(targetLang) {
