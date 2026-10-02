@@ -4392,19 +4392,10 @@
         Object.keys(_interimTracker).forEach(lang => {
           _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
         });
-        // Reseta tracker TTS streaming e cancela timers pendentes
-        Object.keys(_liveTTSTracker).forEach(lang => {
-          if (_liveTTSTracker[lang].timer) clearTimeout(_liveTTSTracker[lang].timer);
-          _liveTTSTracker[lang] = { lastSpokenText: '', latestTranslation: '', timer: null, hasFiredOnce: false };
-        });
       }
 
       // Rastreamento por idioma para tradução interim (não cancela em-voo)
       const _interimTracker = {}; // { [lang]: { lastShownLen, inFlight } }
-
-      // TTS Streaming one-shot — dispara UMA VEZ no interim (~2s), depois completa no final.
-      // Não repete porque só fala 1x no interim + 1x no final (máx 2 dispatches por frase).
-      const _liveTTSTracker = {}; // { [lang]: { lastSpokenText, latestTranslation, timer, hasFiredOnce } }
 
       // Caminho RÁPIDO para tradução em tempo real — só Google direct, sem fallbacks lentos
       async function fetchInterimTranslation(text, sourceLang, targetLang) {
@@ -4484,27 +4475,6 @@
               tp.liveSpan.style.opacity = '1';
               const els = getTargetColumnElements(targetLang);
               if (els.box) els.box.scrollTop = els.box.scrollHeight;
-            }
-
-            // ---- TTS STREAMING one-shot: fala 1x no interim, completa no final ----
-            if (!_liveTTSTracker[targetLang]) {
-              _liveTTSTracker[targetLang] = { lastSpokenText: '', latestTranslation: '', timer: null, hasFiredOnce: false };
-            }
-            const ttsT = _liveTTSTracker[targetLang];
-            ttsT.latestTranslation = translated.trim();
-
-            // Só agenda timer se ainda não disparou neste ciclo interim
-            if (!ttsT.hasFiredOnce && !ttsT.timer) {
-              ttsT.timer = setTimeout(() => {
-                ttsT.timer = null;
-                ttsT.hasFiredOnce = true;
-                const textToSpeak = ttsT.latestTranslation;
-                if (textToSpeak && textToSpeak.trim()) {
-                  ttsT.lastSpokenText = textToSpeak;
-                  const targetCode = targetLang.split('-')[0].toLowerCase();
-                  broadcastStreamTTS(targetCode, textToSpeak.trim());
-                }
-              }, 2000);
             }
           }
         });
@@ -4622,32 +4592,23 @@
         if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
         targetTranscriptions[targetLang].push({ text: cleanTranslated, timeStart: startSec, timeEnd: endSec });
 
-        // TTS: fala apenas o que NÃO foi falado durante o interim one-shot
-        const ttsT = _liveTTSTracker[targetLang] || { lastSpokenText: '', latestTranslation: '', timer: null, hasFiredOnce: false };
-
-        // Cancela timer pendente se ainda não disparou
-        if (ttsT.timer) { clearTimeout(ttsT.timer); ttsT.timer = null; }
-
-        const spoken = ttsT.lastSpokenText || '';
         const targetCode = targetLang.split('-')[0].toLowerCase();
 
-        if (!spoken) {
-          // Interim não chegou a falar nada — fala a tradução final completa
-          broadcastStreamTTS(targetCode, cleanTranslated.trim());
-        }
-        // Se o interim já falou (spoken não vazio), NÃO re-fala.
-        // A audiência já ouviu o trecho inicial; a frase final vai para
-        // a legenda (NEW_SUBTITLE) e para os exports de áudio abaixo.
-
-        // Reseta tracker para a próxima frase
-        _liveTTSTracker[targetLang] = { lastSpokenText: '', latestTranslation: '', timer: null, hasFiredOnce: false };
-
-        // Broadcast completo para exibição de legenda (NEW_SUBTITLE) e gravadores externos
+        // 1. Broadcast IMEDIATO para exibição de legenda na tela (NEW_SUBTITLE) e gravadores externos
         broadcastSubtitleGlobally(targetCode, cleanTranslated, startSec, endSec);
         if (targetCode === 'en') broadcastSubtitleGlobally('receiver', cleanTranslated, startSec, endSec);
         if (targetCode === 'es') broadcastSubtitleGlobally('spanish', cleanTranslated, startSec, endSec);
 
-        triggerTargetAudioMeter(targetLang, Math.max(3000, cleanTranslated.length * 90));
+        // 2. LOCUÇÃO (TTS): Aguarda 3 segundos de delay no que foi transcrito na tradução
+        // e inicia a leitura da frase completa e consolidada, com máxima fluidez e sem repetições nem cortes
+        const textToSpeak = cleanTranslated.trim();
+        if (textToSpeak) {
+          setTimeout(() => {
+            broadcastStreamTTS(targetCode, textToSpeak);
+            triggerTargetAudioMeter(targetLang, Math.max(3000, textToSpeak.length * 90));
+          }, 3000);
+        }
+
         fetchAudioChunkForExport(targetLang, cleanTranslated, 'female');
         fetchAudioChunkForExport(targetLang, cleanTranslated, 'male');
       }
