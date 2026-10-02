@@ -2507,6 +2507,9 @@
           connected: 'Connected (Live Room)',
           connecting: 'Connecting to room...',
           themeBtn: 'Theme',
+          screenAwakeBtn: 'Screen On',
+          screenAwakeOff: 'Auto Screen',
+          screenAwakeHelp: 'Prevents mobile screen from turning off automatically',
           headphonesBadge: 'HEADPHONES',
           headphoneAlert: 'For the best experience and to avoid disturbing the auditorium, headphones are recommended.',
           audioChannelTitle: 'Live Audio & Translated Voice',
@@ -2536,6 +2539,9 @@
           connected: 'Conectado (Sala en Vivo)',
           connecting: 'Conectando a la sala...',
           themeBtn: 'Tema',
+          screenAwakeBtn: 'Pantalla Activa',
+          screenAwakeOff: 'Pantalla Auto',
+          screenAwakeHelp: 'Evita que la pantalla se apague automáticamente',
           headphonesBadge: 'AURICULARES',
           headphoneAlert: 'Para una mejor experiencia y no interferir en el auditorio, se recomienda el uso de auriculares.',
           audioChannelTitle: 'Audio y Voz Traducida en Vivo',
@@ -2565,6 +2571,9 @@
           connected: 'Conectado (Sala ao Vivo)',
           connecting: 'Conectando à sala...',
           themeBtn: 'Tema',
+          screenAwakeBtn: 'Tela Ativa',
+          screenAwakeOff: 'Tela Normal',
+          screenAwakeHelp: 'Impede a tela do celular de desligar automaticamente',
           headphonesBadge: 'FONES',
           headphoneAlert: 'Para uma melhor experiência no auditório, é recomendável o uso de fones de ouvido.',
           audioChannelTitle: 'Áudio e Voz Traduzida ao Vivo',
@@ -2594,6 +2603,9 @@
           connected: 'Connecté (Salle en direct)',
           connecting: 'Connexion à la salle...',
           themeBtn: 'Thème',
+          screenAwakeBtn: 'Écran Actif',
+          screenAwakeOff: 'Écran Auto',
+          screenAwakeHelp: "Empêche l'écran de s'éteindre automatiquement",
           headphonesBadge: 'ÉCOUTEURS',
           headphoneAlert: "Pour une meilleure expérience, l'utilisation d'écouteurs est recommandée dans la salle.",
           audioChannelTitle: 'Audio et Voix Traduits en Direct',
@@ -2623,6 +2635,9 @@
           connected: 'Verbunden (Live-Raum)',
           connecting: 'Verbindung zum Raum wird hergestellt...',
           themeBtn: 'Design',
+          screenAwakeBtn: 'Bildschirm An',
+          screenAwakeOff: 'Bildschirm Auto',
+          screenAwakeHelp: 'Verhindert das automatische Ausschalten des Bildschirms',
           headphonesBadge: 'KOPFHÖRER',
           headphoneAlert: 'Für ein optimales Hörerlebnis und um andere nicht zu stören, werden Kopfhörer empfohlen.',
           audioChannelTitle: 'Live-Audio und Sprachübersetzung',
@@ -2652,6 +2667,9 @@
           connected: 'Connesso (Stanza dal vivo)',
           connecting: 'Connessione alla stanza...',
           themeBtn: 'Tema',
+          screenAwakeBtn: 'Schermo Attivo',
+          screenAwakeOff: 'Schermo Auto',
+          screenAwakeHelp: 'Impedisce lo spegnimento automatico dello schermo',
           headphonesBadge: 'CUFFIE',
           headphoneAlert: "Per un'esperienza ottimale e per non disturbare la sala, si consiglia l'uso di cuffie.",
           audioChannelTitle: 'Audio e Voce Tradotta dal Vivo',
@@ -2679,55 +2697,56 @@
       let isAudioPlaybackActive = false;
       let currentVolume = parseFloat(localStorage.getItem('brain_audience_vol') || '0.9');
 
-      // CATÁLOGO MULTILÍNGUE DE PERSONAS DE VOZ COM NOMES E ENTONAÇÕES 100% TRADUZIDOS
+      // CATÁLOGO MULTILÍNGUE DE PERSONAS DE VOZ HUMANIZADAS
+      // Pitch fixado em 1.00 para preservar integralmente os formantes e timbre natural das vozes neurais móveis
       const AUDIENCE_VOICE_PERSONAS_I18N = {
         'en-US': [
-          { id: 'sofia_eloquente', name: 'Sofia', gender: 'female', toneLabel: 'Eloquent, Fluid & Executive', description: 'Refined professional diction for keynotes and conferences', pitch: 1.05, rate: 1.00 },
-          { id: 'arthur_serio', name: 'Arthur', gender: 'male', toneLabel: 'Serious, Technical & Corporate', description: 'Firm, trustworthy tone for engineering and business data', pitch: 0.90, rate: 0.98 },
-          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Cheerful, Young & Dynamic', description: 'Upbeat and engaging cadence for workshops and presentations', pitch: 1.04, rate: 1.04 },
-          { id: 'beatriz_calma', name: 'Beatrice', gender: 'female', toneLabel: 'Calm, Warm & Welcoming', description: 'Gentle, soothing pace ideal for extended listening sessions', pitch: 0.98, rate: 0.94 },
-          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Deep, Solemn & Confident Narrator', description: 'Rich baritone timbre for keynote sessions and masterclasses', pitch: 0.82, rate: 0.92 },
-          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Clear, Articulate & Expressive', description: 'Crystal-clear articulation with maximum phonetic intelligibility', pitch: 1.10, rate: 1.02 }
+          { id: 'sofia_eloquente', name: 'Sofia', gender: 'female', toneLabel: 'Eloquent, Fluid & Executive', description: 'Refined professional diction for keynotes and conferences', pitch: 1.00, rate: 0.95 },
+          { id: 'arthur_serio', name: 'Arthur', gender: 'male', toneLabel: 'Serious, Technical & Corporate', description: 'Firm, trustworthy tone for engineering and business data', pitch: 1.00, rate: 0.94 },
+          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Cheerful, Young & Dynamic', description: 'Upbeat and engaging cadence for workshops and presentations', pitch: 1.00, rate: 0.96 },
+          { id: 'beatriz_calma', name: 'Beatrice', gender: 'female', toneLabel: 'Calm, Warm & Welcoming', description: 'Gentle, soothing pace ideal for extended listening sessions', pitch: 1.00, rate: 0.92 },
+          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Deep, Solemn & Confident Narrator', description: 'Rich baritone timbre for keynote sessions and masterclasses', pitch: 1.00, rate: 0.92 },
+          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Clear, Articulate & Expressive', description: 'Crystal-clear articulation with maximum phonetic intelligibility', pitch: 1.00, rate: 0.95 }
         ],
         'es-ES': [
-          { id: 'sofia_eloquente', name: 'Sofía', gender: 'female', toneLabel: 'Elocuente, Fluida y Ejecutiva', description: 'Dicción refinada y profesional para conferencias magistrales', pitch: 1.05, rate: 1.00 },
-          { id: 'arthur_serio', name: 'Arturo', gender: 'male', toneLabel: 'Serio, Técnico y Corporativo', description: 'Tono firme y confiable para exposiciones técnicas y negocios', pitch: 0.90, rate: 0.98 },
-          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Alegre, Joven y Dinámico', description: 'Cadencia relajada y positiva para talleres e innovación', pitch: 1.04, rate: 1.04 },
-          { id: 'beatriz_calma', name: 'Beatriz', gender: 'female', toneLabel: 'Calma, Serena y Acogedora', description: 'Ritmo suave y empático para audición prolongada y descanso', pitch: 0.98, rate: 0.94 },
-          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Narrador Solemne y Profundo', description: 'Timbre grave y seguro para plenarias y grandes audiencias', pitch: 0.82, rate: 0.92 },
-          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Clara, Articulada y Expresiva', description: 'Tono cristalino y nítido con máxima inteligibilidad auditiva', pitch: 1.10, rate: 1.02 }
+          { id: 'sofia_eloquente', name: 'Sofía', gender: 'female', toneLabel: 'Elocuente, Fluida y Ejecutiva', description: 'Dicción refinada y profesional para conferencias magistrales', pitch: 1.00, rate: 0.95 },
+          { id: 'arthur_serio', name: 'Arturo', gender: 'male', toneLabel: 'Serio, Técnico y Corporativo', description: 'Tono firme y confiable para exposiciones técnicas y negocios', pitch: 1.00, rate: 0.94 },
+          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Alegre, Joven y Dinámico', description: 'Cadencia relajada y positiva para talleres e innovación', pitch: 1.00, rate: 0.96 },
+          { id: 'beatriz_calma', name: 'Beatriz', gender: 'female', toneLabel: 'Calma, Serena y Acogedora', description: 'Ritmo suave y empático para audición prolongada y descanso', pitch: 1.00, rate: 0.92 },
+          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Narrador Solemne y Profundo', description: 'Timbre grave y seguro para plenarias y grandes audiencias', pitch: 1.00, rate: 0.92 },
+          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Clara, Articulada y Expresiva', description: 'Tono cristalino y nítido con máxima inteligibilidad auditiva', pitch: 1.00, rate: 0.95 }
         ],
         'pt-BR': [
-          { id: 'sofia_eloquente', name: 'Sofia', gender: 'female', toneLabel: 'Eloquente, Fluida e Executiva', description: 'Dicção refinada e profissional para palestras e conferências', pitch: 1.05, rate: 1.00 },
-          { id: 'arthur_serio', name: 'Arthur', gender: 'male', toneLabel: 'Sério, Técnico e Corporativo', description: 'Tom firme e confiável para apresentações técnicas e dados', pitch: 0.90, rate: 0.98 },
-          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Alegre, Jovem e Dinâmico', description: 'Cadência descontraída e motivacional para workshops e inovação', pitch: 1.04, rate: 1.04 },
-          { id: 'beatriz_calma', name: 'Beatriz', gender: 'female', toneLabel: 'Calma, Neutra e Acolhedora', description: 'Ritmo suave e acolhedor, ideal para apresentações longas', pitch: 0.98, rate: 0.94 },
-          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Narrador Robusto e Solene', description: 'Timbre grave e expressivo para plenárias magnas', pitch: 0.82, rate: 0.92 },
-          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Expressiva, Articulada e Clara', description: 'Tom cristalino e claro com máxima inteligibilidade fonética', pitch: 1.10, rate: 1.02 }
+          { id: 'sofia_eloquente', name: 'Sofia', gender: 'female', toneLabel: 'Eloquente, Fluida e Executiva', description: 'Dicção refinada e profissional para palestras e conferências', pitch: 1.00, rate: 0.95 },
+          { id: 'arthur_serio', name: 'Arthur', gender: 'male', toneLabel: 'Sério, Técnico e Corporativo', description: 'Tom firme e confiável para apresentações técnicas e dados', pitch: 1.00, rate: 0.94 },
+          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Alegre, Jovem e Dinâmico', description: 'Cadência descontraída e motivacional para workshops e inovação', pitch: 1.00, rate: 0.96 },
+          { id: 'beatriz_calma', name: 'Beatriz', gender: 'female', toneLabel: 'Calma, Neutra e Acolhedora', description: 'Ritmo suave e acolhedor, ideal para apresentações longas', pitch: 1.00, rate: 0.92 },
+          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Narrador Robusto e Solene', description: 'Timbre grave e expressivo para plenárias magnas', pitch: 1.00, rate: 0.92 },
+          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Expressiva, Articulada e Clara', description: 'Tom cristalino e claro com máxima inteligibilidade fonética', pitch: 1.00, rate: 0.95 }
         ],
         'fr-FR': [
-          { id: 'sofia_eloquente', name: 'Sophie', gender: 'female', toneLabel: 'Éloquente, Fluide et Professionnelle', description: 'Élocution raffinée pour conférences et présentations', pitch: 1.05, rate: 1.00 },
-          { id: 'arthur_serio', name: 'Arthur', gender: 'male', toneLabel: 'Sérieux, Technique et Corporatif', description: 'Ton posé et fiable pour exposés techniques et scientifiques', pitch: 0.90, rate: 0.98 },
-          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Dynamique, Jeune et Positif', description: 'Cadence entraînante pour ateliers et plénières', pitch: 1.04, rate: 1.04 },
-          { id: 'beatriz_calma', name: 'Béatrice', gender: 'female', toneLabel: 'Calme, Douce et Chaleureuse', description: 'Rythme apaisant et confortable pour une écoute prolongée', pitch: 0.98, rate: 0.94 },
-          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Narrateur Posé et Solennel', description: 'Timbre grave et chaleureux pour allocutions solennelles', pitch: 0.82, rate: 0.92 },
-          { id: 'elena_vibrante', name: 'Hélène', gender: 'female', toneLabel: 'Claire, Articulée et Expressive', description: 'Clarté phonétique cristalline et intelligibilité optimale', pitch: 1.10, rate: 1.02 }
+          { id: 'sofia_eloquente', name: 'Sophie', gender: 'female', toneLabel: 'Éloquente, Fluide et Professionnelle', description: 'Élocution raffinée pour conférences et présentations', pitch: 1.00, rate: 0.95 },
+          { id: 'arthur_serio', name: 'Arthur', gender: 'male', toneLabel: 'Sérieux, Technique et Corporatif', description: 'Ton posé et fiable pour exposés techniques et scientifiques', pitch: 1.00, rate: 0.94 },
+          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Dynamique, Jeune et Positif', description: 'Cadence entraînante pour ateliers et plénières', pitch: 1.00, rate: 0.96 },
+          { id: 'beatriz_calma', name: 'Béatrice', gender: 'female', toneLabel: 'Calme, Douce et Chaleureuse', description: 'Rythme apaisant et confortable pour une écoute prolongée', pitch: 1.00, rate: 0.92 },
+          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Narrateur Posé et Solennel', description: 'Timbre grave et chaleureux pour allocutions solennelles', pitch: 1.00, rate: 0.92 },
+          { id: 'elena_vibrante', name: 'Hélène', gender: 'female', toneLabel: 'Claire, Articulée et Expressive', description: 'Clarté phonétique cristalline et intelligibilité optimale', pitch: 1.00, rate: 0.95 }
         ],
         'de-DE': [
-          { id: 'sofia_eloquente', name: 'Sofia', gender: 'female', toneLabel: 'Eloquent, Fließend & Professionell', description: 'Raffinierte Diktion für Keynotes und Fachvorträge', pitch: 1.05, rate: 1.00 },
-          { id: 'arthur_serio', name: 'Arthur', gender: 'male', toneLabel: 'Sachlich, Technisch & Seriös', description: 'Klare, vertrauenswürdige Stimme für Daten und Vorträge', pitch: 0.90, rate: 0.98 },
-          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Lebendig, Dynamisch & Freundlich', description: 'Frische Kadenz für Workshops und interaktive Runden', pitch: 1.04, rate: 1.04 },
-          { id: 'beatriz_calma', name: 'Beatrice', gender: 'female', toneLabel: 'Ruhig, Sanft & Angenehm', description: 'Angenehmes Hören für lange Sitzungen ohne Ermüdung', pitch: 0.98, rate: 0.94 },
-          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Tief & Feierlich', description: 'Ausdrucksstarke Baritonstimme für Plenarsitzungen', pitch: 0.82, rate: 0.92 },
-          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Präzise, Kristallklar & Natürlich', description: 'Hervorragende phonetische Verständlichkeit im Saal', pitch: 1.10, rate: 1.02 }
+          { id: 'sofia_eloquente', name: 'Sofia', gender: 'female', toneLabel: 'Eloquent, Fließend & Professionell', description: 'Raffinierte Diktion für Keynotes und Fachvorträge', pitch: 1.00, rate: 0.95 },
+          { id: 'arthur_serio', name: 'Arthur', gender: 'male', toneLabel: 'Sachlich, Technisch & Seriös', description: 'Klare, vertrauenswürdige Stimme für Daten und Vorträge', pitch: 1.00, rate: 0.94 },
+          { id: 'gabriel_alegre', name: 'Gabriel', gender: 'male', toneLabel: 'Lebendig, Dynamisch & Freundlich', description: 'Frische Kadenz für Workshops und interaktive Runden', pitch: 1.00, rate: 0.96 },
+          { id: 'beatriz_calma', name: 'Beatrice', gender: 'female', toneLabel: 'Ruhig, Sanft & Angenehm', description: 'Angenehmes Hören für lange Sitzungen ohne Ermüdung', pitch: 1.00, rate: 0.92 },
+          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Tief & Feierlich', description: 'Ausdrucksstarke Baritonstimme für Plenarsitzungen', pitch: 1.00, rate: 0.92 },
+          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Präzise, Kristallklar & Natürlich', description: 'Hervorragende phonetische Verständlichkeit im Saal', pitch: 1.00, rate: 0.95 }
         ],
         'it-IT': [
-          { id: 'sofia_eloquente', name: 'Sofia', gender: 'female', toneLabel: 'Eloquente, Fluida & Professionale', description: 'Dizione raffinata per keynote e conferenze internazionali', pitch: 1.05, rate: 1.00 },
-          { id: 'arthur_serio', name: 'Arturo', gender: 'male', toneLabel: 'Serio, Tecnico & Affidabile', description: 'Tono sicuro e chiaro per presentazioni tecniche ed executive', pitch: 0.90, rate: 0.98 },
-          { id: 'gabriel_alegre', name: 'Gabriele', gender: 'male', toneLabel: 'Vivace, Giovane & Dinamico', description: 'Cadenza positiva ed energica per workshop e innovazione', pitch: 1.04, rate: 1.04 },
-          { id: 'beatriz_calma', name: 'Beatrice', gender: 'female', toneLabel: 'Calma, Dolce & Accogliente', description: 'Ritmo confortevole e rilassante per ascolto prolungato', pitch: 0.98, rate: 0.94 },
-          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Profondo & Istituzionale', description: 'Timbro baritonale solenne per sessioni plenarie', pitch: 0.82, rate: 0.92 },
-          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Chiara, Espressiva & Cristallina', description: 'Massima intelligibilità uditiva e naturalezza fonetica', pitch: 1.10, rate: 1.02 }
+          { id: 'sofia_eloquente', name: 'Sofia', gender: 'female', toneLabel: 'Eloquente, Fluida & Professionale', description: 'Dizione raffinata per keynote e conferenze internazionali', pitch: 1.00, rate: 0.95 },
+          { id: 'arthur_serio', name: 'Arturo', gender: 'male', toneLabel: 'Serio, Tecnico & Affidabile', description: 'Tono sicuro e chiaro per presentazioni tecniche ed executive', pitch: 1.00, rate: 0.94 },
+          { id: 'gabriel_alegre', name: 'Gabriele', gender: 'male', toneLabel: 'Vivace, Giovane & Dinamico', description: 'Cadenza positiva ed energica per workshop e innovazione', pitch: 1.00, rate: 0.96 },
+          { id: 'beatriz_calma', name: 'Beatrice', gender: 'female', toneLabel: 'Calma, Dolce & Accogliente', description: 'Ritmo confortevole e rilassante per ascolto prolungato', pitch: 1.00, rate: 0.92 },
+          { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Profondo & Istituzionale', description: 'Timbro baritonale solenne per sessioni plenarie', pitch: 1.00, rate: 0.92 },
+          { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Chiara, Espressiva & Cristallina', description: 'Massima intelligibilità uditiva e naturalezza fonetica', pitch: 1.00, rate: 0.95 }
         ]
       };
 
@@ -2753,45 +2772,63 @@
         return audienceI18n[currentAudienceLang] || audienceI18n['en-US'];
       }
 
-      // GERENCIAMENTO DE VOZES HUMANIZADAS (Web Speech API)
+      // HELPER DE NORMALIZAÇÃO TEXTUAL PARA ELIMINAÇÃO ABSOLUTA DE REPETIÇÕES
+      function cleanNorm(s) {
+        return (s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,!?;:«»""'']/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+
+      // GERENCIAMENTO DE VOZES HUMANIZADAS (Web Speech API) COM PONTUAÇÃO NEURAL E RESILIÊNCIA MOBILE
       function getBestVoiceForCurrentLang(genderPref) {
         if (!('speechSynthesis' in window)) return null;
         const voices = window.speechSynthesis.getVoices();
         if (!voices || voices.length === 0) return null;
 
         const langCode = (currentAudienceLang || 'en').split('-')[0].toLowerCase();
-        const matchedVoices = voices.filter(v => {
+        const fullLang = (currentAudienceLang || 'en-US').toLowerCase().replace('_', '-');
+
+        const matched = voices.filter(v => {
           if (!v.lang) return false;
           const vl = v.lang.toLowerCase().replace('_', '-');
-          return vl.startsWith(langCode) || vl.startsWith((currentAudienceLang || '').toLowerCase());
+          return vl.startsWith(langCode) || vl === fullLang;
         });
-        if (matchedVoices.length === 0) return null;
+        if (matched.length === 0) return null;
 
-        const femaleKeywords = ['female', 'jenny', 'aria', 'zira', 'elena', 'elvira', 'francisca', 'monica', 'paloma', 'sabina', 'laura', 'victoria', 'luciana', 'helena', 'samantha', 'karen', 'moira', 'tessa', 'fiona', 'google', 'katja', 'marlene', 'hedda', 'birgit', 'vicki', 'elsa', 'bianca', 'isabella', 'alice', 'hortense', 'denise'];
-        const maleKeywords = ['male', 'guy', 'david', 'mark', 'george', 'alvaro', 'jorge', 'pablo', 'diego', 'julio', 'carlos', 'daniel', 'oliver', 'thomas', 'alex', 'fred', 'stefan', 'hans', 'cosimo', 'giorgio', 'paul', 'henri'];
+        const cleanStr = (s) => (s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-        if (genderPref === 'female') {
-          // Prioriza vozes femininas e naturais
-          const female = matchedVoices.find(v => {
-            const n = v.name.toLowerCase();
-            return femaleKeywords.some(k => n.includes(k)) && (n.includes('natural') || n.includes('neural') || n.includes('online') || n.includes('google'));
-          }) || matchedVoices.find(v => femaleKeywords.some(k => v.name.toLowerCase().includes(k)));
-          if (female) return female;
-        } else if (genderPref === 'male') {
-          // Prioriza vozes masculinas e naturais
-          const male = matchedVoices.find(v => {
-            const n = v.name.toLowerCase();
-            return maleKeywords.some(k => n.includes(k)) && (n.includes('natural') || n.includes('neural') || n.includes('online') || n.includes('google'));
-          }) || matchedVoices.find(v => maleKeywords.some(k => v.name.toLowerCase().includes(k)));
-          if (male) return male;
-        }
+        const scored = matched.map(v => {
+          const name = cleanStr(v.name);
+          const uri = cleanStr(v.voiceURI);
+          let score = 0;
 
-        // Padrão: Voz natural/neural do idioma
-        const natural = matchedVoices.find(v => {
-          const n = v.name.toLowerCase();
-          return n.includes('natural') || n.includes('neural') || n.includes('online') || n.includes('google');
+          // 1. Alta fidelidade neural / natural / studio
+          if (name.includes('natural') || name.includes('neural')) score += 140;
+          if (name.includes('enhanced') || name.includes('premium')) score += 130;
+          if (name.includes('siri') || name.includes('apple')) score += 110;
+          if (name.includes('google')) score += 100;
+          if (name.includes('online') || name.includes('wavenet') || name.includes('network')) score += 80;
+          if (v.localService === false) score += 50;
+          if (name.includes('compact') || name.includes('offline') || name.includes('espeak') || name.includes('pico')) score -= 80;
+
+          // 2. Correspondência de gênero
+          const femaleKeywords = ['female', 'mulher', 'feminina', 'sofia', 'luciana', 'helena', 'monica', 'maria', 'paulina', 'victoria', 'samantha', 'karen', 'elena', 'zira', 'jenny', 'aria', 'alice', 'anna', 'denise', 'celine', 'hortense', 'clara', 'beatriz', 'katja', 'marlene'];
+          const maleKeywords = ['male', 'homem', 'masculino', 'arthur', 'jorge', 'diego', 'carlos', 'daniel', 'alvaro', 'alex', 'david', 'mark', 'george', 'thomas', 'henri', 'hans', 'stefan', 'cosimo', 'gabriel', 'paul'];
+
+          if (genderPref === 'female') {
+            if (femaleKeywords.some(k => name.includes(k) || uri.includes(k))) score += 50;
+            if (maleKeywords.some(k => name.includes(k) || uri.includes(k))) score -= 50;
+          } else if (genderPref === 'male') {
+            if (maleKeywords.some(k => name.includes(k) || uri.includes(k))) score += 50;
+            if (femaleKeywords.some(k => name.includes(k) || uri.includes(k))) score -= 50;
+          }
+
+          // 3. Dialeto exato
+          if (v.lang.toLowerCase().replace('_', '-') === fullLang) score += 30;
+
+          return { voice: v, score };
         });
-        return natural || matchedVoices[0];
+
+        scored.sort((a, b) => b.score - a.score);
+        return scored[0].voice;
       }
 
       // VU METER DISCRETO PARA O ESPECTADOR
@@ -2843,6 +2880,12 @@
                 </div>
 
                 <div class="flex items-center gap-2">
+                  <!-- Botão de Manter Tela do Celular Ligada (Screen Wake Lock) -->
+                  <button type="button" id="btn-toggle-wake-lock" onclick="toggleWakeLockManual()" class="text-[11px] font-bold px-2.5 py-1.5 rounded-xl border border-amber-400/80 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 transition-all cursor-pointer flex items-center gap-1 shadow-2xs" title="${t.screenAwakeHelp || 'Impede a tela de apagar automaticamente'}">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span id="wake-lock-label">${isWakeLockEnabled ? (t.screenAwakeBtn || 'Tela Ativa') : (t.screenAwakeOff || 'Tela Normal')}</span>
+                  </button>
+
                   <!-- Alternador de Tema Escuro / Claro -->
                   <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-[11px] font-bold px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
                     <span>${t.themeBtn}</span>
@@ -3012,6 +3055,102 @@
         if (el) el.innerText = Math.round(currentVolume * 100) + '%';
       };
 
+      // CONTROLE DE TELA ATIVA (WAKE LOCK) E MANUTENÇÃO EM SEGUNDO PLANO
+      let wakeLockObj = null;
+      let isWakeLockEnabled = true;
+      let backgroundAudioCarrier = null;
+
+      function ensureBackgroundAudioCarrier(play = true) {
+        if (!backgroundAudioCarrier) {
+          try {
+            backgroundAudioCarrier = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
+            backgroundAudioCarrier.setAttribute('playsinline', '');
+            backgroundAudioCarrier.setAttribute('webkit-playsinline', '');
+            backgroundAudioCarrier.loop = true;
+            backgroundAudioCarrier.volume = 0.01;
+          } catch(e) {}
+        }
+        if (backgroundAudioCarrier) {
+          if (play) {
+            try { backgroundAudioCarrier.play().catch(e => {}); } catch(e) {}
+          } else {
+            try { backgroundAudioCarrier.pause(); } catch(e) {}
+          }
+        }
+      }
+
+      async function acquireWakeLock() {
+        if (!isWakeLockEnabled) return;
+        try {
+          if ('wakeLock' in navigator) {
+            wakeLockObj = await navigator.wakeLock.request('screen');
+            wakeLockObj.addEventListener('release', () => {
+              wakeLockObj = null;
+              updateWakeLockUI();
+            });
+            updateWakeLockUI();
+          }
+        } catch(e) {
+          console.warn('[WakeLock] Info:', e);
+        }
+      }
+
+      function releaseWakeLock() {
+        if (wakeLockObj) {
+          try { wakeLockObj.release(); } catch(e) {}
+          wakeLockObj = null;
+          updateWakeLockUI();
+        }
+      }
+
+      window.toggleWakeLockManual = function() {
+        isWakeLockEnabled = !isWakeLockEnabled;
+        if (isWakeLockEnabled) {
+          acquireWakeLock();
+        } else {
+          releaseWakeLock();
+        }
+        updateWakeLockUI();
+      };
+
+      function updateWakeLockUI() {
+        const btn = document.getElementById('btn-toggle-wake-lock');
+        const textEl = document.getElementById('wake-lock-label');
+        const t = getI18n();
+        if (btn) {
+          if (isWakeLockEnabled) {
+            btn.className = 'text-[11px] font-bold px-2.5 py-1.5 rounded-xl border border-amber-400/80 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 transition-all cursor-pointer flex items-center gap-1 shadow-2xs';
+            if (textEl) textEl.innerText = t.screenAwakeBtn || 'Tela Ativa';
+          } else {
+            btn.className = 'text-[11px] font-bold px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 transition-all cursor-pointer flex items-center gap-1 shadow-2xs opacity-70';
+            if (textEl) textEl.innerText = t.screenAwakeOff || 'Tela Normal';
+          }
+        }
+      }
+
+      // Ativa o bloqueio de tela por padrão para não desligar
+      setTimeout(acquireWakeLock, 800);
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          if (isWakeLockEnabled) acquireWakeLock();
+          if (isAudioPlaybackActive) {
+            ensureBackgroundAudioCarrier(true);
+            if ('speechSynthesis' in window && window.speechSynthesis.paused) {
+              try { window.speechSynthesis.resume(); } catch(e) {}
+            }
+          }
+          if (window._mqttAudienceListenerClient && !window._mqttAudienceListenerClient.connected) {
+            try { window._mqttAudienceListenerClient.reconnect(); } catch(e) {}
+          }
+        } else {
+          // Quando a tela do celular apaga ou entra em segundo plano:
+          if (isAudioPlaybackActive) {
+            ensureBackgroundAudioCarrier(true);
+          }
+        }
+      });
+
       window.testAudienceAudioOutput = function() {
         const t = getI18n();
         if (!('speechSynthesis' in window)) {
@@ -3027,8 +3166,8 @@
         const utterance = new SpeechSynthesisUtterance(t.audioTestPhrase);
         utterance.lang = currentAudienceLang || 'en-US';
         utterance.volume = Math.max(0.1, currentVolume);
-        utterance.rate = persona.rate;
-        utterance.pitch = persona.pitch;
+        utterance.rate = Math.max(0.88, Math.min(1.02, (persona.rate || 1.0) * 0.94));
+        utterance.pitch = 1.0;
 
         const voice = getBestVoiceForCurrentLang(persona.gender);
         if (voice) utterance.voice = voice;
@@ -3058,6 +3197,20 @@
         }
 
         if (isAudioPlaybackActive) {
+          acquireWakeLock();
+          ensureBackgroundAudioCarrier(true);
+
+          if ('mediaSession' in navigator) {
+            try {
+              navigator.mediaSession.metadata = new MediaMetadata({
+                title: t.title + ' — ' + t.langName,
+                artist: 'Brain Audiovisual',
+                album: meeting.title || 'Evento ao Vivo'
+              });
+              navigator.mediaSession.playbackState = 'playing';
+            } catch(e) {}
+          }
+
           // Desbloqueia sintetizador de áudio
           if ('speechSynthesis' in window) {
             try {
@@ -3068,8 +3221,8 @@
               const unlock = new SpeechSynthesisUtterance(phrase);
               unlock.lang = currentAudienceLang || 'en-US';
               unlock.volume = 0.08;
-              unlock.rate = Math.max(0.70, Math.min(1.0, (persona.rate || 1.0) * 0.88));
-              unlock.pitch = persona.pitch;
+              unlock.rate = Math.max(0.88, Math.min(1.02, (persona.rate || 1.0) * 0.94));
+              unlock.pitch = 1.0;
               const v = getBestVoiceForCurrentLang(persona.gender);
               if (v) unlock.voice = v;
               window.speechSynthesis.speak(unlock);
@@ -3077,6 +3230,11 @@
           }
           processSpeechQueue();
         } else {
+          releaseWakeLock();
+          ensureBackgroundAudioCarrier(false);
+          if ('mediaSession' in navigator) {
+            try { navigator.mediaSession.playbackState = 'paused'; } catch(e) {}
+          }
           if ('speechSynthesis' in window) {
             try { window.speechSynthesis.cancel(); } catch(e) {}
           }
@@ -3086,7 +3244,6 @@
         }
       };
 
-      // FILA DE SÍNTESE DE FALA SEQUENCIAL (TTS) HUMANIZADA
       // FILA DE SÍNTESE DE FALA SEQUENCIAL (TTS) HUMANIZADA OTIMIZADA PARA MOBILE
       let speechQueue = [];
       let isSpeakingNow = false;
@@ -3118,9 +3275,9 @@
 
         utterance.lang = currentAudienceLang || 'en-US';
         utterance.volume = Math.max(0.1, currentVolume);
-        // Cadência de leitura equilibrada e humana para acompanhar o fluxo com naturalidade
-        utterance.rate = Math.max(0.70, Math.min(1.0, (persona.rate || 1.0) * 0.88));
-        utterance.pitch = persona.pitch;
+        // No celular, pitch fixado em 1.00 para ativar o modelo neural natural sem distorção metálica/robótica
+        utterance.pitch = 1.0;
+        utterance.rate = Math.max(0.88, Math.min(1.02, (persona.rate || 1.0) * 0.94));
 
         const voice = getBestVoiceForCurrentLang(persona.gender);
         if (voice) utterance.voice = voice;
@@ -3160,8 +3317,9 @@
       function queueAudienceSpeech(text) {
         if (!isAudioPlaybackActive || !text || !text.trim()) return;
         const clean = text.trim();
+        const norm = cleanNorm(clean);
         // Evita texto duplicado acumulado na fila
-        if (speechQueue.some(item => item.toLowerCase() === clean.toLowerCase())) return;
+        if (speechQueue.some(item => cleanNorm(item) === norm)) return;
         // Limita a fila a no máximo 3 sentenças no celular para não acumular atraso de fala
         if (speechQueue.length >= 3) {
           speechQueue.shift();
@@ -3171,6 +3329,7 @@
       }
 
       if ('speechSynthesis' in window) {
+        try { window.speechSynthesis.getVoices(); } catch(e) {}
         window.speechSynthesis.onvoiceschanged = () => {
           try { window.speechSynthesis.getVoices(); } catch(e) {}
         };
@@ -3216,8 +3375,8 @@
           const text = (data.text || '').trim();
           if (!text) return;
 
-          // Chave de desduplicação fonética/textual (ignora pontuação e espaços redundantes)
-          const normTTS = text.toLowerCase().replace(/[.,!?;:]/g, '').replace(/\s+/g, ' ').trim();
+          // Chave de desduplicação fonética/textual normalizada
+          const normTTS = cleanNorm(text);
           if (audienceSeenTTS.has(normTTS)) {
             const lastTTSSeen = audienceSeenTTS.get(normTTS);
             if (now - lastTTSSeen < 7000) {
@@ -3264,6 +3423,17 @@
           if (pktTime) audienceLastInterimTimestamp = pktTime;
 
           const interimText = (data.text || '').trim();
+          const normInterim = cleanNorm(interimText);
+
+          // Se o interim já está no parágrafo ativo ou no parágrafo anterior, não exibe
+          const prevConfirmed = audienceActiveParagraphObj ? cleanNorm(audienceActiveParagraphObj.confirmedSpan.textContent) : '';
+          const lastFeedPara = feed.lastElementChild ? cleanNorm(feed.lastElementChild.textContent) : '';
+          if (normInterim && (prevConfirmed.endsWith(normInterim) || prevConfirmed === normInterim || lastFeedPara.endsWith(normInterim) || lastFeedPara === normInterim)) {
+            if (audienceActiveParagraphObj && audienceActiveParagraphObj.liveSpan) {
+              audienceActiveParagraphObj.liveSpan.textContent = '';
+            }
+            return;
+          }
 
           if (isPause) {
             if (!interimText) return;
@@ -3292,11 +3462,10 @@
             audienceActiveParagraphObj = { p, confirmedSpan: tConfirmed, liveSpan: tLive, cursorEl: tCursor };
           } else {
             const prev = audienceActiveParagraphObj.confirmedSpan.textContent.trim();
-            const prevLower = prev.toLowerCase();
-            const intLower = interimText.toLowerCase();
+            const normPrev = cleanNorm(prev);
 
             // Se o texto já foi confirmado neste parágrafo, não re-exibe no interim
-            if (intLower && (prevLower.endsWith(intLower) || prevLower === intLower)) {
+            if (normInterim && (normPrev.endsWith(normInterim) || normPrev === normInterim)) {
               audienceActiveParagraphObj.liveSpan.textContent = '';
             } else {
               const hasConfirmed = prev.length > 0;
@@ -3312,18 +3481,31 @@
         const text = (data.text || '').trim();
         if (!text) return;
 
-        const textLower = text.toLowerCase();
-        if (audienceSeenSubtitles.has(textLower)) {
-          const lastTime = audienceSeenSubtitles.get(textLower);
+        const normText = cleanNorm(text);
+        if (!normText) return;
+
+        if (audienceSeenSubtitles.has(normText)) {
+          const lastTime = audienceSeenSubtitles.get(normText);
           if (now - lastTime < 15000) return;
         }
-        audienceSeenSubtitles.set(textLower, now);
+        audienceSeenSubtitles.set(normText, now);
         if (audienceSeenSubtitles.size > 200) {
           audienceSeenSubtitles.delete(audienceSeenSubtitles.keys().next().value);
         }
 
         audienceLastConfirmedTimestamp = data.timestamp || now;
         audienceLastInterimTimestamp = audienceLastConfirmedTimestamp;
+
+        // Se a frase já foi exibida no parágrafo ativo ou no parágrafo anterior, não duplica
+        const prevConfirmed = audienceActiveParagraphObj ? cleanNorm(audienceActiveParagraphObj.confirmedSpan.textContent) : '';
+        const lastFeedPara = feed.lastElementChild ? cleanNorm(feed.lastElementChild.textContent) : '';
+
+        if (prevConfirmed.endsWith(normText) || prevConfirmed === normText || lastFeedPara.endsWith(normText) || lastFeedPara === normText) {
+          if (audienceActiveParagraphObj && audienceActiveParagraphObj.liveSpan) {
+            audienceActiveParagraphObj.liveSpan.textContent = '';
+          }
+          return;
+        }
 
         if (isPause) {
           if (feed.lastElementChild) {
@@ -3351,9 +3533,8 @@
           audienceActiveParagraphObj = { p, confirmedSpan: tConfirmed, liveSpan: tLive, cursorEl: tCursor };
         } else {
           const prev = audienceActiveParagraphObj.confirmedSpan.textContent.trim();
-          const prevLower = prev.toLowerCase();
-          if (prevLower.endsWith(textLower) || prevLower === textLower) {
-            // Já adicionado anteriormente, apenas limpa interim
+          const normPrev = cleanNorm(prev);
+          if (normPrev.endsWith(normText) || normPrev === normText) {
             audienceActiveParagraphObj.liveSpan.textContent = '';
           } else {
             audienceActiveParagraphObj.confirmedSpan.textContent = prev ? (prev + ' ' + text) : text;
@@ -3412,7 +3593,8 @@
             clientId: 'brain_aud_' + Math.random().toString(16).substring(2, 8),
             clean: true,
             connectTimeout: 7000,
-            reconnectPeriod: 2500
+            reconnectPeriod: 2500,
+            keepalive: 15
           });
           window._mqttAudienceListenerClient = mqttAudienceClient;
           mqttAudienceClient.on('connect', () => {
@@ -3440,6 +3622,10 @@
       let sessionElapsedSeconds = 0;
       let latency = 24;
       let currentUtteranceSeq = 0;
+
+      function cleanNorm(s) {
+        return (s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,!?;:«»""'']/g, ' ').replace(/\s+/g, ' ').trim();
+      }
 
       const safeMeetingMqttId = encodeURIComponent((id || '').toLowerCase().trim()).replace(/[^a-z0-9_-]/g, '_');
       const mqttMeetingTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/subtitles';
@@ -4722,9 +4908,9 @@
           if (currentTransmitterParagraph.liveSpan && currentTransmitterParagraph.liveSpan.textContent.trim()) {
             const remaining = currentTransmitterParagraph.liveSpan.textContent.trim();
             const prev = currentTransmitterParagraph.confirmedSpan.textContent.trim();
-            const prevLower = prev.toLowerCase();
-            const remLower = remaining.toLowerCase();
-            if (!prevLower.endsWith(remLower) && prevLower !== remLower) {
+            const normPrev = cleanNorm(prev);
+            const normRem = cleanNorm(remaining);
+            if (normRem && !normPrev.endsWith(normRem) && normPrev !== normRem) {
               currentTransmitterParagraph.confirmedSpan.textContent = prev ? (prev + ' ' + remaining) : remaining;
             }
             currentTransmitterParagraph.liveSpan.textContent = '';
@@ -4742,9 +4928,9 @@
             if (tp.liveSpan && tp.liveSpan.textContent.trim()) {
               const remaining = tp.liveSpan.textContent.trim();
               const prev = tp.confirmedSpan.textContent.trim();
-              const prevLower = prev.toLowerCase();
-              const remLower = remaining.toLowerCase();
-              if (!prevLower.endsWith(remLower) && prevLower !== remLower) {
+              const normPrev = cleanNorm(prev);
+              const normRem = cleanNorm(remaining);
+              if (normRem && !normPrev.endsWith(normRem) && normPrev !== normRem) {
                 tp.confirmedSpan.textContent = prev ? (prev + ' ' + remaining) : remaining;
               }
               tp.liveSpan.textContent = '';
@@ -4911,9 +5097,9 @@
             const tp = currentTargetParagraphs[targetLang];
             if (tp && tp.liveSpan) {
               const prev = tp.confirmedSpan.textContent.trim();
-              const prevLower = prev.toLowerCase();
-              const transLower = translated.toLowerCase();
-              if (prevLower.endsWith(transLower) || prevLower === transLower) {
+              const normPrev = cleanNorm(prev);
+              const normTrans = cleanNorm(translated);
+              if (normTrans && (normPrev.endsWith(normTrans) || normPrev === normTrans)) {
                 tp.liveSpan.textContent = '';
               } else {
                 const hasConfirmed = prev.length > 0;
@@ -5012,11 +5198,11 @@
 
         // Evita duplicatas consecutivas idênticas num intervalo curto
         const now = Date.now();
-        const cleanLower = clean.toLowerCase();
-        if (cleanLower === lastConfirmedCleanTranscript.toLowerCase() && (now - lastConfirmedTimestamp) < 1800) {
+        const normClean = cleanNorm(clean);
+        if (normClean && normClean === cleanNorm(lastConfirmedCleanTranscript) && (now - lastConfirmedTimestamp) < 2500) {
           return;
         }
-        lastConfirmedCleanTranscript = cleanLower;
+        lastConfirmedCleanTranscript = clean;
         lastConfirmedTimestamp = now;
 
         // Reseta tracker interim para nova frase
@@ -5075,9 +5261,9 @@
         const tp = currentTargetParagraphs[targetLang];
         if (tp) {
           const prev = tp.confirmedSpan.textContent.trim();
-          const prevLower = prev.toLowerCase();
-          const cleanLower = cleanTranslated.toLowerCase();
-          if (prevLower.endsWith(cleanLower) || prevLower === cleanLower) {
+          const normPrev = cleanNorm(prev);
+          const normClean = cleanNorm(cleanTranslated);
+          if (normClean && (normPrev.endsWith(normClean) || normPrev === normClean)) {
             tp.liveSpan.textContent = '';
           } else {
             tp.confirmedSpan.textContent = prev ? (prev + ' ' + cleanTranslated) : cleanTranslated;
