@@ -1514,7 +1514,8 @@
       // 2. Polling no backend rooms.php (backup garantido para redes com restrições WebSocket)
       async function pollRoomsBackend() {
         try {
-          const res = await fetch('rooms.php?t=' + Date.now());
+          const apiUrl = (window.location.protocol === 'file:') ? 'rooms.php' : (window.location.origin + '/rooms.php');
+          const res = await fetch(apiUrl + '?t=' + Date.now());
           if (res.ok) {
             const data = await res.json();
             if (data && Array.isArray(data.rooms)) {
@@ -4215,74 +4216,7 @@
       const mqttMeetingTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/subtitles';
       let mqttPublisherClient = null;
 
-      let currentClientGeoLocation = null;
-      getApproximateGeoLocation().then(geo => {
-        currentClientGeoLocation = geo;
-        pulseRoomActiveHeartbeat();
-      });
-
-      // Heartbeat periódico da sala ativa (transmite para Nuvem Global MQTT & rooms.php a cada 3.5s)
-      function pulseRoomActiveHeartbeat() {
-        const now = Date.now();
-        try {
-          localStorage.setItem('brain_room_heartbeat_' + id, now.toString());
-        } catch(e) {}
-
-        const roomPayload = {
-          id: id,
-          title: (meeting && meeting.title) || ('Sessão de Tradução ' + id),
-          sourceLanguage: selectedSourceLanguage || (meeting && meeting.sourceLanguage) || 'pt-BR',
-          targetLanguages: activeTargetLanguages || (meeting && meeting.targetLanguages) || ['en-US', 'es-ES'],
-          autoDetectLanguage: !!isAutoDetectLanguage,
-          createdAt: (meeting && meeting.createdAt) || new Date().toISOString(),
-          startTime: (meeting && meeting.startTime) || (now - sessionElapsedSeconds * 1000),
-          elapsedSeconds: sessionElapsedSeconds,
-          isLive: isRealMicActive || !isTimerPaused,
-          isMicActive: isRealMicActive,
-          audienceCount: typeof audiencePresenceClients !== 'undefined' ? audiencePresenceClients.size : 0,
-          location: currentClientGeoLocation,
-          lastSeen: now
-        };
-
-        // 1. Publica no broker MQTT Global (notifica monitores em qualquer navegador no mundo)
-        if (mqttPublisherClient && mqttPublisherClient.connected) {
-          try {
-            mqttPublisherClient.publish('brainaudiovisual/global/active_sessions', JSON.stringify(roomPayload), { qos: 0 });
-          } catch(e) {}
-        }
-
-        // 2. Notifica o backend HTTP rooms.php
-        try {
-          fetch('rooms.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(roomPayload)
-          }).catch(() => {});
-        } catch(e) {}
-      }
-      pulseRoomActiveHeartbeat();
-      const roomHeartbeatTimer = setInterval(pulseRoomActiveHeartbeat, 3500);
-
-      window.addEventListener('beforeunload', () => {
-        clearInterval(roomHeartbeatTimer);
-        try {
-          localStorage.removeItem('brain_room_heartbeat_' + id);
-        } catch(e) {}
-        if (mqttPublisherClient && mqttPublisherClient.connected) {
-          try {
-            mqttPublisherClient.publish('brainaudiovisual/global/active_sessions', JSON.stringify({ id: id, status: 'closed' }), { qos: 0 });
-          } catch(e) {}
-        }
-        try {
-          fetch('rooms.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id, action: 'archive' })
-          }).catch(() => {});
-        } catch(e) {}
-      });
-
-      // Carrega dados da reunião do localStorage ou da descoberta remota global
+      // 1. CARREGA DADOS DA REUNIÃO (LOCALSTORAGE OU NUVEM REMOTA) IMEDIATAMENTE
       let meeting = null;
       try {
         const saved = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
@@ -4327,6 +4261,79 @@
       let selectedSourceLanguage = meeting.sourceLanguage || 'pt-BR';
       let isAutoDetectLanguage = meeting.autoDetectLanguage !== false;
       let activeTargetLanguages = meeting.targetLanguages && meeting.targetLanguages.length ? meeting.targetLanguages : ['en-US', 'es-ES'];
+
+      // 2. IDENTIFICAÇÃO GEOGRÁFICA E HEARTBEAT GLOBAL
+      let currentClientGeoLocation = null;
+      getApproximateGeoLocation().then(geo => {
+        currentClientGeoLocation = geo;
+        pulseRoomActiveHeartbeat();
+      });
+
+      function getRoomsEndpointUrl() {
+        if (window.location.protocol === 'file:') return 'rooms.php';
+        return window.location.origin + '/rooms.php';
+      }
+
+      // Heartbeat periódico da sala ativa (transmite para Nuvem Global MQTT & rooms.php a cada 3.5s)
+      function pulseRoomActiveHeartbeat() {
+        const now = Date.now();
+        try {
+          localStorage.setItem('brain_room_heartbeat_' + id, now.toString());
+        } catch(e) {}
+
+        const roomPayload = {
+          id: id,
+          title: meeting.title || ('Sessão de Tradução ' + id),
+          sourceLanguage: selectedSourceLanguage || meeting.sourceLanguage || 'pt-BR',
+          targetLanguages: activeTargetLanguages || meeting.targetLanguages || ['en-US', 'es-ES'],
+          autoDetectLanguage: !!isAutoDetectLanguage,
+          createdAt: meeting.createdAt || new Date().toISOString(),
+          startTime: (meeting.startTime || (now - sessionElapsedSeconds * 1000)),
+          elapsedSeconds: sessionElapsedSeconds,
+          isLive: isRealMicActive || !isTimerPaused,
+          isMicActive: isRealMicActive,
+          audienceCount: typeof audiencePresenceClients !== 'undefined' ? audiencePresenceClients.size : 0,
+          location: currentClientGeoLocation,
+          lastSeen: now
+        };
+
+        // 1. Publica no broker MQTT Global (notifica monitores em qualquer navegador no mundo)
+        if (mqttPublisherClient && mqttPublisherClient.connected) {
+          try {
+            mqttPublisherClient.publish('brainaudiovisual/global/active_sessions', JSON.stringify(roomPayload), { qos: 0 });
+          } catch(e) {}
+        }
+
+        // 2. Notifica o backend HTTP rooms.php
+        try {
+          fetch(getRoomsEndpointUrl(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(roomPayload)
+          }).catch(() => {});
+        } catch(e) {}
+      }
+      pulseRoomActiveHeartbeat();
+      const roomHeartbeatTimer = setInterval(pulseRoomActiveHeartbeat, 3500);
+
+      window.addEventListener('beforeunload', () => {
+        clearInterval(roomHeartbeatTimer);
+        try {
+          localStorage.removeItem('brain_room_heartbeat_' + id);
+        } catch(e) {}
+        if (mqttPublisherClient && mqttPublisherClient.connected) {
+          try {
+            mqttPublisherClient.publish('brainaudiovisual/global/active_sessions', JSON.stringify({ id: id, status: 'closed' }), { qos: 0 });
+          } catch(e) {}
+        }
+        try {
+          fetch(getRoomsEndpointUrl(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, action: 'archive' })
+          }).catch(() => {});
+        } catch(e) {}
+      });
 
       // Estilos independentes por coluna
       let transSubtitleConfig = {
