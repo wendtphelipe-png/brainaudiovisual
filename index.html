@@ -4910,7 +4910,7 @@
                     </select>
 
                     <!-- Banner Informativo quando Áudio de Aplicativo/Guia está Selecionado -->
-                    <div id="transmitter-app-audio-banner" class="hidden flex flex-col gap-1.5 p-2.5 rounded-xl bg-blue-100/90 dark:bg-blue-950/70 border border-blue-300 dark:border-blue-700 text-blue-950 dark:text-blue-100 text-[11px] font-semibold">
+                    <div id="transmitter-app-audio-banner" class="hidden flex flex-col gap-1.5 p-2 rounded-xl bg-blue-100/90 dark:bg-blue-950/70 border border-blue-300 dark:border-blue-700 text-blue-950 dark:text-blue-100 text-[11px] font-semibold">
                       <div class="flex items-center justify-between gap-2">
                         <div class="flex items-center gap-1.5 min-w-0 truncate">
                           <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0"></span>
@@ -4920,10 +4920,23 @@
                           Alto-falantes: Silenciados (0 Som)
                         </span>
                       </div>
-                      <div id="whisper-neural-badge" class="hidden">
-                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
-                        <span id="whisper-neural-text">Iniciando IA Neural de Transcrição Direta...</span>
+                    </div>
+
+                    <!-- Aviso de Configuração do CABLE Output para Transcrição -->
+                    <div id="transmitter-cable-notice" class="hidden flex flex-col gap-1 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-[10px] font-semibold">
+                      <div class="flex items-center justify-between gap-1">
+                        <span class="font-bold flex items-center gap-1 text-amber-900 dark:text-amber-100">
+                          <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                          Áudio do Vídeo Chegando no Cabo Virtual!
+                        </span>
+                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 font-bold">Dica Crucial</span>
                       </div>
+                      <p class="leading-tight text-slate-700 dark:text-slate-300">
+                        O VU Meter está modulando o som da aula. Para a transcrição do Chrome escutar o <strong>CABLE Output</strong> em vez do microfone físico do laptop:
+                      </p>
+                      <p class="text-[9.5px] font-bold text-blue-700 dark:text-blue-300 bg-white/70 dark:bg-slate-900/70 p-1.5 rounded border border-amber-200 dark:border-slate-700">
+                        No Windows (Painel de Som ou Configurações), defina o <strong>CABLE Output</strong> como o <strong>Dispositivo Padrão de Entrada (Gravação)</strong>, ou acesse <code class="bg-amber-100 dark:bg-slate-800 px-1 rounded">chrome://settings/content/microphone</code> e selecione o CABLE Output.
+                      </p>
                     </div>
 
                     <!-- VU Meter do Palestrante / Aplicativo com Barra Real e LEDs -->
@@ -5708,8 +5721,18 @@
             : "text-[10px] px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition-all cursor-pointer shadow-2xs shrink-0";
         }
 
+        const cableNotice = document.getElementById('transmitter-cable-notice');
+        const selText = (sel && sel.selectedIndex >= 0 && sel.options[sel.selectedIndex]) ? sel.options[sel.selectedIndex].text.toLowerCase() : '';
+        const isCableSelected = selText.includes('cable') || selText.includes('virtual') || devVal.toLowerCase().includes('cable');
+
+        if (cableNotice) {
+          cableNotice.className = isCableSelected
+            ? 'flex flex-col gap-1 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-[10px] font-semibold'
+            : 'hidden';
+        }
+
         if (vuTitle) {
-          vuTitle.innerText = isDisplay ? 'Modulação do Áudio Capturado (VU):' : 'Modulação do Sinal (VU):';
+          vuTitle.innerText = isDisplay ? 'Modulação do Áudio Capturado (VU):' : (isCableSelected ? 'Modulação do Áudio do Cabo Virtual (VU):' : 'Modulação do Sinal (VU):');
         }
 
         if (btnMasterText) {
