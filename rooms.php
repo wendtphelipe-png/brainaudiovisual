@@ -57,23 +57,27 @@ function getClientIp() {
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 // -------------------------------------------------------------
-// GET: Retorna todas as salas ativas (com limpeza de inativas > 30s)
+// GET: Retorna todas as salas ativas (com limpeza de inativas > 60s)
 // -------------------------------------------------------------
 if ($method === 'GET') {
     $rooms = getStoredRooms($storageFile);
-    $now = time();
+    $nowMs = round(microtime(true) * 1000);
     $activeRooms = [];
     $changed = false;
 
     foreach ($rooms as $r) {
         if (!isset($r['id'])) continue;
-        $lastSeen = isset($r['lastSeen']) ? (int)$r['lastSeen'] : 0;
+        $lastSeen = isset($r['lastSeen']) ? (float)$r['lastSeen'] : 0;
+        if ($lastSeen < 10000000000) {
+            $lastSeen *= 1000;
+        }
         
-        // Se a sala não enviou heartbeat nos últimos 40 segundos, considera inativa
-        if (($now - $lastSeen) > 40 || (isset($r['status']) && in_array($r['status'], ['archived', 'closed', 'deleted']))) {
+        // Se a sala não enviou heartbeat nos últimos 60 segundos, considera inativa
+        if (($nowMs - $lastSeen) > 60000 || (isset($r['status']) && in_array($r['status'], ['archived', 'closed', 'deleted']))) {
             $changed = true;
             continue;
         }
+        $r['lastSeen'] = $lastSeen;
         $activeRooms[] = $r;
     }
 
@@ -85,7 +89,7 @@ if ($method === 'GET') {
         'success' => true,
         'count' => count($activeRooms),
         'rooms' => $activeRooms,
-        'serverTime' => $now
+        'serverTime' => $nowMs
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -152,7 +156,7 @@ if ($method === 'POST') {
         'audienceCount' => isset($data['audienceCount']) ? (int)$data['audienceCount'] : 0,
         'location' => $location,
         'status' => 'active',
-        'lastSeen' => $now
+        'lastSeen' => round(microtime(true) * 1000)
     ];
 
     $found = false;
@@ -174,7 +178,7 @@ if ($method === 'POST') {
     echo json_encode([
         'success' => true,
         'room' => $roomData,
-        'serverTime' => $now
+        'serverTime' => round(microtime(true) * 1000)
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }

@@ -720,6 +720,52 @@
       return h > 0 ? `${pad(h)}h ${pad(m)}m ${pad(remSec)}s` : `${pad(m)}m ${pad(remSec)}s`;
     }
 
+    // NORMALIZAÇÃO FONÉTICA/TEXTUAL UNIVERSAL
+    function cleanNorm(s) {
+      return (s || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function cleanNormWord(w) {
+      return (w || '').toLowerCase().replace(/[^a-z0-9\u00C0-\u024F]/gi, '').trim();
+    }
+
+    // HIGIENIZADOR DE SOBREPOSIÇÃO DE BORDAS ENTRE FRASES
+    // Elimina a repetição da última palavra da frase anterior no início da frase seguinte
+    function stripUtteranceBoundaryOverlap(newText, prevText) {
+      if (!newText || !prevText) return newText;
+      const prevWords = prevText.trim().split(/\s+/);
+      const newWords = newText.trim().split(/\s+/);
+      if (prevWords.length === 0 || newWords.length === 0) return newText;
+
+      const prevNorm = prevWords.map(cleanNormWord);
+      const newNorm = newWords.map(cleanNormWord);
+
+      const maxOverlap = Math.min(5, prevNorm.length, newNorm.length);
+      for (let len = maxOverlap; len >= 1; len--) {
+        const prevSlice = prevNorm.slice(prevNorm.length - len);
+        const newSlice = newNorm.slice(0, len);
+        let match = true;
+        for (let i = 0; i < len; i++) {
+          if (prevSlice[i] !== newSlice[i] || !prevSlice[i]) {
+            match = false;
+            break;
+          }
+        }
+        if (match) {
+          const remainingWords = newWords.slice(len);
+          if (remainingWords.length === 0) return '';
+          return remainingWords.join(' ');
+        }
+      }
+      return newText;
+    }
+
     // RESOLVER DE GEOLOCALIZAÇÃO APROXIMADA (PARA MARCADOR GEOGRÁFICO DE SALAS)
     let _cachedClientGeo = null;
     async function getApproximateGeoLocation() {
@@ -814,7 +860,8 @@
       // 1. Verifica no mapa de salas ativas globais em tempo real (Nuvem / Multi-Cidades)
       if (window._remoteActiveRooms && window._remoteActiveRooms[m.id]) {
         const remote = window._remoteActiveRooms[m.id];
-        if (remote.lastSeen && (Date.now() - remote.lastSeen) < 40000) {
+        const lastSeenMs = (remote.lastSeen && remote.lastSeen < 1e11) ? (remote.lastSeen * 1000) : (remote.lastSeen || 0);
+        if (lastSeenMs && (Date.now() - lastSeenMs) < 60000) {
           return true;
         }
       }
@@ -824,7 +871,7 @@
         const hb = localStorage.getItem('brain_room_heartbeat_' + m.id);
         if (hb) {
           const lastHb = parseInt(hb, 10);
-          if (lastHb > 0 && (Date.now() - lastHb) < 15000) {
+          if (lastHb > 0 && (Date.now() - lastHb) < 20000) {
             return true;
           }
         }
@@ -1493,13 +1540,15 @@
 
           client.on('connect', () => {
             console.log('[BrainLingo] Monitor conectado ao broker MQTT global de salas.');
+            // Subscreve nos tópicos de salas ativas globais (broadcast e salas individuais com retain)
             client.subscribe('brainaudiovisual/global/active_sessions', { qos: 0 });
+            client.subscribe('brainaudiovisual/rooms/+/status', { qos: 1 });
             // Solicita anúncio imediato de todas as salas ativas no mundo
             client.publish('brainaudiovisual/global/active_sessions/ping', JSON.stringify({ ping: Date.now() }), { qos: 0 });
           });
 
           client.on('message', (topic, payload) => {
-            if (topic === 'brainaudiovisual/global/active_sessions') {
+            if (topic === 'brainaudiovisual/global/active_sessions' || topic.startsWith('brainaudiovisual/rooms/')) {
               try {
                 const roomData = JSON.parse(payload.toString());
                 if (roomData && roomData.id) {
@@ -1514,7 +1563,7 @@
       // 2. Polling no backend rooms.php (backup garantido para redes com restrições WebSocket)
       async function pollRoomsBackend() {
         try {
-          const apiUrl = (window.location.protocol === 'file:') ? 'rooms.php' : (window.location.origin + '/rooms.php');
+          const apiUrl = (window.location.protocol === 'file:') ? 'rooms.php' : new URL('rooms.php', window.location.href).href;
           const res = await fetch(apiUrl + '?t=' + Date.now());
           if (res.ok) {
             const data = await res.json();
@@ -1556,8 +1605,9 @@
       }
 
       const isNew = !window._remoteActiveRooms[room.id];
-      room.lastSeen = Date.now();
-      window._remoteActiveRooms[room.id] = Object.assign({}, window._remoteActiveRooms[room.id], room);
+      const remoteLastSeenMs = (room.lastSeen && room.lastSeen < 1e11) ? (room.lastSeen * 1000) : (room.lastSeen || Date.now());
+      room.lastSeen = remoteLastSeenMs;
+      window._remoteActiveRooms[room.id] = Object.assign({}, window._remoteActiveRooms[room.id], room, { lastSeen: Date.now() });
 
       try {
         localStorage.setItem('brain_remote_room_' + room.id, JSON.stringify(window._remoteActiveRooms[room.id]));
@@ -1623,7 +1673,8 @@
       if (window._remoteActiveRooms) {
         Object.values(window._remoteActiveRooms).forEach(remote => {
           if (!remote || !remote.id) return;
-          if (remote.lastSeen && (Date.now() - remote.lastSeen) > 40000) return;
+          const lastSeenMs = (remote.lastSeen && remote.lastSeen < 1e11) ? (remote.lastSeen * 1000) : (remote.lastSeen || 0);
+          if (lastSeenMs && (Date.now() - lastSeenMs) > 60000) return;
           const idx = meetings.findIndex(m => m.id === remote.id);
           if (idx !== -1) {
             meetings[idx] = Object.assign({}, meetings[idx], remote);
@@ -3843,6 +3894,7 @@
       let speechQueue = [];
       let isSpeakingNow = false;
       let speechQueueWatchdog = null;
+      let lastSpokenAudienceText = '';
 
       function processSpeechQueue() {
         if (!isAudioPlaybackActive || isSpeakingNow || speechQueue.length === 0) return;
@@ -3858,7 +3910,33 @@
           return;
         }
 
-        // Garante pontuação final suave para cadência natural
+        // Elimina sobreposição de palavras nas bordas com a fala anterior
+        if (lastSpokenAudienceText) {
+          nextText = stripUtteranceBoundaryOverlap(nextText, lastSpokenAudienceText);
+          nextText = (nextText || '').trim();
+          if (!nextText) {
+            setTimeout(processSpeechQueue, 40);
+            return;
+          }
+        }
+
+        // Se houver mais frases curtas acumuladas na fila, agrupa de forma fluida para não picotar a fala
+        while (speechQueue.length > 0 && nextText.split(/\s+/).length < 10) {
+          let peek = speechQueue[0];
+          if (nextText) {
+            peek = stripUtteranceBoundaryOverlap(peek, nextText) || peek;
+          }
+          if (peek && peek.trim()) {
+            speechQueue.shift();
+            nextText += (/[.,!?;:]$/.test(nextText) ? ' ' : ', ') + peek.trim();
+          } else {
+            speechQueue.shift();
+          }
+        }
+
+        lastSpokenAudienceText = nextText;
+
+        // Garante pontuação final suave para cadência natural humana
         nextText = nextText.trim();
         if (!/[.,!?;]$/.test(nextText)) nextText += '.';
 
@@ -3935,7 +4013,15 @@
 
       function queueAudienceSpeech(text) {
         if (!isAudioPlaybackActive || !text || !text.trim()) return;
-        const clean = text.trim();
+        let clean = text.trim();
+
+        // Se a frase recebida tiver sobreposição de palavras finais da fala anterior, limpa
+        if (lastSpokenAudienceText) {
+          clean = stripUtteranceBoundaryOverlap(clean, lastSpokenAudienceText);
+          clean = (clean || '').trim();
+          if (!clean) return;
+        }
+
         const norm = cleanNorm(clean);
         if (!norm) return;
 
@@ -4328,7 +4414,7 @@
 
       function getRoomsEndpointUrl() {
         if (window.location.protocol === 'file:') return 'rooms.php';
-        return window.location.origin + '/rooms.php';
+        return new URL('rooms.php', window.location.href).href;
       }
 
       // Heartbeat periódico da sala ativa (transmite para Nuvem Global MQTT & rooms.php a cada 3.5s)
@@ -4354,10 +4440,12 @@
           lastSeen: now
         };
 
-        // 1. Publica no broker MQTT Global (notifica monitores em qualquer navegador no mundo)
+        // 1. Publica no broker MQTT Global (notifica monitores em qualquer navegador no mundo com retain)
         if (mqttPublisherClient && mqttPublisherClient.connected) {
           try {
             mqttPublisherClient.publish('brainaudiovisual/global/active_sessions', JSON.stringify(roomPayload), { qos: 0 });
+            const safeMeetingMqttId = String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+            mqttPublisherClient.publish('brainaudiovisual/rooms/' + safeMeetingMqttId + '/status', JSON.stringify(roomPayload), { qos: 1, retain: true });
           } catch(e) {}
         }
 
@@ -4381,6 +4469,8 @@
         if (mqttPublisherClient && mqttPublisherClient.connected) {
           try {
             mqttPublisherClient.publish('brainaudiovisual/global/active_sessions', JSON.stringify({ id: id, status: 'closed' }), { qos: 0 });
+            const safeMeetingMqttId = String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+            mqttPublisherClient.publish('brainaudiovisual/rooms/' + safeMeetingMqttId + '/status', JSON.stringify({ id: id, status: 'closed' }), { qos: 1, retain: true });
           } catch(e) {}
         }
         try {
@@ -6017,8 +6107,15 @@
 
       function commitFinalSentence(finalText) {
         lastSpeechActivityTimestamp = Date.now();
-        const clean = (finalText || '').trim().replace(/\s+/g, ' ');
+        let clean = (finalText || '').trim().replace(/\s+/g, ' ');
         if (!clean) return;
+
+        // Elimina sobreposição de palavras nas bordas com a frase anterior (evita repetição da última palavra no início da seguinte frase)
+        if (lastConfirmedCleanTranscript) {
+          clean = stripUtteranceBoundaryOverlap(clean, lastConfirmedCleanTranscript);
+          clean = (clean || '').trim();
+          if (!clean) return;
+        }
 
         // Incrementa sequência para invalidar interims assíncronos que ainda estejam em processamento
         currentUtteranceSeq++;
@@ -6264,7 +6361,13 @@
                     commitFinalSentence(transcript);
                   }
                 } else {
-                  currentInterim += (currentInterim ? ' ' : '') + transcript;
+                  let interimPiece = transcript;
+                  if (lastConfirmedCleanTranscript) {
+                    interimPiece = stripUtteranceBoundaryOverlap(interimPiece, lastConfirmedCleanTranscript);
+                  }
+                  if (interimPiece) {
+                    currentInterim += (currentInterim ? ' ' : '') + interimPiece;
+                  }
                 }
               }
 
@@ -7031,6 +7134,20 @@
           try {
             localStorage.removeItem('brain_room_heartbeat_' + id);
             if (typeof roomHeartbeatTimer !== 'undefined') clearInterval(roomHeartbeatTimer);
+          } catch(e) {}
+          if (mqttPublisherClient && mqttPublisherClient.connected) {
+            try {
+              mqttPublisherClient.publish('brainaudiovisual/global/active_sessions', JSON.stringify({ id: id, status: 'closed' }), { qos: 0 });
+              const safeMeetingMqttId = String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+              mqttPublisherClient.publish('brainaudiovisual/rooms/' + safeMeetingMqttId + '/status', JSON.stringify({ id: id, status: 'closed' }), { qos: 1, retain: true });
+            } catch(e) {}
+          }
+          try {
+            fetch(getRoomsEndpointUrl(), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: id, action: 'archive' })
+            }).catch(() => {});
           } catch(e) {}
           window.location.href = getAdminBaseUrl('module=translation');
         }
