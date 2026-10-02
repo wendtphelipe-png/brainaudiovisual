@@ -4458,42 +4458,42 @@
         const targetCode = (targetLang || 'en').split('-')[0].toLowerCase();
         if (sourceCode === targetCode) return clean;
 
-        // Cache hit
+        // Cache hit imediato
         const cacheKey = `${sourceCode}|${targetCode}|${clean}`;
         if (_translationCache.has(cacheKey)) return _translationCache.get(cacheKey);
 
-        const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`;
-
-        // 1. Google Translate API (suporta CORS com Access-Control-Allow-Origin: *)
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3000);
-          const res = await fetch(googleUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data) && Array.isArray(data[0])) {
-              const trans = data[0].map(item => item[0]).filter(Boolean).join('');
-              if (trans && trans.trim()) {
-                const result = trans.trim();
-                _translationCache.set(cacheKey, result);
-                if (_translationCache.size > 500) {
-                  const firstKey = _translationCache.keys().next().value;
-                  _translationCache.delete(firstKey);
+        const clients = ['dict-chrome-ex', 'tw-ob', 'gtx'];
+        for (const client of clients) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2200);
+            const googleUrl = `https://translate.googleapis.com/translate_a/single?client=${client}&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`;
+            const res = await fetch(googleUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (res.ok) {
+              const data = await res.json();
+              if (Array.isArray(data) && Array.isArray(data[0])) {
+                const trans = data[0].map(item => item[0]).filter(Boolean).join('');
+                if (trans && trans.trim()) {
+                  const result = trans.trim();
+                  _translationCache.set(cacheKey, result);
+                  if (_translationCache.size > 500) {
+                    const firstKey = _translationCache.keys().next().value;
+                    _translationCache.delete(firstKey);
+                  }
+                  return result;
                 }
-                return result;
               }
             }
-          }
-        } catch(e) {
-          console.warn('[BrainLingo] Google Translate direto falhou:', e.message);
+          } catch(e) {}
         }
 
-        // 2. Fallback via proxy CORS (allorigins.win)
+        // Fallback final: proxy allorigins com dict-chrome-ex
         try {
-          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(googleUrl)}`;
+          const directUrl = `https://translate.googleapis.com/translate_a/single?client=dict-chrome-ex&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`;
+          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`;
           const controller2 = new AbortController();
-          const timeoutId2 = setTimeout(() => controller2.abort(), 4000);
+          const timeoutId2 = setTimeout(() => controller2.abort(), 2500);
           const res2 = await fetch(proxyUrl, { signal: controller2.signal });
           clearTimeout(timeoutId2);
           if (res2.ok) {
@@ -4507,30 +4507,8 @@
               }
             }
           }
-        } catch(e2) {
-          console.warn('[BrainLingo] Proxy allorigins falhou:', e2.message);
-        }
+        } catch(e2) {}
 
-        // 3. Fallback MyMemory (se não estiver com quota esgotada)
-        try {
-          const controller3 = new AbortController();
-          const timeoutId3 = setTimeout(() => controller3.abort(), 2500);
-          const res3 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=${sourceCode}|${targetCode}`, {
-            signal: controller3.signal
-          });
-          clearTimeout(timeoutId3);
-          if (res3.ok) {
-            const data3 = await res3.json();
-            const t3 = data3?.responseData?.translatedText || '';
-            if (t3 && !t3.includes('MYMEMORY WARNING') && !t3.includes('quota') && t3.trim().toLowerCase() !== clean.toLowerCase()) {
-              const result3 = t3.trim();
-              _translationCache.set(cacheKey, result3);
-              return result3;
-            }
-          }
-        } catch(e3) {}
-
-        // Todas as APIs falharam — retorna null (NÃO retorna o texto original para evitar confusão de idiomas)
         console.warn('[BrainLingo] Tradução falhou para:', sourceCode, '->', targetCode, '| texto:', clean.substring(0, 40));
         return null;
       }
@@ -4690,7 +4668,7 @@
       // Rastreamento por idioma para tradução interim (não cancela em-voo)
       const _interimTracker = {}; // { [lang]: { lastShownLen, inFlight } }
 
-      // Caminho RÁPIDO para tradução em tempo real — só Google direct, sem fallbacks lentos
+      // Caminho RÁPIDO para tradução em tempo real — rotação multi-cliente Google (dict-chrome-ex, tw-ob, gtx)
       async function fetchInterimTranslation(text, sourceLang, targetLang) {
         const clean = text.trim();
         if (!clean) return null;
@@ -4702,31 +4680,33 @@
         const cacheKey = `${sourceCode}|${targetCode}|${clean}`;
         if (_translationCache.has(cacheKey)) return _translationCache.get(cacheKey);
 
-        // Google Translate direct — 1.5s timeout máximo para manter fluidez
-        try {
-          const ctrl = new AbortController();
-          const tid = setTimeout(() => ctrl.abort(), 1500);
-          const res = await fetch(
-            `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`,
-            { signal: ctrl.signal }
-          );
-          clearTimeout(tid);
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data) && Array.isArray(data[0])) {
-              const trans = data[0].map(i => i[0]).filter(Boolean).join('');
-              if (trans && trans.trim()) {
-                const result = trans.trim();
-                // Salva no cache compartilhado
-                _translationCache.set(cacheKey, result);
-                if (_translationCache.size > 500) {
-                  _translationCache.delete(_translationCache.keys().next().value);
+        const clients = ['dict-chrome-ex', 'tw-ob', 'gtx'];
+        for (const client of clients) {
+          try {
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 1600);
+            const res = await fetch(
+              `https://translate.googleapis.com/translate_a/single?client=${client}&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`,
+              { signal: ctrl.signal }
+            );
+            clearTimeout(tid);
+            if (res.ok) {
+              const data = await res.json();
+              if (Array.isArray(data) && Array.isArray(data[0])) {
+                const trans = data[0].map(i => i[0]).filter(Boolean).join('');
+                if (trans && trans.trim()) {
+                  const result = trans.trim();
+                  // Salva no cache compartilhado
+                  _translationCache.set(cacheKey, result);
+                  if (_translationCache.size > 500) {
+                    _translationCache.delete(_translationCache.keys().next().value);
+                  }
+                  return result;
                 }
-                return result;
               }
             }
-          }
-        } catch(e) {}
+          } catch(e) {}
+        }
         return null;
       }
 
@@ -4795,7 +4775,11 @@
           // Se já está traduzindo um texto igual ou mais longo, aguarda
           if (tracker.inFlight && textNow.length <= tracker.lastShownLen) return;
 
+          const now = Date.now();
+          if (tracker.inFlight || (now - (tracker.lastReqTime || 0) < 100)) return;
+
           tracker.inFlight = true;
+          tracker.lastReqTime = now;
           const translated = await fetchInterimTranslation(textNow, selectedSourceLanguage, targetLang);
           tracker.inFlight = false;
 
