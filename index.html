@@ -2925,9 +2925,9 @@
           return;
         }
 
-        // Garante pontuação final suave para cadência natural
+        // Garante pontuação final suave para cadência natural (preserva vírgula no streaming)
         nextText = nextText.trim();
-        if (!/[.!?]$/.test(nextText)) nextText += '.';
+        if (!/[.,!?;]$/.test(nextText)) nextText += '.';
 
         isSpeakingNow = true;
         const persona = getAudienceVoicePersona(selectedVoicePersonaId);
@@ -4392,6 +4392,19 @@
         Object.keys(_interimTracker).forEach(lang => {
           _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
         });
+        // Cancela timers pendentes de TTS streaming e reseta estado
+        Object.keys(_liveTTSStreamState).forEach(lang => {
+          if (_liveTTSStreamState[lang].timer) {
+            clearTimeout(_liveTTSStreamState[lang].timer);
+            _liveTTSStreamState[lang].timer = null;
+          }
+          _liveTTSStreamState[lang] = {
+            spokenWordCount: 0,
+            firstWordTimestamp: 0,
+            timer: null,
+            latestTranslation: ''
+          };
+        });
       }
 
       // Rastreamento por idioma para tradução interim (não cancela em-voo)
@@ -4437,10 +4450,38 @@
         return null;
       }
 
+      // RASTREAMENTO DE TTS STREAMING EM TEMPO REAL COM DELAY DE 2 A 3 SEGUNDOS
+      // Permite locução contínua acompanhando o ritmo em que a tradução é escrita na tela,
+      // com delay de 2.5s para estabilização, sem esperar a frase terminar e sem repetições.
+      const _liveTTSStreamState = {};
+
+      function extractNextTTSChunk(spokenCount, fullText, isFinal) {
+        const currentWords = (fullText || '').trim().split(/\s+/).filter(Boolean);
+        if (currentWords.length === 0) return { chunk: '', newCount: spokenCount };
+        if (spokenCount >= currentWords.length) return { chunk: '', newCount: spokenCount };
+
+        const unsaid = currentWords.slice(spokenCount);
+        // No interim, requer no mínimo 3 palavras para formar um bloco com ritmo e sentido
+        if (!isFinal && unsaid.length < 3) {
+          return { chunk: '', newCount: spokenCount };
+        }
+
+        // Se não for final e tiver 4 ou mais palavras, reserva 1 palavra de margem para o próximo bloco
+        let countToTake = unsaid.length;
+        if (!isFinal && unsaid.length >= 4) {
+          countToTake = unsaid.length - 1;
+        }
+
+        const chunkWords = unsaid.slice(0, countToTake);
+        const chunk = chunkWords.join(' ');
+        const newCount = spokenCount + countToTake;
+        return { chunk, newCount };
+      }
+
       // TRADUÇÃO EM STREAMING — Padrão Google Tradutor:
       // dispara palavra-a-palavra SEM debounce, SEM cancelar requests anteriores.
       // Usa comprimento do texto para determinar recência (texto mais longo = mais recente).
-      // Também faz TTS streaming em chunks de 3+ palavras novas.
+      // Também faz TTS streaming em chunks com delay de 2.5s sem esperar término da frase.
       function scheduleLiveStreamTranslation(interimText) {
         if (!interimText || !interimText.trim()) return;
         const textNow = interimText.trim();
@@ -4475,6 +4516,46 @@
               tp.liveSpan.style.opacity = '1';
               const els = getTargetColumnElements(targetLang);
               if (els.box) els.box.scrollTop = els.box.scrollHeight;
+            }
+
+            // ---- LOCUÇÃO EM TEMPO REAL (STREAMING TTS) COM DELAY DE 2.5s ----
+            if (!_liveTTSStreamState[targetLang]) {
+              _liveTTSStreamState[targetLang] = {
+                spokenWordCount: 0,
+                firstWordTimestamp: 0,
+                timer: null,
+                latestTranslation: ''
+              };
+            }
+            const ttsState = _liveTTSStreamState[targetLang];
+            ttsState.latestTranslation = translated.trim();
+            if (!ttsState.firstWordTimestamp) {
+              ttsState.firstWordTimestamp = Date.now();
+            }
+
+            // Inicia o ciclo de disparo com delay de 2.5s (2 a 3s) a partir do momento em que começou a escrever
+            if (!ttsState.timer) {
+              const runTTSStreamTick = () => {
+                ttsState.timer = null;
+                const latest = ttsState.latestTranslation;
+                if (latest) {
+                  const { chunk, newCount } = extractNextTTSChunk(ttsState.spokenWordCount, latest, false);
+                  if (chunk && chunk.trim()) {
+                    ttsState.spokenWordCount = newCount;
+                    const targetCode = targetLang.split('-')[0].toLowerCase();
+                    // Pontuação suave para cadência humana de streaming contínuo
+                    const speechChunk = /[,;.!?]$/.test(chunk.trim()) ? chunk.trim() : (chunk.trim() + ',');
+                    broadcastStreamTTS(targetCode, speechChunk);
+                    triggerTargetAudioMeter(targetLang, Math.max(2000, speechChunk.length * 80));
+                  }
+                }
+                // Continua o fluxo agendando o próximo bloco enquanto o orador estiver falando
+                ttsState.timer = setTimeout(runTTSStreamTick, 2200);
+              };
+
+              const elapsed = Date.now() - ttsState.firstWordTimestamp;
+              const initialDelay = Math.max(300, 2500 - elapsed);
+              ttsState.timer = setTimeout(runTTSStreamTick, initialDelay);
             }
           }
         });
@@ -4599,15 +4680,42 @@
         if (targetCode === 'en') broadcastSubtitleGlobally('receiver', cleanTranslated, startSec, endSec);
         if (targetCode === 'es') broadcastSubtitleGlobally('spanish', cleanTranslated, startSec, endSec);
 
-        // 2. LOCUÇÃO (TTS): Aguarda 3 segundos de delay no que foi transcrito na tradução
-        // e inicia a leitura da frase completa e consolidada, com máxima fluidez e sem repetições nem cortes
-        const textToSpeak = cleanTranslated.trim();
-        if (textToSpeak) {
-          setTimeout(() => {
-            broadcastStreamTTS(targetCode, textToSpeak);
-            triggerTargetAudioMeter(targetLang, Math.max(3000, textToSpeak.length * 90));
-          }, 3000);
+        // 2. LOCUÇÃO EM TEMPO REAL: completa a frase que estava sendo transmitida
+        const ttsState = _liveTTSStreamState[targetLang];
+        if (ttsState && ttsState.timer) {
+          clearTimeout(ttsState.timer);
+          ttsState.timer = null;
         }
+
+        const spokenCount = ttsState ? ttsState.spokenWordCount : 0;
+        const firstTime = (ttsState && ttsState.firstWordTimestamp) ? ttsState.firstWordTimestamp : Date.now();
+
+        const { chunk } = extractNextTTSChunk(spokenCount, cleanTranslated, true);
+
+        if (chunk && chunk.trim()) {
+          const finalChunk = /[.!?]$/.test(chunk.trim()) ? chunk.trim() : (chunk.trim() + '.');
+          if (spokenCount > 0) {
+            // Já começou a ler durante o interim: lê as palavras restantes IMEDIATAMENTE para manter o fluxo contínuo
+            broadcastStreamTTS(targetCode, finalChunk);
+            triggerTargetAudioMeter(targetLang, Math.max(2000, finalChunk.length * 80));
+          } else {
+            // Frase curta em que nada foi lido no interim: dá o delay de 2.5s desde que a primeira palavra foi escrita
+            const elapsed = Date.now() - firstTime;
+            const remainingDelay = Math.max(0, 2500 - elapsed);
+            setTimeout(() => {
+              broadcastStreamTTS(targetCode, finalChunk);
+              triggerTargetAudioMeter(targetLang, Math.max(2000, finalChunk.length * 80));
+            }, remainingDelay);
+          }
+        }
+
+        // Reseta o estado para a próxima frase
+        _liveTTSStreamState[targetLang] = {
+          spokenWordCount: 0,
+          firstWordTimestamp: 0,
+          timer: null,
+          latestTranslation: ''
+        };
 
         fetchAudioChunkForExport(targetLang, cleanTranslated, 'female');
         fetchAudioChunkForExport(targetLang, cleanTranslated, 'male');
@@ -4633,6 +4741,19 @@
         // Reseta rastreamento interim (sem debounce ativo para cancelar)
         Object.keys(_interimTracker).forEach(lang => {
           _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
+        });
+        // Cancela timers de streaming TTS
+        Object.keys(_liveTTSStreamState).forEach(lang => {
+          if (_liveTTSStreamState[lang].timer) {
+            clearTimeout(_liveTTSStreamState[lang].timer);
+            _liveTTSStreamState[lang].timer = null;
+          }
+          _liveTTSStreamState[lang] = {
+            spokenWordCount: 0,
+            firstWordTimestamp: 0,
+            timer: null,
+            latestTranslation: ''
+          };
         });
 
         if (forceCloseParagraph) {
