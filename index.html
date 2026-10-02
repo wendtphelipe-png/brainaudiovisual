@@ -2934,7 +2934,8 @@
         const utterance = new SpeechSynthesisUtterance(nextText);
         utterance.lang = currentAudienceLang || 'en-US';
         utterance.volume = Math.max(0.1, currentVolume);
-        utterance.rate = persona.rate;
+        // Cadência de leitura mais calma e pausada para acompanhar o fluxo sem alcançar a transcrição rápido demais
+        utterance.rate = Math.max(0.70, Math.min(1.0, (persona.rate || 1.0) * 0.88));
         utterance.pitch = persona.pitch;
 
         const voice = getBestVoiceForCurrentLang(persona.gender);
@@ -2956,7 +2957,8 @@
           finalizeSpeech();
         };
 
-        const maxExpectedMs = Math.max(3000, nextText.length * 90);
+        // Watchdog adaptado para a cadência mais calma (~110ms por caractere)
+        const maxExpectedMs = Math.max(4000, nextText.length * 110);
         if (speechQueueWatchdog) clearTimeout(speechQueueWatchdog);
         speechQueueWatchdog = setTimeout(() => {
           if (isSpeakingNow) finalizeSpeech();
@@ -4450,9 +4452,9 @@
         return null;
       }
 
-      // RASTREAMENTO DE TTS STREAMING EM TEMPO REAL COM DELAY DE 2 A 3 SEGUNDOS
+      // RASTREAMENTO DE TTS STREAMING EM TEMPO REAL COM DELAY DE 4 SEGUNDOS
       // Permite locução contínua acompanhando o ritmo em que a tradução é escrita na tela,
-      // com delay de 2.5s para estabilização, sem esperar a frase terminar e sem repetições.
+      // com delay de 4s para acumular blocos sonoros completos, sem picotar e sem repetições.
       const _liveTTSStreamState = {};
 
       function extractNextTTSChunk(spokenCount, fullText, isFinal) {
@@ -4461,14 +4463,14 @@
         if (spokenCount >= currentWords.length) return { chunk: '', newCount: spokenCount };
 
         const unsaid = currentWords.slice(spokenCount);
-        // No interim, requer no mínimo 3 palavras para formar um bloco com ritmo e sentido
-        if (!isFinal && unsaid.length < 3) {
+        // No interim, requer no mínimo 4 palavras para formar um bloco com ritmo e sentido pleno
+        if (!isFinal && unsaid.length < 4) {
           return { chunk: '', newCount: spokenCount };
         }
 
-        // Se não for final e tiver 4 ou mais palavras, reserva 1 palavra de margem para o próximo bloco
+        // Se não for final e tiver 6 ou mais palavras, reserva 1 palavra de margem para o próximo bloco
         let countToTake = unsaid.length;
-        if (!isFinal && unsaid.length >= 4) {
+        if (!isFinal && unsaid.length >= 6) {
           countToTake = unsaid.length - 1;
         }
 
@@ -4518,7 +4520,7 @@
               if (els.box) els.box.scrollTop = els.box.scrollHeight;
             }
 
-            // ---- LOCUÇÃO EM TEMPO REAL (STREAMING TTS) COM DELAY DE 2.5s ----
+            // ---- LOCUÇÃO EM TEMPO REAL (STREAMING TTS) COM DELAY DE 4s ----
             if (!_liveTTSStreamState[targetLang]) {
               _liveTTSStreamState[targetLang] = {
                 spokenWordCount: 0,
@@ -4533,7 +4535,7 @@
               ttsState.firstWordTimestamp = Date.now();
             }
 
-            // Inicia o ciclo de disparo com delay de 2.5s (2 a 3s) a partir do momento em que começou a escrever
+            // Inicia o ciclo de disparo com delay de 4s a partir do momento em que começou a escrever
             if (!ttsState.timer) {
               const runTTSStreamTick = () => {
                 ttsState.timer = null;
@@ -4546,15 +4548,15 @@
                     // Pontuação suave para cadência humana de streaming contínuo
                     const speechChunk = /[,;.!?]$/.test(chunk.trim()) ? chunk.trim() : (chunk.trim() + ',');
                     broadcastStreamTTS(targetCode, speechChunk);
-                    triggerTargetAudioMeter(targetLang, Math.max(2000, speechChunk.length * 80));
+                    triggerTargetAudioMeter(targetLang, Math.max(2500, speechChunk.length * 90));
                   }
                 }
-                // Continua o fluxo agendando o próximo bloco enquanto o orador estiver falando
-                ttsState.timer = setTimeout(runTTSStreamTick, 2200);
+                // Continua o fluxo agendando o próximo bloco a cada ~3s enquanto o orador estiver falando
+                ttsState.timer = setTimeout(runTTSStreamTick, 3000);
               };
 
               const elapsed = Date.now() - ttsState.firstWordTimestamp;
-              const initialDelay = Math.max(300, 2500 - elapsed);
+              const initialDelay = Math.max(500, 4000 - elapsed);
               ttsState.timer = setTimeout(runTTSStreamTick, initialDelay);
             }
           }
@@ -4697,14 +4699,14 @@
           if (spokenCount > 0) {
             // Já começou a ler durante o interim: lê as palavras restantes IMEDIATAMENTE para manter o fluxo contínuo
             broadcastStreamTTS(targetCode, finalChunk);
-            triggerTargetAudioMeter(targetLang, Math.max(2000, finalChunk.length * 80));
+            triggerTargetAudioMeter(targetLang, Math.max(2500, finalChunk.length * 90));
           } else {
-            // Frase curta em que nada foi lido no interim: dá o delay de 2.5s desde que a primeira palavra foi escrita
+            // Frase curta em que nada foi lido no interim: dá o delay de 4s desde que a primeira palavra foi escrita
             const elapsed = Date.now() - firstTime;
-            const remainingDelay = Math.max(0, 2500 - elapsed);
+            const remainingDelay = Math.max(0, 4000 - elapsed);
             setTimeout(() => {
               broadcastStreamTTS(targetCode, finalChunk);
-              triggerTargetAudioMeter(targetLang, Math.max(2000, finalChunk.length * 80));
+              triggerTargetAudioMeter(targetLang, Math.max(2500, finalChunk.length * 90));
             }, remainingDelay);
           }
         }
