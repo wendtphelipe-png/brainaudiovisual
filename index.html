@@ -4385,19 +4385,19 @@
         Object.keys(_interimTracker).forEach(lang => {
           _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
         });
-        // Reseta tracker TTS streaming
+        // Reseta tracker TTS streaming e cancela timers pendentes
         Object.keys(_liveTTSTracker).forEach(lang => {
-          _liveTTSTracker[lang] = { lastSpokenWordCount: 0 };
+          if (_liveTTSTracker[lang].timer) clearTimeout(_liveTTSTracker[lang].timer);
+          _liveTTSTracker[lang] = { lastSpokenText: '', latestTranslation: '', timer: null };
         });
       }
 
       // Rastreamento por idioma para tradução interim (não cancela em-voo)
       const _interimTracker = {}; // { [lang]: { lastShownLen, inFlight } }
 
-      // Rastreamento TTS streaming por idioma
-      // lastSpokenWordCount = quantas palavras da TRADUÇÃO já foram enviadas para TTS
-      const _liveTTSTracker = {}; // { [lang]: { lastSpokenWordCount } }
-      const TTS_CHUNK_WORDS = 3; // mínimo de palavras novas para disparar TTS
+      // TTS Streaming por buffer temporal — a cada ~2s dispara o que há de novo.
+      // Rastreia o TEXTO COMPLETO que já foi enviado para TTS (não por word-count).
+      const _liveTTSTracker = {}; // { [lang]: { lastSpokenText, latestTranslation, timer } }
 
       // Caminho RÁPIDO para tradução em tempo real — só Google direct, sem fallbacks lentos
       async function fetchInterimTranslation(text, sourceLang, targetLang) {
@@ -4479,24 +4479,40 @@
               if (els.box) els.box.scrollTop = els.box.scrollHeight;
             }
 
-            // ---- TTS STREAMING em chunks de 3+ palavras ----
+            // ---- TTS STREAMING por buffer temporal ----
             if (!_liveTTSTracker[targetLang]) {
-              _liveTTSTracker[targetLang] = { lastSpokenWordCount: 0 };
+              _liveTTSTracker[targetLang] = { lastSpokenText: '', latestTranslation: '', timer: null };
             }
-            const ttsTracker = _liveTTSTracker[targetLang];
-            const translatedWords = translated.trim().split(/\s+/);
-            const currentWordCount = translatedWords.length;
+            const ttsT = _liveTTSTracker[targetLang];
+            ttsT.latestTranslation = translated.trim();
 
-            if (currentWordCount >= ttsTracker.lastSpokenWordCount + TTS_CHUNK_WORDS) {
-              // Extrai apenas as palavras novas desde o último TTS
-              const newChunk = translatedWords.slice(ttsTracker.lastSpokenWordCount).join(' ');
-              if (newChunk.trim()) {
-                ttsTracker.lastSpokenWordCount = currentWordCount;
-                const targetCode = targetLang.split('-')[0].toLowerCase();
-                broadcastStreamTTS(targetCode, newChunk);
-                if (targetCode === 'en') broadcastStreamTTS('receiver', newChunk);
-                if (targetCode === 'es') broadcastStreamTTS('spanish', newChunk);
-              }
+            // Dispara TTS a cada ~1.8s se houver texto novo não falado
+            if (!ttsT.timer) {
+              ttsT.timer = setTimeout(() => {
+                ttsT.timer = null;
+                const latest = ttsT.latestTranslation;
+                const spoken = ttsT.lastSpokenText;
+
+                if (!latest || latest === spoken) return;
+
+                // Tenta extrair apenas o novo sufixo
+                let newChunk = latest;
+                if (spoken && latest.toLowerCase().startsWith(spoken.toLowerCase())) {
+                  newChunk = latest.substring(spoken.length).trim();
+                } else if (spoken) {
+                  // Tradução mudou completamente — fala tudo do início
+                  // (Mas só se o anterior já foi falado, para não duplicar)
+                  newChunk = latest;
+                }
+
+                if (newChunk && newChunk.trim()) {
+                  ttsT.lastSpokenText = latest; // Marca TUDO como falado
+                  const targetCode = targetLang.split('-')[0].toLowerCase();
+                  broadcastStreamTTS(targetCode, newChunk.trim());
+                  if (targetCode === 'en') broadcastStreamTTS('receiver', newChunk.trim());
+                  if (targetCode === 'es') broadcastStreamTTS('spanish', newChunk.trim());
+                }
+              }, 1800);
             }
           }
         });
@@ -4614,22 +4630,34 @@
         if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
         targetTranscriptions[targetLang].push({ text: cleanTranslated, timeStart: startSec, timeEnd: endSec });
 
-        // TTS: fala apenas as palavras restantes não lidas via streaming interim
-        const ttsTracker = _liveTTSTracker[targetLang] || { lastSpokenWordCount: 0 };
-        const finalWords = cleanTranslated.trim().split(/\s+/);
-        const remainingChunk = finalWords.slice(ttsTracker.lastSpokenWordCount).join(' ');
+        // TTS: fala apenas o que NÃO foi falado durante o streaming interim
+        const ttsT = _liveTTSTracker[targetLang] || { lastSpokenText: '', latestTranslation: '', timer: null };
+
+        // Cancela timer pendente (a frase final chegou, não precisa mais)
+        if (ttsT.timer) { clearTimeout(ttsT.timer); ttsT.timer = null; }
+
+        const spoken = ttsT.lastSpokenText || '';
+        let remainingChunk = cleanTranslated;
+
+        if (spoken && cleanTranslated.toLowerCase().startsWith(spoken.toLowerCase())) {
+          remainingChunk = cleanTranslated.substring(spoken.length).trim();
+        } else if (spoken && cleanTranslated.toLowerCase().includes(spoken.toLowerCase())) {
+          // O que foi falado está no meio — fala só o que vem depois
+          const idx = cleanTranslated.toLowerCase().indexOf(spoken.toLowerCase());
+          remainingChunk = cleanTranslated.substring(idx + spoken.length).trim();
+        }
+        // Se o spoken não é prefixo nem está contido, fala tudo (tradução mudou completamente)
 
         const targetCode = targetLang.split('-')[0].toLowerCase();
 
-        if (remainingChunk.trim()) {
-          // Fala as palavras restantes via STREAM_TTS (não repete o que já foi falado)
-          broadcastStreamTTS(targetCode, remainingChunk);
-          if (targetCode === 'en') broadcastStreamTTS('receiver', remainingChunk);
-          if (targetCode === 'es') broadcastStreamTTS('spanish', remainingChunk);
+        if (remainingChunk && remainingChunk.trim()) {
+          broadcastStreamTTS(targetCode, remainingChunk.trim());
+          if (targetCode === 'en') broadcastStreamTTS('receiver', remainingChunk.trim());
+          if (targetCode === 'es') broadcastStreamTTS('spanish', remainingChunk.trim());
         }
 
-        // Reseta TTS tracker para a próxima frase
-        _liveTTSTracker[targetLang] = { lastSpokenWordCount: 0 };
+        // Reseta tracker para a próxima frase
+        _liveTTSTracker[targetLang] = { lastSpokenText: '', latestTranslation: '', timer: null };
 
         // Broadcast completo para exibição de legenda (NEW_SUBTITLE) e gravadores externos
         broadcastSubtitleGlobally(targetCode, cleanTranslated, startSec, endSec);
