@@ -891,19 +891,14 @@
     }
 
     function getMeetingCockpitUrl(meetingId) {
-      const currentPath = window.location.pathname;
-      if (window.location.protocol === 'file:') {
-        return currentPath + '?meeting=' + encodeURIComponent(meetingId);
-      }
-      return '/?meeting=' + encodeURIComponent(meetingId);
+      const currentPath = window.location.pathname || '/';
+      return currentPath + '?meeting=' + encodeURIComponent(meetingId);
     }
 
     function getAdminBaseUrl(extraQuery) {
-      const q = extraQuery ? ('?' + extraQuery) : '';
-      if (window.location.protocol === 'file:') {
-        return window.location.pathname + (extraQuery ? ('?admin=true&' + extraQuery) : '?admin=true');
-      }
-      return '/admin' + q;
+      const currentPath = window.location.pathname || '/';
+      const q = extraQuery ? ('admin=true&' + extraQuery) : 'admin=true';
+      return currentPath + '?' + q;
     }
 
     window.openMeetingCockpit = function(meetingId) {
@@ -1600,7 +1595,12 @@
 
       if (room.status === 'closed' || room.status === 'archived' || room.status === 'deleted') {
         delete window._remoteActiveRooms[room.id];
-        if (typeof renderDashboardUI === 'function') renderDashboardUI();
+        try { localStorage.removeItem('brain_remote_room_' + room.id); } catch(e) {}
+        if (typeof window._renderDashboardUI === 'function') {
+          window._renderDashboardUI();
+        } else if (typeof renderSimultaneousTranslationDashboard === 'function') {
+          renderSimultaneousTranslationDashboard();
+        }
         return;
       }
 
@@ -1614,7 +1614,11 @@
       } catch(e) {}
 
       if (isNew) {
-        if (typeof renderDashboardUI === 'function') renderDashboardUI();
+        if (typeof window._renderDashboardUI === 'function') {
+          window._renderDashboardUI();
+        } else if (typeof renderSimultaneousTranslationDashboard === 'function') {
+          renderSimultaneousTranslationDashboard();
+        }
       } else {
         // Atualiza elementos já renderizados no card
         const geoEl = document.getElementById('room-geo-text-' + room.id);
@@ -1637,6 +1641,25 @@
     // ========================================================
     function renderSimultaneousTranslationDashboard() {
       startDashboardGlobalRoomsSync();
+
+      // 0. Carrega todas as salas remotas salvas no localStorage
+      window._remoteActiveRooms = window._remoteActiveRooms || {};
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('brain_remote_room_')) {
+            try {
+              const r = JSON.parse(localStorage.getItem(k));
+              if (r && r.id) {
+                const lastSeenMs = (r.lastSeen && r.lastSeen < 1e11) ? (r.lastSeen * 1000) : (r.lastSeen || 0);
+                if (lastSeenMs && (Date.now() - lastSeenMs) < 120000) {
+                  window._remoteActiveRooms[r.id] = r;
+                }
+              }
+            } catch(e) {}
+          }
+        }
+      } catch(e) {}
 
       // Reuniões salvas no localStorage com higienização estrita
       let meetings = [];
@@ -1674,10 +1697,10 @@
         Object.values(window._remoteActiveRooms).forEach(remote => {
           if (!remote || !remote.id) return;
           const lastSeenMs = (remote.lastSeen && remote.lastSeen < 1e11) ? (remote.lastSeen * 1000) : (remote.lastSeen || 0);
-          if (lastSeenMs && (Date.now() - lastSeenMs) > 60000) return;
+          if (lastSeenMs && (Date.now() - lastSeenMs) > 120000) return;
           const idx = meetings.findIndex(m => m.id === remote.id);
           if (idx !== -1) {
-            meetings[idx] = Object.assign({}, meetings[idx], remote);
+            meetings[idx] = Object.assign({}, meetings[idx], remote, { isRemote: true });
           } else {
             meetings.unshift({
               id: remote.id,
@@ -1691,7 +1714,7 @@
               inputDevice: 'default',
               targetLanguages: Array.isArray(remote.targetLanguages) && remote.targetLanguages.length > 0 ? remote.targetLanguages : ['en-US', 'es-ES'],
               location: remote.location,
-              isLive: remote.isLive,
+              isLive: remote.isLive !== false,
               isRemote: true
             });
           }
@@ -1925,6 +1948,7 @@
       };
 
       function renderDashboardUI() {
+        window._renderDashboardUI = () => { renderSimultaneousTranslationDashboard(); };
         const state = window._newMeetingFormState;
         const activeCount = activeMeetings.length;
 
@@ -2093,11 +2117,11 @@
 
                         <!-- Botões de Ação do Card -->
                         <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
-                          <button type="button" onclick="openMeetingCockpit('${m.id}')" class="w-full py-2.5 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
-                            <span>Entrar no Cockpit da Sala</span>
+                          <button type="button" onclick="openMeetingCockpit('${m.id}')" class="w-full py-2.5 px-3 bg-gradient-to-r ${m.isRemote ? 'from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800' : 'from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'} text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                            <span>${m.isRemote ? 'Acessar como Co-Host (Acompanhar e Monitorar)' : 'Entrar no Cockpit da Sala'}</span>
                           </button>
                           <div class="grid grid-cols-2 gap-2">
-                            <a href="/?meeting=${encodeURIComponent(m.id)}&overlay=subtitles" target="_blank" class="py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-semibold text-center transition-all flex items-center justify-center gap-1">
+                            <a href="${getMeetingCockpitUrl(m.id)}&overlay=subtitles" target="_blank" class="py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-semibold text-center transition-all flex items-center justify-center gap-1">
                               <span>Janela OBS</span>
                             </a>
                             <button onclick="copyMeetingCockpitUrl('${m.id}')" id="btn-copy-cockpit-${m.id}" class="py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-semibold text-center transition-all flex items-center justify-center gap-1 cursor-pointer">
@@ -4772,13 +4796,14 @@
       // RENDERIZAÇÃO DA ESTRUTURA HTML DO COCKPIT
       function renderCockpitUI() {
         const sourceInfo = SUPPORTED_LANG_MAP[selectedSourceLanguage] || { name: 'Português', tag: 'PT' };
+        const isCoHostMode = !!(meeting.isRemote || (window._remoteActiveRooms && window._remoteActiveRooms[id] && window._remoteActiveRooms[id].isLive && !isRealMicActive));
 
         root.innerHTML = `
           <!-- HEADER DO COCKPIT LIMPO & MODERNO -->
           <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-3 shadow-xs backdrop-blur-md">
             
             <div class="flex items-center gap-3">
-              <a href="/admin" title="Voltar ao Painel" class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white text-sm shadow-xs hover:opacity-90">
+              <a href="${getAdminBaseUrl()}" title="Voltar ao Painel" class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white text-sm shadow-xs hover:opacity-90">
                 BA
               </a>
               <div>
@@ -4787,6 +4812,11 @@
                   <span class="px-2 py-0.2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[9px] font-black rounded-full flex items-center gap-1">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> AO VIVO
                   </span>
+                  ${isCoHostMode ? `
+                    <span class="px-2 py-0.2 bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/30 text-[9px] font-black rounded-full flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span> CO-HOST
+                    </span>
+                  ` : ''}
                 </div>
                 <p class="text-[11px] text-slate-400 font-mono">Sala: ${meeting.id}</p>
               </div>
@@ -4797,9 +4827,11 @@
               <div class="flex items-center gap-2">
                 <span class="text-slate-400 text-[10px] uppercase font-bold">Tempo de Reunião:</span>
                 <strong id="cockpit-elapsed-timer" class="font-mono text-slate-900 dark:text-white font-bold">${formatDuration(sessionElapsedSeconds)}</strong>
-                <button type="button" onclick="toggleTimerPause()" id="cockpit-pause-btn" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 cursor-pointer shadow-2xs">
-                  Pausar
-                </button>
+                ${!isCoHostMode ? `
+                  <button type="button" onclick="toggleTimerPause()" id="cockpit-pause-btn" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 cursor-pointer shadow-2xs">
+                    Pausar
+                  </button>
+                ` : ''}
               </div>
               <div class="w-px h-3.5 bg-slate-300 dark:bg-slate-700"></div>
               <span id="cockpit-mqtt-badge" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1.5">
@@ -4830,9 +4862,15 @@
                 <span>Sair para o Painel</span>
               </button>
 
-              <button onclick="prepareAndOpenFinishModal()" class="text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 border border-rose-500 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
-                <span>Encerrar Reunião & Salvar ZIP</span>
-              </button>
+              ${isCoHostMode ? `
+                <button onclick="window.location.href=getAdminBaseUrl()" class="text-xs font-bold text-white bg-slate-700 hover:bg-slate-800 border border-slate-600 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
+                  <span>Sair do Monitoramento</span>
+                </button>
+              ` : `
+                <button onclick="prepareAndOpenFinishModal()" class="text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 border border-rose-500 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
+                  <span>Encerrar Reunião & Salvar ZIP</span>
+                </button>
+              `}
             </div>
           </header>
 
@@ -4862,6 +4900,18 @@
                       <span id="transmitter-speech-text">Aguardando Voz</span>
                     </span>
                   </div>
+
+                  ${isCoHostMode ? `
+                    <div class="p-2.5 rounded-2xl bg-purple-50 dark:bg-purple-950/70 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 text-xs">
+                      <div class="flex items-center gap-1.5 font-bold mb-0.5 text-purple-950 dark:text-purple-100">
+                        <span class="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
+                        Acompanhamento Co-Host Ativo
+                      </div>
+                      <p class="text-[10.5px] text-purple-800 dark:text-purple-300 leading-tight">
+                        Você está monitorando os controles e a transmissão em tempo real. As legendas e canais traduzidos chegam via nuvem instantaneamente.
+                      </p>
+                    </div>
+                  ` : ''}
 
                   <!-- Seletor de Entrada de Microfone / Aplicativos e VU Meter -->
                   <div class="bg-blue-50/60 dark:bg-slate-800/80 border border-blue-200/80 dark:border-slate-700 rounded-2xl p-3 space-y-2.5">
