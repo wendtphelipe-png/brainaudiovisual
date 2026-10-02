@@ -4262,6 +4262,19 @@
       let isAutoDetectLanguage = meeting.autoDetectLanguage !== false;
       let activeTargetLanguages = meeting.targetLanguages && meeting.targetLanguages.length ? meeting.targetLanguages : ['en-US', 'es-ES'];
 
+      // Estado do Microfone do Palestrante
+      let isRealMicActive = false;
+      let isTransmitterMicMuted = false;
+      let selectedMicDeviceId = meeting.inputDevice || localStorage.getItem('brain_selected_mic_device') || 'default';
+      let micMediaStream = null;
+      let micAudioContext = null;
+      let micAnalyserNode = null;
+      let micMediaRecorder = null;
+      let micVuAnimFrameId = null;
+
+      // SISTEMA DE MONITORAMENTO EM TEMPO REAL DE ESPECTADORES POR IDIOMA
+      const audiencePresenceClients = new Map(); // clientId -> { lang, timestamp }
+
       // 2. IDENTIFICAÇÃO GEOGRÁFICA E HEARTBEAT GLOBAL
       let currentClientGeoLocation = null;
       getApproximateGeoLocation().then(geo => {
@@ -4292,7 +4305,7 @@
           elapsedSeconds: sessionElapsedSeconds,
           isLive: isRealMicActive || !isTimerPaused,
           isMicActive: isRealMicActive,
-          audienceCount: typeof audiencePresenceClients !== 'undefined' ? audiencePresenceClients.size : 0,
+          audienceCount: audiencePresenceClients.size,
           location: currentClientGeoLocation,
           lastSeen: now
         };
@@ -4383,16 +4396,6 @@
         targetMeterStates[l] = { activeUntil: 0 };
       });
 
-      // Estado do Microfone do Palestrante
-      let isRealMicActive = false;
-      let isTransmitterMicMuted = false;
-      let selectedMicDeviceId = meeting.inputDevice || localStorage.getItem('brain_selected_mic_device') || 'default';
-      let micMediaStream = null;
-      let micAudioContext = null;
-      let micAnalyserNode = null;
-      let micMediaRecorder = null;
-      let micVuAnimFrameId = null;
-
       // Estado de Reconhecimento Contínuo de Fala
       let speechRecognizer = null;
       let isTranscribingSpeech = false;
@@ -4407,9 +4410,6 @@
       let isSpeechCycleRestarting = false;
 
       // Estado de Transcrição e Broadcast
-
-      // SISTEMA DE MONITORAMENTO EM TEMPO REAL DE ESPECTADORES POR IDIOMA
-      const audiencePresenceClients = new Map(); // clientId -> { lang, timestamp }
 
       function handleAudiencePresencePing(data) {
         if (!data || !data.clientId || !data.lang) return;
