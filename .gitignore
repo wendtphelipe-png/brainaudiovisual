@@ -4,3 +4,4 @@ dist/
 credentials.json
 token.json
 .DS_Store
+rooms_state.json

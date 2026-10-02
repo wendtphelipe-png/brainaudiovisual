@@ -708,23 +708,129 @@
     // ========================================================
     // TELA 2: ROTEADOR ADMINISTRATIVO E MÓDULOS BRAINLINGO
     // ========================================================
+    window._remoteActiveRooms = window._remoteActiveRooms || {};
+
+    // FORMATADOR UNIVERSAL DE DURAÇÃO (HH:MM:SS ou MM:SS)
+    function formatDuration(sec) {
+      const s = Math.max(0, Math.floor(sec || 0));
+      const pad = (n) => String(Math.floor(n)).padStart(2, '0');
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const remSec = Math.floor(s % 60);
+      return h > 0 ? `${pad(h)}h ${pad(m)}m ${pad(remSec)}s` : `${pad(m)}m ${pad(remSec)}s`;
+    }
+
+    // RESOLVER DE GEOLOCALIZAÇÃO APROXIMADA (PARA MARCADOR GEOGRÁFICO DE SALAS)
+    let _cachedClientGeo = null;
+    async function getApproximateGeoLocation() {
+      if (_cachedClientGeo) return _cachedClientGeo;
+      try {
+        const saved = localStorage.getItem('brain_client_geo');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.city && (Date.now() - (parsed.timestamp || 0)) < 86400000) {
+            _cachedClientGeo = parsed;
+            return parsed;
+          }
+        }
+      } catch(e) {}
+
+      // Fallback inicial ultra-rápido derivado do fuso horário do sistema
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      let city = 'Local Remoto';
+      let region = '';
+      let country = 'Brasil';
+
+      if (tz.includes('Sao_Paulo')) { city = 'São Paulo'; region = 'SP'; country = 'Brasil'; }
+      else if (tz.includes('Rio')) { city = 'Rio de Janeiro'; region = 'RJ'; country = 'Brasil'; }
+      else if (tz.includes('Fortaleza')) { city = 'Fortaleza'; region = 'CE'; country = 'Brasil'; }
+      else if (tz.includes('Recife')) { city = 'Recife'; region = 'PE'; country = 'Brasil'; }
+      else if (tz.includes('Belem')) { city = 'Belém'; region = 'PA'; country = 'Brasil'; }
+      else if (tz.includes('Manaus')) { city = 'Manaus'; region = 'AM'; country = 'Brasil'; }
+      else if (tz.includes('Cuiaba')) { city = 'Cuiabá'; region = 'MT'; country = 'Brasil'; }
+      else if (tz.includes('Porto_Alegre')) { city = 'Porto Alegre'; region = 'RS'; country = 'Brasil'; }
+      else if (tz.includes('Curitiba')) { city = 'Curitiba'; region = 'PR'; country = 'Brasil'; }
+      else if (tz.includes('Lisbon')) { city = 'Lisboa'; region = 'PT'; country = 'Portugal'; }
+      else if (tz.includes('Madrid')) { city = 'Madri'; region = 'ES'; country = 'Espanha'; }
+      else if (tz.includes('New_York')) { city = 'Nova York'; region = 'NY'; country = 'EUA'; }
+      else if (tz.includes('London')) { city = 'Londres'; region = 'UK'; country = 'Reino Unido'; }
+
+      let geo = { city, region, country, timezone: tz, timestamp: Date.now() };
+
+      // Consulta não-bloqueante a serviços GeoIP rápidos sem chave de API
+      try {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 2000);
+        const res = await fetch('https://ipapi.co/json/', { signal: ctrl.signal });
+        clearTimeout(tid);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && (data.city || data.region)) {
+            geo = {
+              city: data.city || city,
+              region: data.region_code || data.region || region,
+              country: data.country_name || country,
+              lat: data.latitude,
+              lng: data.longitude,
+              timezone: data.timezone || tz,
+              timestamp: Date.now()
+            };
+          }
+        }
+      } catch(e) {
+        try {
+          const ctrl2 = new AbortController();
+          const tid2 = setTimeout(() => ctrl2.abort(), 1500);
+          const res2 = await fetch('https://ipwho.is/', { signal: ctrl2.signal });
+          clearTimeout(tid2);
+          if (res2.ok) {
+            const data2 = await res2.json();
+            if (data2 && data2.success) {
+              geo = {
+                city: data2.city || city,
+                region: data2.region_code || region,
+                country: data2.country || country,
+                lat: data2.latitude,
+                lng: data2.longitude,
+                timezone: data2.timezone?.id || tz,
+                timestamp: Date.now()
+              };
+            }
+          }
+        } catch(err2) {}
+      }
+
+      _cachedClientGeo = geo;
+      try { localStorage.setItem('brain_client_geo', JSON.stringify(geo)); } catch(e) {}
+      return geo;
+    }
+
     function isMeetingActiveNow(m) {
       if (!m || !m.id) return false;
       if (m.status === 'archived' || m.status === 'completed' || m.status === 'closed') {
         return false;
       }
-      // 1. Verifica heartbeat ativo (cockpit aberto e transmitindo nos últimos 12 segundos)
+
+      // 1. Verifica no mapa de salas ativas globais em tempo real (Nuvem / Multi-Cidades)
+      if (window._remoteActiveRooms && window._remoteActiveRooms[m.id]) {
+        const remote = window._remoteActiveRooms[m.id];
+        if (remote.lastSeen && (Date.now() - remote.lastSeen) < 40000) {
+          return true;
+        }
+      }
+
+      // 2. Verifica heartbeat ativo local (cockpit aberto nesta máquina)
       try {
         const hb = localStorage.getItem('brain_room_heartbeat_' + m.id);
         if (hb) {
           const lastHb = parseInt(hb, 10);
-          if (lastHb > 0 && (Date.now() - lastHb) < 12000) {
+          if (lastHb > 0 && (Date.now() - lastHb) < 15000) {
             return true;
           }
         }
       } catch(e) {}
 
-      // 2. Se a sala acabou de ser criada nesta sessão (há menos de 60 segundos), mantém ativa temporariamente para abertura do cockpit
+      // 3. Se a sala acabou de ser criada nesta sessão (há menos de 60 segundos), mantém ativa temporariamente para abertura do cockpit
       try {
         if (m.createdAt) {
           const created = new Date(m.createdAt).getTime();
@@ -760,6 +866,33 @@
       } catch(e) {}
       const url = getMeetingCockpitUrl(meetingId);
       window.location.href = url;
+    };
+
+    window.copyMeetingCockpitUrl = function(meetingId) {
+      if (!meetingId) return;
+      const origin = window.location.origin;
+      const path = (window.location.pathname && window.location.pathname !== '/') ? window.location.pathname : '';
+      const url = origin + path + '?meeting=' + encodeURIComponent(meetingId);
+      
+      const applyBtnFeedback = () => {
+        const btn = document.getElementById('btn-copy-cockpit-' + meetingId);
+        if (btn) {
+          const orig = btn.innerHTML;
+          btn.innerHTML = '<span>Link Copiado!</span>';
+          btn.className = btn.className.replace('text-slate-800 dark:text-slate-200', 'text-emerald-600 dark:text-emerald-400 font-bold');
+          setTimeout(() => {
+            btn.innerHTML = orig;
+          }, 2000);
+        }
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(applyBtnFeedback).catch(() => {
+          prompt('Link de Acesso Global ao Cockpit da Sala:', url);
+        });
+      } else {
+        prompt('Link de Acesso Global ao Cockpit da Sala:', url);
+      }
     };
 
     window.handleCreateMeetingSubmit = function(e) {
@@ -1342,10 +1475,118 @@
       `;
     }
 
+    // SINCRONIZAÇÃO GLOBAL DE SALAS EM TEMPO REAL (MULTI-CIDADES / NUVEM MQTT & HTTP)
+    function startDashboardGlobalRoomsSync() {
+      if (window._dashboardSyncInitialized) return;
+      window._dashboardSyncInitialized = true;
+
+      // 1. Conexão com broker MQTT global para descoberta instantânea de salas em qualquer cidade
+      if (typeof mqtt !== 'undefined') {
+        try {
+          const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'brain_dash_' + Math.random().toString(16).substring(2, 8),
+            clean: true,
+            connectTimeout: 5000,
+            reconnectPeriod: 3000
+          });
+          window._mqttDashboardSyncClient = client;
+
+          client.on('connect', () => {
+            console.log('[BrainLingo] Monitor conectado ao broker MQTT global de salas.');
+            client.subscribe('brainaudiovisual/global/active_sessions', { qos: 0 });
+            // Solicita anúncio imediato de todas as salas ativas no mundo
+            client.publish('brainaudiovisual/global/active_sessions/ping', JSON.stringify({ ping: Date.now() }), { qos: 0 });
+          });
+
+          client.on('message', (topic, payload) => {
+            if (topic === 'brainaudiovisual/global/active_sessions') {
+              try {
+                const roomData = JSON.parse(payload.toString());
+                if (roomData && roomData.id) {
+                  handleRemoteDiscoveredRoom(roomData);
+                }
+              } catch(e) {}
+            }
+          });
+        } catch(e) {}
+      }
+
+      // 2. Polling no backend rooms.php (backup garantido para redes com restrições WebSocket)
+      async function pollRoomsBackend() {
+        try {
+          const res = await fetch('rooms.php?t=' + Date.now());
+          if (res.ok) {
+            const data = await res.json();
+            if (data && Array.isArray(data.rooms)) {
+              data.rooms.forEach(r => {
+                if (r && r.id) handleRemoteDiscoveredRoom(r);
+              });
+            }
+          }
+        } catch(e) {}
+      }
+      pollRoomsBackend();
+      setInterval(pollRoomsBackend, 3500);
+
+      // 3. Ticker contínuo de 1 segundo para o tempo corrido das salas
+      setInterval(() => {
+        const timerEls = document.querySelectorAll('.room-live-timer');
+        timerEls.forEach(el => {
+          const rid = el.getAttribute('data-room-id');
+          let sec = parseInt(el.getAttribute('data-elapsed') || '0', 10);
+          sec++;
+          el.setAttribute('data-elapsed', sec.toString());
+          el.innerText = formatDuration(sec);
+          if (window._remoteActiveRooms && window._remoteActiveRooms[rid]) {
+            window._remoteActiveRooms[rid].elapsedSeconds = sec;
+          }
+        });
+      }, 1000);
+    }
+
+    function handleRemoteDiscoveredRoom(room) {
+      if (!room || !room.id) return;
+      window._remoteActiveRooms = window._remoteActiveRooms || {};
+
+      if (room.status === 'closed' || room.status === 'archived' || room.status === 'deleted') {
+        delete window._remoteActiveRooms[room.id];
+        if (typeof renderDashboardUI === 'function') renderDashboardUI();
+        return;
+      }
+
+      const isNew = !window._remoteActiveRooms[room.id];
+      room.lastSeen = Date.now();
+      window._remoteActiveRooms[room.id] = Object.assign({}, window._remoteActiveRooms[room.id], room);
+
+      try {
+        localStorage.setItem('brain_remote_room_' + room.id, JSON.stringify(window._remoteActiveRooms[room.id]));
+      } catch(e) {}
+
+      if (isNew) {
+        if (typeof renderDashboardUI === 'function') renderDashboardUI();
+      } else {
+        // Atualiza elementos já renderizados no card
+        const geoEl = document.getElementById('room-geo-text-' + room.id);
+        if (geoEl && room.location) {
+          const locStr = (room.location.city || 'Local Remoto') + 
+            (room.location.region ? ', ' + room.location.region : '') + 
+            (room.location.country ? ' — ' + room.location.country : '');
+          geoEl.innerText = locStr;
+        }
+        const timerEl = document.getElementById('room-elapsed-' + room.id);
+        if (timerEl && typeof room.elapsedSeconds === 'number') {
+          timerEl.setAttribute('data-elapsed', room.elapsedSeconds.toString());
+          timerEl.innerText = formatDuration(room.elapsedSeconds);
+        }
+      }
+    }
+
     // ========================================================
     // TELA 2.4: DASHBOARD DO SIMULTANEOUS TRANSLATION (APENAS ATIVAS)
     // ========================================================
     function renderSimultaneousTranslationDashboard() {
+      startDashboardGlobalRoomsSync();
+
       // Reuniões salvas no localStorage com higienização estrita
       let meetings = [];
       try {
@@ -1375,6 +1616,34 @@
         }
       } catch(e) {
         meetings = [];
+      }
+
+      // Mescla salas ativas descobertas remotamente em qualquer cidade
+      if (window._remoteActiveRooms) {
+        Object.values(window._remoteActiveRooms).forEach(remote => {
+          if (!remote || !remote.id) return;
+          if (remote.lastSeen && (Date.now() - remote.lastSeen) > 40000) return;
+          const idx = meetings.findIndex(m => m.id === remote.id);
+          if (idx !== -1) {
+            meetings[idx] = Object.assign({}, meetings[idx], remote);
+          } else {
+            meetings.unshift({
+              id: remote.id,
+              title: remote.title || ('Sessão de Tradução ' + remote.id),
+              createdAt: remote.createdAt || new Date().toISOString(),
+              startTime: remote.startTime || Date.now(),
+              elapsedSeconds: remote.elapsedSeconds || 0,
+              status: 'active',
+              sourceLanguage: remote.sourceLanguage || 'pt-BR',
+              autoDetectLanguage: !!remote.autoDetectLanguage,
+              inputDevice: 'default',
+              targetLanguages: Array.isArray(remote.targetLanguages) && remote.targetLanguages.length > 0 ? remote.targetLanguages : ['en-US', 'es-ES'],
+              location: remote.location,
+              isLive: remote.isLive,
+              isRemote: true
+            });
+          }
+        });
       }
 
       // Separa reuniões ativas vs históricas
@@ -1684,20 +1953,28 @@
                   </div>
                 </div>
               ` : `
-                <!-- Grid de Cards de Reuniões Ativas -->
+                <!-- Grid de Cards de Reuniões Ativas (Descoberta Global e Multi-Cidades) -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   ${activeMeetings.map(m => {
                     const targets = Array.isArray(m.targetLanguages) && m.targetLanguages.length > 0 ? m.targetLanguages : ['en-US', 'es-ES'];
                     const sourceLangObj = SUPPORTED_LANGS.find(l => l.code === m.sourceLanguage) || { name: m.sourceLanguage || 'Português', tag: 'PT' };
                     const sourceDisplayName = (sourceLangObj && sourceLangObj.name ? sourceLangObj.name : 'Português').split(' ')[0];
+                    const loc = m.location || (window._remoteActiveRooms && window._remoteActiveRooms[m.id] ? window._remoteActiveRooms[m.id].location : null);
+                    const locationText = loc && (loc.city || loc.country)
+                      ? `${loc.city || 'Cidade'}${loc.region ? ', ' + loc.region : ''} — ${loc.country || ''}`
+                      : 'Localização Remota';
+                    const elapsedSec = (typeof m.elapsedSeconds === 'number' ? m.elapsedSeconds : (window._remoteActiveRooms && window._remoteActiveRooms[m.id] ? window._remoteActiveRooms[m.id].elapsedSeconds : 0)) || 0;
+                    const isLiveMic = m.isMicActive || (window._remoteActiveRooms && window._remoteActiveRooms[m.id] ? window._remoteActiveRooms[m.id].isMicActive : false);
                     return `
                       <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 rounded-3xl p-5 shadow-sm transition-all flex flex-col justify-between space-y-4">
                         <div class="space-y-3">
                           <div class="flex items-start justify-between gap-2">
                             <div>
                               <div class="flex items-center gap-1.5 mb-1">
-                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                <span class="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Ao Vivo / Ativa</span>
+                                <span class="w-2 h-2 rounded-full ${isLiveMic ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'}"></span>
+                                <span class="text-[10px] font-black uppercase tracking-wider ${isLiveMic ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'}">
+                                  ${isLiveMic ? 'Voz Ao Vivo' : 'Sala Ativa'}
+                                </span>
                               </div>
                               <h3 class="text-base font-bold text-slate-900 dark:text-white leading-tight">${m.title || 'Reunião Sem Título'}</h3>
                               <p class="text-[11px] font-mono text-slate-400 mt-0.5">ID: ${m.id}</p>
@@ -1708,7 +1985,21 @@
                             </div>
                           </div>
 
+                          <!-- MARCADOR GEOGRÁFICO DE LOCALIZAÇÃO DA SALA -->
+                          <div class="flex items-center gap-1.5 text-xs text-indigo-700 dark:text-indigo-300 font-bold bg-indigo-50/90 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800/80 px-2.5 py-1 rounded-xl shadow-2xs">
+                            <span class="font-mono text-[9px] font-black px-1.5 py-0.2 rounded bg-indigo-200 dark:bg-indigo-800 text-indigo-900 dark:text-indigo-100 uppercase tracking-wider">GEO</span>
+                            <span class="truncate" id="room-geo-text-${m.id}">${locationText}</span>
+                          </div>
+
                           <div class="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                            <!-- TEMPO CORRIDO DA REUNIÃO EM TEMPO REAL -->
+                            <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                              <span class="text-slate-400 font-medium">Tempo Corrido:</span>
+                              <span id="room-elapsed-${m.id}" class="font-mono font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 room-live-timer" data-room-id="${m.id}" data-elapsed="${elapsedSec}">
+                                ${formatDuration(elapsedSec)}
+                              </span>
+                            </div>
+
                             <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
                               <span class="text-slate-400">Entrada (Palestrante):</span>
                               <span class="font-bold flex items-center gap-1">
@@ -1738,16 +2029,19 @@
                         <!-- Botões de Ação do Card -->
                         <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
                           <button type="button" onclick="openMeetingCockpit('${m.id}')" class="w-full py-2.5 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
-                            <span>Abrir Cockpit da Sala</span>
+                            <span>Entrar no Cockpit da Sala</span>
                           </button>
                           <div class="grid grid-cols-2 gap-2">
                             <a href="/?meeting=${encodeURIComponent(m.id)}&overlay=subtitles" target="_blank" class="py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-semibold text-center transition-all flex items-center justify-center gap-1">
                               <span>Janela OBS</span>
                             </a>
-                            <button onclick="openDashboardShareModal('${m.id}')" class="py-1.5 px-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-xl text-[11px] font-bold text-center transition-all flex items-center justify-center gap-1 cursor-pointer">
-                              <span>Compartilhar & QR Code</span>
+                            <button onclick="copyMeetingCockpitUrl('${m.id}')" id="btn-copy-cockpit-${m.id}" class="py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-semibold text-center transition-all flex items-center justify-center gap-1 cursor-pointer">
+                              <span>Copiar Link</span>
                             </button>
                           </div>
+                          <button onclick="openDashboardShareModal('${m.id}')" class="py-1.5 px-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-xl text-[11px] font-bold text-center transition-all flex items-center justify-center gap-1 cursor-pointer">
+                            <span>Compartilhar & QR Code</span>
+                          </button>
                         </div>
                       </div>
                     `;
@@ -3921,27 +4215,89 @@
       const mqttMeetingTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/subtitles';
       let mqttPublisherClient = null;
 
-      // Heartbeat periódico da sala ativa (atualiza a cada 3s enquanto o Cockpit estiver aberto)
+      let currentClientGeoLocation = null;
+      getApproximateGeoLocation().then(geo => {
+        currentClientGeoLocation = geo;
+        pulseRoomActiveHeartbeat();
+      });
+
+      // Heartbeat periódico da sala ativa (transmite para Nuvem Global MQTT & rooms.php a cada 3.5s)
       function pulseRoomActiveHeartbeat() {
+        const now = Date.now();
         try {
-          localStorage.setItem('brain_room_heartbeat_' + id, Date.now().toString());
+          localStorage.setItem('brain_room_heartbeat_' + id, now.toString());
+        } catch(e) {}
+
+        const roomPayload = {
+          id: id,
+          title: (meeting && meeting.title) || ('Sessão de Tradução ' + id),
+          sourceLanguage: selectedSourceLanguage || (meeting && meeting.sourceLanguage) || 'pt-BR',
+          targetLanguages: activeTargetLanguages || (meeting && meeting.targetLanguages) || ['en-US', 'es-ES'],
+          autoDetectLanguage: !!isAutoDetectLanguage,
+          createdAt: (meeting && meeting.createdAt) || new Date().toISOString(),
+          startTime: (meeting && meeting.startTime) || (now - sessionElapsedSeconds * 1000),
+          elapsedSeconds: sessionElapsedSeconds,
+          isLive: isRealMicActive || !isTimerPaused,
+          isMicActive: isRealMicActive,
+          audienceCount: typeof audiencePresenceClients !== 'undefined' ? audiencePresenceClients.size : 0,
+          location: currentClientGeoLocation,
+          lastSeen: now
+        };
+
+        // 1. Publica no broker MQTT Global (notifica monitores em qualquer navegador no mundo)
+        if (mqttPublisherClient && mqttPublisherClient.connected) {
+          try {
+            mqttPublisherClient.publish('brainaudiovisual/global/active_sessions', JSON.stringify(roomPayload), { qos: 0 });
+          } catch(e) {}
+        }
+
+        // 2. Notifica o backend HTTP rooms.php
+        try {
+          fetch('rooms.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(roomPayload)
+          }).catch(() => {});
         } catch(e) {}
       }
       pulseRoomActiveHeartbeat();
-      const roomHeartbeatTimer = setInterval(pulseRoomActiveHeartbeat, 3000);
+      const roomHeartbeatTimer = setInterval(pulseRoomActiveHeartbeat, 3500);
+
       window.addEventListener('beforeunload', () => {
         clearInterval(roomHeartbeatTimer);
         try {
           localStorage.removeItem('brain_room_heartbeat_' + id);
         } catch(e) {}
+        if (mqttPublisherClient && mqttPublisherClient.connected) {
+          try {
+            mqttPublisherClient.publish('brainaudiovisual/global/active_sessions', JSON.stringify({ id: id, status: 'closed' }), { qos: 0 });
+          } catch(e) {}
+        }
+        try {
+          fetch('rooms.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, action: 'archive' })
+          }).catch(() => {});
+        } catch(e) {}
       });
 
-      // Carrega dados da reunião do localStorage
+      // Carrega dados da reunião do localStorage ou da descoberta remota global
       let meeting = null;
       try {
         const saved = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
         meeting = saved.find(m => m.id === id);
       } catch(e) {}
+
+      if (!meeting && window._remoteActiveRooms && window._remoteActiveRooms[id]) {
+        meeting = Object.assign({}, window._remoteActiveRooms[id]);
+      }
+      if (!meeting) {
+        try {
+          const remoteSaved = JSON.parse(localStorage.getItem('brain_remote_room_' + id) || 'null');
+          if (remoteSaved) meeting = remoteSaved;
+        } catch(e) {}
+      }
 
       if (!meeting) {
         meeting = {
@@ -4144,12 +4500,31 @@
             // Inscreve no tópico de presença global para contar espectadores conectados via celular (QR Code)
             const mqttPresenceTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/presence';
             mqttPublisherClient.subscribe(mqttPresenceTopic, { qos: 0 });
+            // Inscreve no tópico de ping de sessões ativas para responder imediatamente aos monitores
+            mqttPublisherClient.subscribe('brainaudiovisual/global/active_sessions/ping', { qos: 0 });
+            // Inscreve no canal de legendas da própria sala para sincronizar cockpits remotos
+            mqttPublisherClient.subscribe(mqttMeetingTopic, { qos: 0 });
+            // Envia o primeiro anúncio imediato
+            pulseRoomActiveHeartbeat();
           });
           mqttPublisherClient.on('message', (topic, payload) => {
             try {
               if (topic.endsWith('/presence')) {
                 const data = JSON.parse(payload.toString());
                 handleAudiencePresencePing(data);
+              } else if (topic === 'brainaudiovisual/global/active_sessions/ping') {
+                pulseRoomActiveHeartbeat();
+              } else if (topic === mqttMeetingTopic) {
+                // Se este navegador for um observador remoto do Cockpit (não é quem está no microfone), espelha as legendas
+                if (!isRealMicActive) {
+                  const data = JSON.parse(payload.toString());
+                  if (data && data.text) {
+                    if (data.type === 'NEW_SUBTITLE') {
+                      const tgt = (data.channel === 'transmitter' || data.channel === 'pt') ? 'pt-BR' : (data.channel === 'receiver' || data.channel === 'en') ? 'en-US' : (data.channel === 'spanish' || data.channel === 'es') ? 'es-ES' : data.channel;
+                      _applyFinalTranslation(tgt, data.text, data.startSec, data.endSec);
+                    }
+                  }
+                }
               }
             } catch(e) {}
           });
