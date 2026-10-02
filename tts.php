@@ -43,6 +43,7 @@ $speakers = [
     'fr' => ['male' => 'Mathieu', 'female' => 'Celine'],
     'de' => ['male' => 'Hans', 'female' => 'Marlene'],
     'it' => ['male' => 'Giorgio', 'female' => 'Carla'],
+    'ar' => ['male' => 'Zayd', 'female' => 'Zeina'],
     'ja' => ['male' => 'Takumi', 'female' => 'Mizuki']
 ];
 

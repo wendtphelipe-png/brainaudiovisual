@@ -1389,6 +1389,7 @@
         { code: 'fr-FR', name: 'Francês', tag: 'FR', default: false },
         { code: 'de-DE', name: 'Alemão', tag: 'DE', default: false },
         { code: 'it-IT', name: 'Italiano', tag: 'IT', default: false },
+        { code: 'ar-SA', name: 'Árabe Padrão Moderno (Fusha)', tag: 'AR', default: false },
         { code: 'zh-CN', name: 'Mandarim (China)', tag: 'ZH', default: false },
         { code: 'ja-JP', name: 'Japonês', tag: 'JA', default: false }
       ];
@@ -1825,6 +1826,7 @@
                       <option value="fr-FR" ${state.sourceLanguage === 'fr-FR' ? 'selected' : ''}>Francês</option>
                       <option value="de-DE" ${state.sourceLanguage === 'de-DE' ? 'selected' : ''}>Alemão</option>
                       <option value="it-IT" ${state.sourceLanguage === 'it-IT' ? 'selected' : ''}>Italiano</option>
+                      <option value="ar-SA" ${state.sourceLanguage === 'ar-SA' ? 'selected' : ''}>Árabe Padrão Moderno (Fusha)</option>
                       <option value="zh-CN" ${state.sourceLanguage === 'zh-CN' ? 'selected' : ''}>Mandarim</option>
                       <option value="ja-JP" ${state.sourceLanguage === 'ja-JP' ? 'selected' : ''}>Japonês</option>
                     </select>
@@ -1962,7 +1964,8 @@
         { key: 'spanish', name: 'Espanhol', tag: 'ES', defaultColor: '#38bdf8' },
         { key: 'french', name: 'Francês', tag: 'FR', defaultColor: '#c084fc' },
         { key: 'german', name: 'Alemão', tag: 'DE', defaultColor: '#fb923c' },
-        { key: 'italian', name: 'Italiano', tag: 'IT', defaultColor: '#4ade80' }
+        { key: 'italian', name: 'Italiano', tag: 'IT', defaultColor: '#4ade80' },
+        { key: 'arabic', name: 'Árabe Padrão Moderno (Fusha)', tag: 'AR', defaultColor: '#2dd4bf' }
       ];
 
       // Colunas ativas carregadas do localStorage (Padrão: trans, rec, spanish)
@@ -2241,8 +2244,38 @@
                   <span class="text-xs uppercase tracking-widest text-purple-400 font-bold opacity-80 flex items-center gap-1.5">
                     <span class="w-2 h-2 rounded-full bg-purple-500"></span> [FR] Français (fr-FR):
                   </span>
-                  <div id="overlay-feed-french" class="space-y-3 font-bold drop-shadow-md leading-relaxed overflow-y-auto max-h-[78vh] flex flex-col justify-end" style="font-size: ${overlayColConfigs.french.fontSize}px; color: ${overlayColConfigs.french.textColor};">
+                  <div id="overlay-feed-french" class="space-y-3 font-bold drop-shadow-md leading-relaxed overflow-y-auto max-h-[78vh] flex flex-col justify-end" style="font-size: ${overlayColConfigs.french ? overlayColConfigs.french.fontSize : 28}px; color: ${overlayColConfigs.french ? overlayColConfigs.french.textColor : '#c084fc'};">
                     <p class="text-slate-500 italic text-base">En attente de traduction...</p>
+                  </div>
+                </div>
+
+                <!-- BLOCO 5: ALEMÃO (SE ATIVO) -->
+                <div id="overlay-col-german" class="flex flex-col justify-end space-y-2 hidden">
+                  <span class="text-xs uppercase tracking-widest text-amber-400 font-bold opacity-80 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-amber-500"></span> [DE] Deutsch (de-DE):
+                  </span>
+                  <div id="overlay-feed-german" class="space-y-3 font-bold drop-shadow-md leading-relaxed overflow-y-auto max-h-[78vh] flex flex-col justify-end" style="font-size: ${overlayColConfigs.german ? overlayColConfigs.german.fontSize : 28}px; color: ${overlayColConfigs.german ? overlayColConfigs.german.textColor : '#fb923c'};">
+                    <p class="text-slate-500 italic text-base">Warten auf deutsche Übersetzung...</p>
+                  </div>
+                </div>
+
+                <!-- BLOCO 6: ITALIANO (SE ATIVO) -->
+                <div id="overlay-col-italian" class="flex flex-col justify-end space-y-2 hidden">
+                  <span class="text-xs uppercase tracking-widest text-emerald-400 font-bold opacity-80 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span> [IT] Italiano (it-IT):
+                  </span>
+                  <div id="overlay-feed-italian" class="space-y-3 font-bold drop-shadow-md leading-relaxed overflow-y-auto max-h-[78vh] flex flex-col justify-end" style="font-size: ${overlayColConfigs.italian ? overlayColConfigs.italian.fontSize : 28}px; color: ${overlayColConfigs.italian ? overlayColConfigs.italian.textColor : '#4ade80'};">
+                    <p class="text-slate-500 italic text-base">In attesa della traduzione...</p>
+                  </div>
+                </div>
+
+                <!-- BLOCO 7: ÁRABE (SE ATIVO) -->
+                <div id="overlay-col-arabic" class="flex flex-col justify-end space-y-2 hidden">
+                  <span class="text-xs uppercase tracking-widest text-teal-400 font-bold opacity-80 flex items-center gap-1.5" dir="rtl">
+                    <span class="w-2 h-2 rounded-full bg-teal-500"></span> [AR] العربية (ar-SA):
+                  </span>
+                  <div id="overlay-feed-arabic" dir="rtl" class="space-y-3 font-bold drop-shadow-md leading-relaxed overflow-y-auto max-h-[78vh] flex flex-col justify-end" style="font-size: ${overlayColConfigs.arabic ? overlayColConfigs.arabic.fontSize : 28}px; color: ${overlayColConfigs.arabic ? overlayColConfigs.arabic.textColor : '#2dd4bf'};">
+                    <p class="text-slate-500 italic text-base">بانتظار الترجمة العربية...</p>
                   </div>
                 </div>
 
@@ -2287,6 +2320,15 @@
         } else if (chan === 'french' || chan === 'fr' || chan === 'fr-fr') {
           feedId = 'overlay-feed-french';
           colKey = 'french';
+        } else if (chan === 'german' || chan === 'de' || chan === 'de-de') {
+          feedId = 'overlay-feed-german';
+          colKey = 'german';
+        } else if (chan === 'italian' || chan === 'it' || chan === 'it-it') {
+          feedId = 'overlay-feed-italian';
+          colKey = 'italian';
+        } else if (chan === 'arabic' || chan === 'ar' || chan === 'ar-sa') {
+          feedId = 'overlay-feed-arabic';
+          colKey = 'arabic';
         }
 
         if (isCloseParagraph) {
@@ -2500,7 +2542,8 @@
         'pt-BR': { name: 'Português', native: 'Português', tag: 'PT', desc: 'Tradução Simultânea e Locução' },
         'fr-FR': { name: 'Francês', native: 'Français', tag: 'FR', desc: 'Traduction Simultanée et Voix' },
         'de-DE': { name: 'Alemão', native: 'Deutsch', tag: 'DE', desc: 'Simultanübersetzung und Stimme' },
-        'it-IT': { name: 'Italiano', native: 'Italiano', tag: 'IT', desc: 'Traduzione Simultanea e Voce' }
+        'it-IT': { name: 'Italiano', native: 'Italiano', tag: 'IT', desc: 'Traduzione Simultanea e Voce' },
+        'ar-SA': { name: 'Árabe Padrão Moderno (Fusha)', native: 'العربية (الفصحى)', tag: 'AR', desc: 'الترجمة الفورية والصوت المباشر' }
       };
 
       root.innerHTML = `
@@ -2548,6 +2591,7 @@
               <div class="pt-1 text-[11px] text-slate-500 dark:text-slate-400 font-normal space-y-0.5 border-t border-slate-100 dark:border-slate-800/80">
                 <p><em>Select your language below to listen to live simultaneous translation.</em></p>
                 <p><em>Elige tu idioma abajo para escuchar la traducción simultánea en vivo.</em></p>
+                <p dir="rtl"><em>اختر لغتك المفضلة أدناه للاستماع إلى الترجمة الفورية المباشرة.</em></p>
               </div>
             </div>
 
@@ -2634,6 +2678,7 @@
         else if (l.startsWith('fr')) currentAudienceLang = 'fr-FR';
         else if (l.startsWith('de')) currentAudienceLang = 'de-DE';
         else if (l.startsWith('it')) currentAudienceLang = 'it-IT';
+        else if (l.startsWith('ar')) currentAudienceLang = 'ar-SA';
       } else {
         currentAudienceLang = localStorage.getItem('brain_audience_lang') || 'en-US';
       }
@@ -2831,6 +2876,38 @@
           waitingSpeech: "In attesa dell'oratore... Le traduzioni appariranno qui in tempo reale.",
           footerText: 'Brain Audiovisual • Traduzione Simultanea e Accessibilità per Eventi',
           notSupportedAlert: 'Sintesi vocale non supportata in questo browser.'
+        },
+        'ar-SA': {
+          langName: 'العربية (الفصحى)',
+          title: 'الترجمة الفورية المباشرة',
+          liveBadge: 'مباشر',
+          connected: 'متصل (قاعة البث المباشر)',
+          connecting: 'جارٍ الاتصال بالقاعة...',
+          themeBtn: 'المظهر',
+          screenAwakeBtn: 'الشاشة نشطة',
+          screenAwakeOff: 'شاشة تلقائية',
+          screenAwakeHelp: 'يمنع شاشة الهاتف من الإغلاق التلقائي',
+          headphonesBadge: 'سماعات الرأس',
+          headphoneAlert: 'للحصول على أفضل تجربة صوتية ومنع الصدى داخل القاعة، يوصى باستخدام سماعات الرأس.',
+          audioChannelTitle: 'الصوت والترجمة المنطوقة مباشرة',
+          audioChannelSub: 'توليد صوتي فوري ومتناغم بالذكاء الاصطناعي في الوقت الفعلي',
+          voiceSelectorLabel: 'نمط الصوت والراوي:',
+          voiceSelectorSub: 'اختر نبرة الصوت والإلقاء المفضلة لديك',
+          voiceFemale: 'مريم — صوت أنثوي طبيعي',
+          voiceMale: 'طارق — صوت ذكوري طبيعي',
+          voiceAuto: 'صوت النظام الافتراضي',
+          startAudio: 'المس للاستماع للبث المباشر',
+          audioActive: 'البث الصوتي المباشر نشط',
+          audioMuted: 'الصوت متوقف مؤقتاً • المس للبدء',
+          audioConnectedPhrase: 'تم توصيل صوت الترجمة الفورية بنجاح.',
+          audioHelp: 'المس الزر أعلاه للاستماع مباشرة مع إمكانية ضبط مستوى الصوت:',
+          volume: 'مستوى الصوت',
+          testAudioBtn: 'اختبار الصوت',
+          audioTestPhrase: 'قناة الترجمة الفورية المباشرة نشطة وتعمل بكفاءة ونقاء صوتي فائق.',
+          transcriptTitle: 'الترجمة النصية الفورية (مباشر)',
+          waitingSpeech: 'بانتظار المتحدث... ستظهر الترجمة الفورية هنا مباشرة وبشكل متواصل.',
+          footerText: 'Brain Audiovisual • ترجمة فورية متقدمة وحلول تقنية للفعاليات الدولية',
+          notSupportedAlert: 'خاصية توليد الصوت غير مدعومة في هذا المتصفح.'
         }
       };
 
@@ -2890,6 +2967,14 @@
           { id: 'beatriz_calma', name: 'Beatrice', gender: 'female', toneLabel: 'Calma, Dolce & Accogliente', description: 'Ritmo confortevole e rilassante per ascolto prolungato', pitch: 1.00, rate: 0.92 },
           { id: 'diego_solene', name: 'Diego', gender: 'male', toneLabel: 'Profondo & Istituzionale', description: 'Timbro baritonale solenne per sessioni plenarie', pitch: 1.00, rate: 0.92 },
           { id: 'elena_vibrante', name: 'Elena', gender: 'female', toneLabel: 'Chiara, Espressiva & Cristallina', description: 'Massima intelligibilità uditiva e naturalezza fonetica', pitch: 1.00, rate: 0.95 }
+        ],
+        'ar-SA': [
+          { id: 'sofia_eloquente', name: 'مريم (Maryam)', gender: 'female', toneLabel: 'بليغة، هادئة واحترافية', description: 'نطق فصيح وراقي للمؤتمرات والندوات التنفيذية', pitch: 1.00, rate: 0.95 },
+          { id: 'arthur_serio', name: 'طارق (Tariq)', gender: 'male', toneLabel: 'رصين، تقني وموثوق', description: 'نبرة محكمة واثقة للبيانات الهندسية والاقتصادية', pitch: 1.00, rate: 0.94 },
+          { id: 'gabriel_alegre', name: 'عمر (Omar)', gender: 'male', toneLabel: 'حيوي، شاب وديناميكي', description: 'إلقاء تفاعلي وإيجابي لورش العمل والابتكار', pitch: 1.00, rate: 0.96 },
+          { id: 'beatriz_calma', name: 'ليلى (Layla)', gender: 'female', toneLabel: 'هادئة، متزنة ومريحة', description: 'إيقاع لطيف ومريح لجلسات الاستماع الطويلة دون إرهاق', pitch: 1.00, rate: 0.92 },
+          { id: 'diego_solene', name: 'خالد (Khalid)', gender: 'male', toneLabel: 'راوي وقور ذو نبرة فخمة', description: 'نبرة عميقة وقورة للجلسات العامة والافتتاحيات الكبرى', pitch: 1.00, rate: 0.92 },
+          { id: 'elena_vibrante', name: 'نور (Nour)', gender: 'female', toneLabel: 'نقية، واضحة ومخارج دقيقة', description: 'نقاء صوتي فائق مع أعلى دقة في مخارج الحروف العربية', pitch: 1.00, rate: 0.95 }
         ]
       };
 
@@ -2944,6 +3029,7 @@
           'mark', 'george', 'thomas', 'henri', 'hans', 'stefan', 'cosimo', 'gabriel',
           'paul', 'felipe', 'antonio', 'manuel', 'pedro', 'miguel', 'enrique', 'alberto',
           'ricardo', 'roberto', 'vicente', 'lucas', 'matheus', 'joao', 'gustavo',
+          'tariq', 'omar', 'khalid', 'maged', 'naayf', 'zeid', 'faisal', 'salim', 'hassan', 'mustafa', 'ahmed',
           'voice 1', 'voice 3', 'voice 5', 'voice-1', 'voice-3', 'voice-5',
           '-m-', '-male', '#male', 'male-', 'x-yda', 'x-eed', 'x-sfg', 'x-m'
         ];
@@ -2954,6 +3040,7 @@
           'samantha', 'karen', 'elena', 'zira', 'jenny', 'aria', 'alice', 'anna',
           'denise', 'celine', 'hortense', 'clara', 'beatriz', 'katja', 'marlene',
           'laura', 'giulia', 'amalie', 'conchita', 'penelope', 'francisca',
+          'mariam', 'layla', 'nour', 'hoda', 'salma', 'fatima', 'zeina', 'yasmin',
           'voice 2', 'voice 4', 'voice-2', 'voice-4',
           '-f-', '-female', '#female', 'female-', 'x-afs', 'x-ana', 'x-f'
         ];
@@ -3063,6 +3150,7 @@
                     <option value="fr-FR" ${currentAudienceLang === 'fr-FR' ? 'selected' : ''}>Français</option>
                     <option value="de-DE" ${currentAudienceLang === 'de-DE' ? 'selected' : ''}>Deutsch</option>
                     <option value="it-IT" ${currentAudienceLang === 'it-IT' ? 'selected' : ''}>Italiano</option>
+                    <option value="ar-SA" ${currentAudienceLang === 'ar-SA' ? 'selected' : ''}>العربية (الفصحى)</option>
                   </select>
                 </div>
               </div>
@@ -3176,7 +3264,7 @@
                 </div>
 
                 <!-- FEED DINÂMICO DE LEGENDAS TRADUZIDAS -->
-                <div id="audience-subtitles-feed" class="flex-1 overflow-y-auto max-h-[46vh] space-y-3 p-2 flex flex-col justify-end text-sm sm:text-base leading-relaxed text-slate-800 dark:text-slate-100 font-medium select-text">
+                <div id="audience-subtitles-feed" class="flex-1 overflow-y-auto max-h-[46vh] space-y-3 p-2 flex flex-col justify-end text-sm sm:text-base leading-relaxed text-slate-800 dark:text-slate-100 font-medium select-text" ${currentAudienceLang.startsWith('ar') ? 'dir="rtl"' : ''}>
                   <p class="placeholder-empty text-slate-400 italic text-xs text-center py-10">
                     ${t.waitingSpeech}
                   </p>
@@ -3551,6 +3639,7 @@
         else if (currentLangPrefix === 'fr' && (dataChan === 'fr' || dataChan === 'french' || dataChan === 'fr-fr')) isForThisAudience = true;
         else if (currentLangPrefix === 'de' && (dataChan === 'de' || dataChan === 'german' || dataChan === 'de-de')) isForThisAudience = true;
         else if (currentLangPrefix === 'it' && (dataChan === 'it' || dataChan === 'italian' || dataChan === 'it-it')) isForThisAudience = true;
+        else if (currentLangPrefix === 'ar' && (dataChan === 'ar' || dataChan === 'arabic' || dataChan === 'ar-sa')) isForThisAudience = true;
         else if (dataChan === currentAudienceLang.toLowerCase()) isForThisAudience = true;
 
         if (!isForThisAudience) return;
@@ -3860,6 +3949,7 @@
         'fr-FR': { name: 'Francês', tag: 'FR', code: 'fr', channel: 'french' },
         'de-DE': { name: 'Alemão', tag: 'DE', code: 'de', channel: 'german' },
         'it-IT': { name: 'Italiano', tag: 'IT', code: 'it', channel: 'italian' },
+        'ar-SA': { name: 'Árabe (Fusha)', tag: 'AR', code: 'ar', channel: 'arabic' },
         'zh-CN': { name: 'Mandarim', tag: 'ZH', code: 'zh', channel: 'chinese' },
         'ja-JP': { name: 'Japonês', tag: 'JA', code: 'ja', channel: 'japanese' }
       };
@@ -3882,7 +3972,7 @@
 
       let targetColumnConfigs = {};
       activeTargetLanguages.forEach(lang => {
-        const defaultColor = lang === 'en-US' ? '#fde047' : (lang === 'es-ES' ? '#38bdf8' : '#c084fc');
+        const defaultColor = lang === 'en-US' ? '#fde047' : (lang === 'es-ES' ? '#38bdf8' : (lang === 'ar-SA' ? '#2dd4bf' : '#c084fc'));
         targetColumnConfigs[lang] = {
           bgColor: '#000000',
           textColor: defaultColor,
@@ -3971,7 +4061,7 @@
         }
 
         // Atualiza contadores em cada coluna de idioma traduzido
-        const allKnownLangs = ['en-US', 'es-ES', 'pt-BR', 'fr-FR', 'de-DE', 'it-IT', 'zh-CN', 'ja-JP'];
+        const allKnownLangs = ['en-US', 'es-ES', 'pt-BR', 'fr-FR', 'de-DE', 'it-IT', 'ar-SA', 'zh-CN', 'ja-JP'];
         allKnownLangs.forEach(code => {
           const short = code.split('-')[0].toLowerCase();
           const total = countsByLang[code] || countsByLang[short] || 0;
@@ -4310,6 +4400,7 @@
                       <option value="fr-FR" ${selectedSourceLanguage === 'fr-FR' ? 'selected' : ''}>Francês (fr-FR)</option>
                       <option value="de-DE" ${selectedSourceLanguage === 'de-DE' ? 'selected' : ''}>Alemão (de-DE)</option>
                       <option value="it-IT" ${selectedSourceLanguage === 'it-IT' ? 'selected' : ''}>Italiano (it-IT)</option>
+                      <option value="ar-SA" ${selectedSourceLanguage === 'ar-SA' ? 'selected' : ''}>Árabe (ar-SA)</option>
                     </select>
                   </div>
 
@@ -4541,7 +4632,7 @@
                       <!-- TERMINAL DE TRANSCRIÇÃO TRADUZIDA EM TEMPO REAL (DE BAIXO PRA CIMA) -->
                       <div id="target-subtitle-box-${langCode}" class="rounded-2xl p-3 shadow-inner h-[230px] overflow-y-auto transition-colors duration-200 flex flex-col relative" style="background-color: ${cfg.bgColor}; color: ${cfg.textColor}; font-size: ${cfg.fontSize};">
                         
-                        <div id="target-transcription-feed-${langCode}" class="flex flex-col min-h-full w-full space-y-2 ${cfg.fontFamily}">
+                        <div id="target-transcription-feed-${langCode}" class="flex flex-col min-h-full w-full space-y-2 ${cfg.fontFamily}" ${langCode.startsWith('ar') ? 'dir="rtl"' : ''}>
                           <div class="feed-spacer mt-auto"></div>
                           <div class="placeholder-empty text-slate-500 italic text-xs py-12 text-center">
                             Aguardando fala para tradução simultânea em ${langInfo.name}...
@@ -5111,6 +5202,7 @@
               const tDiv = document.createElement('div');
               tDiv.id = `target-para-${targetLang}-${activeSpeechParagraphSeq}`;
               tDiv.className = 'target-speech-paragraph text-sm sm:text-base leading-relaxed whitespace-normal break-words mb-3 transition-opacity';
+              if (targetLang.startsWith('ar')) tDiv.setAttribute('dir', 'rtl');
               tDiv.style.color = cfg.textColor;
 
               const tConfirmed = document.createElement('span');
@@ -5282,9 +5374,9 @@
       }
 
       // CATÁLOGO UNIVERSAL DE IDIOMAS DE TRANSMISSÃO
-      // Garante que inglês, espanhol, francês, alemão, italiano e português tenham
+      // Garante que inglês, espanhol, francês, alemão, italiano, árabe e português tenham
       // EXATAMENTE a mesma velocidade de tradução, interim instantâneo e cadência de locução.
-      const ALL_GLOBAL_STREAM_LANGUAGES = ['en-US', 'es-ES', 'fr-FR', 'de-DE', 'it-IT', 'pt-BR'];
+      const ALL_GLOBAL_STREAM_LANGUAGES = ['en-US', 'es-ES', 'fr-FR', 'de-DE', 'it-IT', 'ar-SA', 'pt-BR'];
 
       function getUniversalStreamTargets() {
         const targets = new Set(activeTargetLanguages);
