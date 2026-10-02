@@ -4766,7 +4766,8 @@
 
         const targets = getUniversalStreamTargets();
 
-        targets.forEach(async (targetLang) => {
+        targets.forEach(async (targetLang, idx) => {
+          if (idx > 0) await new Promise(r => setTimeout(r, idx * 60));
           if (!_interimTracker[targetLang]) {
             _interimTracker[targetLang] = { lastShownLen: 0, inFlight: false };
           }
@@ -4927,7 +4928,8 @@
       function dispatchTargetTranslations(originalText, startSec, endSec) {
         const targets = getUniversalStreamTargets();
 
-        targets.forEach(async (targetLang) => {
+        targets.forEach(async (targetLang, idx) => {
+          if (idx > 0) await new Promise(r => setTimeout(r, idx * 60));
           const translated = await fetchFastTranslation(originalText, selectedSourceLanguage, targetLang);
 
           // CRÍTICO: Nunca usar o texto original como tradução — só age se houver tradução real
