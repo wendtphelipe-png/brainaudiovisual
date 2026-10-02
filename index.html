@@ -1750,13 +1750,26 @@
           const selectEl = document.getElementById('new-m-input-device');
           if (selectEl) {
             const currentVal = selectEl.value;
-            let optionsHtml = `<option value="default">Dispositivo Padrão do Sistema (Windows Default)</option>`;
+            let optionsHtml = `
+              <optgroup label="Captura Digital de Aplicativos e Sistema (VLC / YouTube / Aulas)">
+                <option value="display_media_tab" ${currentVal === 'display_media_tab' ? 'selected' : ''}>🌐 Guia do Chrome (YouTube, Videoaulas, Podcast)</option>
+                <option value="display_media_window" ${currentVal === 'display_media_window' ? 'selected' : ''}>🎬 Janela de Aplicativo (VLC Media Player, reprodutor)</option>
+                <option value="display_media_desktop" ${currentVal === 'display_media_desktop' ? 'selected' : ''}>🖥️ Áudio do Desktop / Computador Inteiro</option>
+              </optgroup>
+              <optgroup label="Microfones e Placas Físicas">
+                <option value="default" ${currentVal === 'default' ? 'selected' : ''}>Microfone Padrão do Sistema (Windows Default)</option>
+            `;
             inputs.forEach((d, i) => {
-              if (d.deviceId === 'default') return; // Já coberto pela primeira opção
-              const label = d.label || ("Placa / Entrada de Áudio " + (i + 1));
+              if (d.deviceId === 'default') return;
+              let label = d.label || ("Placa / Entrada de Áudio " + (i + 1));
+              const lower = label.toLowerCase();
+              if (lower.includes('mix') || lower.includes('estéreo') || lower.includes('stereo') || lower.includes('cable') || lower.includes('virtual') || lower.includes('loopback')) {
+                label = "🔊 " + label + " [Áudio do Sistema / VLC / YouTube]";
+              }
               const isSel = (currentVal === d.deviceId);
               optionsHtml += `<option value="${d.deviceId}" ${isSel ? 'selected' : ''}>${label}</option>`;
             });
+            optionsHtml += `</optgroup>`;
             selectEl.innerHTML = optionsHtml;
           }
         } catch(e) {}
@@ -4850,32 +4863,69 @@
                     </span>
                   </div>
 
-                  <!-- Seletor de Entrada de Microfone e VU Meter -->
+                  <!-- Seletor de Entrada de Microfone / Aplicativos e VU Meter -->
                   <div class="bg-blue-50/60 dark:bg-slate-800/80 border border-blue-200/80 dark:border-slate-700 rounded-2xl p-3 space-y-2.5">
                     <div class="flex items-center justify-between gap-2">
                       <div class="flex items-center gap-1.5 min-w-0">
                         <label class="text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate">
-                          Dispositivo de Entrada:
+                          Fonte de Áudio:
                         </label>
                         <span id="transmitter-device-count-badge" class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 shrink-0">
                           Detectando...
                         </span>
                       </div>
-                      <button id="btn-scan-audio-devices" type="button" onclick="refreshAudioDevicesList(true)" class="text-[10px] px-2 py-0.5 rounded-lg bg-blue-100 dark:bg-blue-950/80 hover:bg-blue-200 dark:hover:bg-blue-900 border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 font-bold transition-all cursor-pointer shadow-2xs" title="Fazer varredura de placas de som USB e microfones conectados ao computador">
-                        Escanear Placas / Entradas
+                      <div class="flex items-center gap-1.5">
+                        <button type="button" onclick="showAudioInputHelpModal()" class="text-[10px] px-2 py-0.5 rounded-lg bg-indigo-100 dark:bg-indigo-950/80 hover:bg-indigo-200 dark:hover:bg-indigo-900 border border-indigo-300 dark:border-indigo-700 text-indigo-800 dark:text-indigo-300 font-bold transition-all cursor-pointer shadow-2xs" title="Como testar aulas e vídeos do YouTube/VLC">
+                          Como Usar
+                        </button>
+                        <button id="btn-scan-audio-devices" type="button" onclick="refreshAudioDevicesList(true)" class="text-[10px] px-2 py-0.5 rounded-lg bg-blue-100 dark:bg-blue-950/80 hover:bg-blue-200 dark:hover:bg-blue-900 border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 font-bold transition-all cursor-pointer shadow-2xs" title="Fazer varredura de placas de som USB e microfones">
+                          Escanear Placas
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Botões Rápidos de 1 Clique: Microfone Físico vs Guia YouTube vs VLC / Desktop -->
+                    <div class="grid grid-cols-3 gap-1.5">
+                      <button type="button" id="btn-src-mic" onclick="selectAudioSourceMode('mic')" class="py-1.5 px-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer bg-blue-600 text-white border-blue-700 shadow-2xs" title="Usar microfone físico ou USB do computador">
+                        <span>Microfone</span>
+                      </button>
+                      <button type="button" id="btn-src-tab" onclick="selectAudioSourceMode('tab')" class="py-1.5 px-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 shadow-2xs" title="Capturar áudio digital direto de uma guia aberta no navegador (YouTube, videoaulas, podcasts)">
+                        <span>Guia YouTube</span>
+                      </button>
+                      <button type="button" id="btn-src-app" onclick="selectAudioSourceMode('app')" class="py-1.5 px-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 shadow-2xs" title="Capturar áudio de uma janela de player (VLC, reprodutor de vídeo) ou áudio do Desktop">
+                        <span>VLC / Desktop</span>
                       </button>
                     </div>
 
+                    <!-- Dropdown completo agrupado -->
                     <select id="transmitter-mic-select" onchange="onTransmitterMicDeviceSelected(this.value)" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-semibold outline-none shadow-2xs">
-                      <option value="default">Microfone Padrão do Sistema (Windows Default)</option>
+                      <optgroup label="Captura Digital de Aplicativos e Sistema (VLC / YouTube / Aulas)">
+                        <option value="display_media_tab">🌐 Guia do Chrome (YouTube, Videoaulas, Podcast)</option>
+                        <option value="display_media_window">🎬 Janela de Aplicativo (VLC Media Player, reprodutor)</option>
+                        <option value="display_media_desktop">🖥️ Áudio do Desktop / Computador Inteiro</option>
+                      </optgroup>
+                      <optgroup label="Microfones e Placas de Áudio Físicas">
+                        <option value="default" selected>Microfone Padrão do Sistema (Windows Default)</option>
+                      </optgroup>
                     </select>
 
-                    <!-- VU Meter do Palestrante com Barra Real e LEDs -->
+                    <!-- Banner Informativo quando Áudio de Aplicativo/Guia está Selecionado -->
+                    <div id="transmitter-app-audio-banner" class="hidden flex items-center justify-between gap-2 p-2 rounded-xl bg-blue-100/90 dark:bg-blue-950/70 border border-blue-300 dark:border-blue-700 text-blue-950 dark:text-blue-100 text-[11px] font-semibold">
+                      <div class="flex items-center gap-1.5 min-w-0 truncate">
+                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0"></span>
+                        <span id="transmitter-app-audio-label" class="truncate">Captura Digital de Aplicativo Ativa</span>
+                      </div>
+                      <button type="button" id="btn-toggle-local-monitor" onclick="toggleLocalAudioMonitor()" class="text-[10px] px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-blue-300 dark:border-slate-600 text-blue-900 dark:text-blue-200 font-bold transition-all cursor-pointer shadow-2xs shrink-0" title="Permite que você escute o áudio capturado nos seus fones de ouvido">
+                        Ouvir no Fone: [DESLIGADO]
+                      </button>
+                    </div>
+
+                    <!-- VU Meter do Palestrante / Aplicativo com Barra Real e LEDs -->
                     <div class="space-y-1">
                       <div class="flex items-center justify-between text-[10px] font-bold text-slate-600 dark:text-slate-400">
                         <span class="flex items-center gap-1">
                           <span id="transmitter-vu-led" class="w-2 h-2 rounded-full bg-slate-400"></span>
-                          <span>Modulação do Sinal (VU):</span>
+                          <span id="transmitter-vu-title">Modulação do Sinal (VU):</span>
                         </span>
                         <span id="transmitter-vu-text" class="font-mono text-blue-600 dark:text-blue-400">0%</span>
                       </div>
@@ -4884,7 +4934,7 @@
                       </div>
                     </div>
 
-                    <!-- Botões de Ligar Microfone e Mudo -->
+                    <!-- Botões de Ligar Entrada de Áudio e Mudo -->
                     <div class="flex items-center gap-2 pt-1">
                       <button 
                         type="button" 
@@ -4896,7 +4946,7 @@
                             : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                         }"
                       >
-                        <span>${isRealMicActive ? "Pausar Microfone" : "Ativar Microfone & Transcrição"}</span>
+                        <span id="btn-toggle-mic-master-text">${isRealMicActive ? "Pausar Entrada de Áudio" : "Ativar Entrada & Transcrição"}</span>
                       </button>
 
                       <button 
@@ -4906,7 +4956,7 @@
                         title="Mutar/Desmutar Sinal" 
                         class="px-3 py-2 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
                       >
-                        <span id="icon-mute-transmitter">Microfone Aberto</span>
+                        <span id="icon-mute-transmitter">Áudio Aberto</span>
                       </button>
                     </div>
                   </div>
@@ -5440,30 +5490,43 @@
             const savedDevId = selectedMicDeviceId || localStorage.getItem('brain_selected_mic_device') || 'default';
             const curVal = sel.value || savedDevId;
 
-            let html = `<option value="default" ${curVal === 'default' ? 'selected' : ''}>Microfone Padrão do Sistema (Windows Default)</option>`;
+            let html = `
+              <optgroup label="Captura Digital de Aplicativos e Sistema (VLC / YouTube / Aulas)">
+                <option value="display_media_tab" ${curVal === 'display_media_tab' ? 'selected' : ''}>🌐 Guia do Chrome (YouTube, Videoaulas, Podcast)</option>
+                <option value="display_media_window" ${curVal === 'display_media_window' ? 'selected' : ''}>🎬 Janela de Aplicativo (VLC Media Player, reprodutor)</option>
+                <option value="display_media_desktop" ${curVal === 'display_media_desktop' ? 'selected' : ''}>🖥️ Áudio do Desktop / Computador Inteiro</option>
+              </optgroup>
+              <optgroup label="Microfones e Placas de Áudio Físicas">
+                <option value="default" ${curVal === 'default' ? 'selected' : ''}>Microfone Padrão do Sistema (Windows Default)</option>
+            `;
             
             // Adiciona todas as placas e entradas de áudio detectadas
             audioInputs.forEach((d, i) => {
               if (d.deviceId === 'default') return; // Já incluído como opção limpa acima
-              const label = d.label || ("Placa / Entrada de Áudio " + (i + 1));
+              let label = d.label || ("Placa / Entrada de Áudio " + (i + 1));
+              const lower = label.toLowerCase();
+              if (lower.includes('mix') || lower.includes('estéreo') || lower.includes('stereo') || lower.includes('cable') || lower.includes('virtual') || lower.includes('loopback')) {
+                label = "🔊 " + label + " [Áudio do Sistema / VLC / YouTube]";
+              }
               const isSelected = (curVal === d.deviceId);
               html += `<option value="${d.deviceId}" ${isSelected ? 'selected' : ''}>${label}</option>`;
             });
 
+            html += `</optgroup>`;
             sel.innerHTML = html;
-            if (curVal && curVal !== 'default') {
+            if (curVal) {
               sel.value = curVal;
             }
           }
 
           if (badge) {
             const count = audioInputs.length;
-            badge.innerText = count + (count === 1 ? ' entrada detectada' : ' entradas detectadas');
+            badge.innerText = count + (count === 1 ? ' entrada física' : ' entradas físicas');
           }
         } catch(e) {
           console.error('[BrainLingo] Erro na varredura de dispositivos de áudio:', e);
         } finally {
-          if (btnScan) btnScan.innerText = "Escanear Placas / Entradas";
+          if (btnScan) btnScan.innerText = "Escanear Placas";
         }
       }
 
@@ -5479,12 +5542,156 @@
         });
       }
 
+      // ========================================================
+      // CAPTURA DE ÁUDIO MULTI-FONTE (MICROFONES, GUIA DO CHROME, JANELAS VLC E DESKTOP)
+      // ========================================================
+      let isLocalAudioMonitoringActive = false;
+      let currentAudioSourceMode = 'mic'; // 'mic' | 'tab' | 'app' | 'desktop'
+
+      window.showAudioInputHelpModal = function() {
+        alert(
+          "COMO TESTAR COM AULAS GRAVADAS, VÍDEOS DO YOUTUBE OU VLC:\n\n" +
+          "1. GUIA DO YOUTUBE / NAVEGADOR:\n" +
+          "   - Clique no botão 'Guia YouTube' e depois em 'Ativar Entrada & Transcrição'.\n" +
+          "   - Na janela do Chrome, selecione a aba onde o YouTube ou a aula está aberta.\n" +
+          "   - IMPORTANTE: Marque a caixinha 'Compartilhar áudio' no canto inferior da janela!\n\n" +
+          "2. JANELA DO VLC MEDIA PLAYER:\n" +
+          "   - Abra o VLC com o vídeo da aula gravada.\n" +
+          "   - Clique em 'VLC / Desktop' e selecione a janela do VLC ou 'Tela Inteira'.\n" +
+          "   - Marque 'Compartilhar áudio'.\n\n" +
+          "3. DICA PARA TESTES COM FONES DE OUVIDO (100% SILENCIOSO):\n" +
+          "   - Se estiver usando fones de ouvido e quiser transcrever sem depender do microfone do laptop, você pode ativar a 'Mixagem Estéreo' no Windows (Configurações de Som > Gravação > Mixagem Estéreo > Habilitar).\n" +
+          "   - Ela aparecerá automaticamente na lista com o marcador [Áudio do Sistema / VLC / YouTube]."
+        );
+      };
+
+      window.toggleLocalAudioMonitor = function() {
+        isLocalAudioMonitoringActive = !isLocalAudioMonitoringActive;
+        const btn = document.getElementById('btn-toggle-local-monitor');
+        if (btn) {
+          btn.innerText = isLocalAudioMonitoringActive ? "Ouvir no Fone: [LIGADO]" : "Ouvir no Fone: [DESLIGADO]";
+          btn.className = isLocalAudioMonitoringActive 
+            ? "text-[10px] px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all cursor-pointer shadow-2xs shrink-0"
+            : "text-[10px] px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-blue-300 dark:border-slate-600 text-blue-900 dark:text-blue-200 font-bold transition-all cursor-pointer shadow-2xs shrink-0";
+        }
+
+        if (micAudioContext && micAudioContext.state !== 'closed' && window._currentMicCompressorNode) {
+          try {
+            if (isLocalAudioMonitoringActive) {
+              window._currentMicCompressorNode.connect(micAudioContext.destination);
+            } else {
+              window._currentMicCompressorNode.disconnect(micAudioContext.destination);
+            }
+          } catch(e) {}
+        }
+      };
+
+      window.selectAudioSourceMode = function(mode) {
+        currentAudioSourceMode = mode;
+        const btnMic = document.getElementById('btn-src-mic');
+        const btnTab = document.getElementById('btn-src-tab');
+        const btnApp = document.getElementById('btn-src-app');
+        const sel = document.getElementById('transmitter-mic-select');
+
+        const activeCls = 'py-1.5 px-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer bg-blue-600 text-white border-blue-700 shadow-2xs';
+        const inactiveCls = 'py-1.5 px-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 shadow-2xs';
+
+        if (btnMic) btnMic.className = (mode === 'mic') ? activeCls : inactiveCls;
+        if (btnTab) btnTab.className = (mode === 'tab') ? activeCls : inactiveCls;
+        if (btnApp) btnApp.className = (mode === 'app' || mode === 'desktop') ? activeCls : inactiveCls;
+
+        if (sel) {
+          if (mode === 'tab') {
+            sel.value = 'display_media_tab';
+          } else if (mode === 'app') {
+            sel.value = 'display_media_window';
+          } else if (mode === 'desktop') {
+            sel.value = 'display_media_desktop';
+          } else {
+            sel.value = selectedMicDeviceId && !selectedMicDeviceId.startsWith('display_media') ? selectedMicDeviceId : 'default';
+          }
+          selectedMicDeviceId = sel.value;
+          try { localStorage.setItem('brain_selected_mic_device', selectedMicDeviceId); } catch(e) {}
+        }
+
+        updateAudioInputUIState();
+
+        if (isRealMicActive) {
+          stopMasterMicCapture();
+          setTimeout(startMasterMicCapture, 150);
+        }
+      };
+
+      function updateAudioInputUIState() {
+        const sel = document.getElementById('transmitter-mic-select');
+        const devVal = sel ? sel.value : (selectedMicDeviceId || 'default');
+        const isDisplay = devVal.startsWith('display_media');
+
+        const banner = document.getElementById('transmitter-app-audio-banner');
+        const bannerLabel = document.getElementById('transmitter-app-audio-label');
+        const btnMaster = document.getElementById('btn-toggle-mic-master');
+        const btnMasterText = document.getElementById('btn-toggle-mic-master-text');
+        const vuTitle = document.getElementById('transmitter-vu-title');
+
+        if (banner) {
+          banner.className = isDisplay 
+            ? 'flex items-center justify-between gap-2 p-2 rounded-xl bg-blue-100/90 dark:bg-blue-950/70 border border-blue-300 dark:border-blue-700 text-blue-950 dark:text-blue-100 text-[11px] font-semibold'
+            : 'hidden';
+        }
+
+        if (bannerLabel) {
+          if (devVal === 'display_media_tab') bannerLabel.innerText = 'Captura de Guia do Chrome (YouTube / Web) Conectada';
+          else if (devVal === 'display_media_window') bannerLabel.innerText = 'Captura de Janela de Aplicativo (VLC / Player) Conectada';
+          else if (devVal === 'display_media_desktop') bannerLabel.innerText = 'Captura de Áudio do Desktop / Computador Conectada';
+        }
+
+        if (vuTitle) {
+          vuTitle.innerText = isDisplay ? 'Modulação do Áudio Capturado (VU):' : 'Modulação do Sinal (VU):';
+        }
+
+        if (btnMasterText) {
+          if (isRealMicActive) {
+            btnMasterText.innerText = isDisplay ? 'Pausar Entrada de Áudio' : 'Pausar Microfone';
+          } else {
+            btnMasterText.innerText = isDisplay ? 'Ativar Áudio & Transcrição' : 'Ativar Entrada & Transcrição';
+          }
+        }
+
+        if (btnMaster) {
+          btnMaster.className = isRealMicActive
+            ? 'flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white'
+            : 'flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white';
+        }
+      }
+
       window.onTransmitterMicDeviceSelected = function(deviceId) {
         selectedMicDeviceId = deviceId;
         meeting.inputDevice = deviceId;
         try {
           localStorage.setItem('brain_selected_mic_device', deviceId);
         } catch(e) {}
+
+        const btnMic = document.getElementById('btn-src-mic');
+        const btnTab = document.getElementById('btn-src-tab');
+        const btnApp = document.getElementById('btn-src-app');
+        const activeCls = 'py-1.5 px-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer bg-blue-600 text-white border-blue-700 shadow-2xs';
+        const inactiveCls = 'py-1.5 px-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 shadow-2xs';
+
+        if (deviceId === 'display_media_tab') {
+          if (btnMic) btnMic.className = inactiveCls;
+          if (btnTab) btnTab.className = activeCls;
+          if (btnApp) btnApp.className = inactiveCls;
+        } else if (deviceId === 'display_media_window' || deviceId === 'display_media_desktop') {
+          if (btnMic) btnMic.className = inactiveCls;
+          if (btnTab) btnTab.className = inactiveCls;
+          if (btnApp) btnApp.className = activeCls;
+        } else {
+          if (btnMic) btnMic.className = activeCls;
+          if (btnTab) btnTab.className = inactiveCls;
+          if (btnApp) btnApp.className = inactiveCls;
+        }
+
+        updateAudioInputUIState();
 
         if (isRealMicActive) {
           stopMasterMicCapture();
@@ -5536,36 +5743,70 @@
       async function startMasterMicCapture() {
         const select = document.getElementById('transmitter-mic-select');
         const targetDeviceId = select ? select.value : (selectedMicDeviceId || 'default');
-        
-        // =========================================================================
-        // CAPTURA DE ALTA FIDELIDADE COMPARTILHADA (NÃO INTRUSIVA PARA OUTROS APPS):
-        // 1. autoGainControl: false -> CRÍTICO: Impede que o navegador altere o slider
-        //    de volume mestre do Windows na placa de áudio. Permite que OBS, vMix, Zoom,
-        //    Reaper ou DAWs recebam o mesmo sinal com o ganho exato regulado na placa.
-        // 2. echoCancellation: false -> Desativa cancelamento de eco WebRTC para evitar
-        //    filtros em pente (comb-filtering) ou cortes espectrais na placa de som.
-        // 3. noiseSuppression: false -> Desativa corte de ruído agressivo, mantendo o
-        //    timbre cristalino de microfones profissionais ou conexões de linha (Line In).
-        // 4. channelCount & sampleRate -> Padrão broadcast de estúdio (48 kHz).
-        // Todo tratamento de volume (+7dB) e compressão ocorre em RAM no AudioContext.
-        // =========================================================================
-        const audioConstraints = {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          channelCount: { ideal: 2, min: 1 },
-          sampleRate: { ideal: 48000 }
-        };
-
-        if (targetDeviceId && targetDeviceId !== 'default') {
-          audioConstraints.deviceId = { exact: targetDeviceId };
-        }
-        const constraints = { audio: audioConstraints };
+        const isDisplayMedia = (typeof targetDeviceId === 'string' && targetDeviceId.startsWith('display_media'));
 
         try {
-          if (micMediaStream) micMediaStream.getTracks().forEach(t => t.stop());
-          micMediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-          
+          if (micMediaStream) {
+            micMediaStream.getTracks().forEach(t => t.stop());
+            micMediaStream = null;
+          }
+
+          if (isDisplayMedia) {
+            const displayOpts = {
+              video: {
+                width: { ideal: 640 },
+                height: { ideal: 360 },
+                frameRate: { ideal: 15 }
+              },
+              audio: {
+                autoGainControl: false,
+                echoCancellation: false,
+                noiseSuppression: false,
+                systemAudio: 'include'
+              }
+            };
+            if (targetDeviceId === 'display_media_tab') {
+              displayOpts.video.displaySurface = 'browser';
+            } else if (targetDeviceId === 'display_media_window') {
+              displayOpts.video.displaySurface = 'window';
+            } else if (targetDeviceId === 'display_media_desktop') {
+              displayOpts.video.displaySurface = 'monitor';
+            }
+
+            micMediaStream = await navigator.mediaDevices.getDisplayMedia(displayOpts);
+            const audioTracks = micMediaStream.getAudioTracks();
+            if (audioTracks.length === 0) {
+              micMediaStream.getTracks().forEach(t => t.stop());
+              micMediaStream = null;
+              alert(
+                "Atenção: Nenhum canal de áudio foi compartilhado!\n\n" +
+                "Ao selecionar a Guia do YouTube, Janela do VLC ou Desktop na janela do Chrome, " +
+                "você DEVE marcar a caixinha 'Compartilhar áudio' (Share audio) no canto inferior esquerdo."
+              );
+              return;
+            }
+
+            micMediaStream.getTracks().forEach(t => {
+              t.onended = () => {
+                console.log('[BrainLingo] Compartilhamento de áudio de aplicativo encerrado pelo usuário.');
+                if (isRealMicActive) stopMasterMicCapture();
+              };
+            });
+          } else {
+            const audioConstraints = {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              channelCount: { ideal: 2, min: 1 },
+              sampleRate: { ideal: 48000 }
+            };
+
+            if (targetDeviceId && targetDeviceId !== 'default') {
+              audioConstraints.deviceId = { exact: targetDeviceId };
+            }
+            micMediaStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+          }
+
           try {
             localStorage.setItem('brain_selected_mic_device', targetDeviceId);
           } catch(e) {}
@@ -5590,6 +5831,7 @@
           micCompressor.ratio.setValueAtTime(3.5, micAudioContext.currentTime);
           micCompressor.attack.setValueAtTime(0.003, micAudioContext.currentTime);
           micCompressor.release.setValueAtTime(0.25, micAudioContext.currentTime);
+          window._currentMicCompressorNode = micCompressor;
 
           micAnalyserNode = micAudioContext.createAnalyser();
           micAnalyserNode.fftSize = 256;
@@ -5602,17 +5844,16 @@
           micCompressor.connect(micAnalyserNode);
           micCompressor.connect(micDestination);
 
-          isRealMicActive = true;
-
-          const btn = document.getElementById('btn-toggle-mic-master');
-          if (btn) {
-            btn.innerHTML = "<span>Pausar Microfone</span>";
-            btn.className = 'flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white';
+          // Se o monitor nos fones estiver ativo, conecta à saída do sistema
+          if (isLocalAudioMonitoringActive) {
+            micCompressor.connect(micAudioContext.destination);
           }
 
+          isRealMicActive = true;
+          updateAudioInputUIState();
           startMicVuMeterLoop();
 
-          // Gravação do áudio do microfone a partir do fluxo pré-amplificado e tratado
+          // Gravação do áudio
           try {
             transmitterAudioChunks = [];
             micMediaRecorder = new MediaRecorder(micDestination.stream);
@@ -5629,7 +5870,11 @@
           // Inicia reconhecimento contínuo de fala
           startContinuousSpeechTranscription();
         } catch(err) {
-          alert('Erro ao ativar microfone: ' + err.message + '\n\nCertifique-se de que o dispositivo está conectado e que o navegador possui permissão.');
+          if (err.name !== 'NotAllowedError') {
+            alert('Erro ao ativar entrada de áudio: ' + err.message + '\n\nCertifique-se de que o dispositivo ou aplicativo está disponível.');
+          }
+          isRealMicActive = false;
+          updateAudioInputUIState();
         }
       }
 
@@ -5645,12 +5890,7 @@
           try { micMediaRecorder.stop(); } catch(e) {}
         }
         isRealMicActive = false;
-
-        const btn = document.getElementById('btn-toggle-mic-master');
-        if (btn) {
-          btn.innerHTML = "<span>Ativar Microfone & Transcrição</span>";
-          btn.className = 'flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white';
-        }
+        updateAudioInputUIState();
 
         const bar = document.getElementById('transmitter-vu-bar');
         const text = document.getElementById('transmitter-vu-text');
@@ -5668,7 +5908,7 @@
         micMediaStream.getAudioTracks().forEach(t => { t.enabled = !isTransmitterMicMuted; });
         const icon = document.getElementById('icon-mute-transmitter');
         if (icon) {
-          icon.innerText = isTransmitterMicMuted ? "Microfone Mutado" : "Microfone Aberto";
+          icon.innerText = isTransmitterMicMuted ? "Áudio Mutado" : "Áudio Aberto";
         }
       };
 
