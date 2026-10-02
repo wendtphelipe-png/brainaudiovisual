@@ -4923,20 +4923,25 @@
                     </div>
 
                     <!-- Aviso de Configuração do CABLE Output para Transcrição -->
-                    <div id="transmitter-cable-notice" class="hidden flex flex-col gap-1 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-[10px] font-semibold">
+                    <div id="transmitter-cable-notice" class="hidden flex flex-col gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-[10px] font-semibold">
                       <div class="flex items-center justify-between gap-1">
-                        <span class="font-bold flex items-center gap-1 text-amber-900 dark:text-amber-100">
-                          <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                          Áudio do Vídeo Chegando no Cabo Virtual!
+                        <span class="font-bold flex items-center gap-1.5 text-amber-900 dark:text-amber-100">
+                          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                          Áudio do Vídeo Conectado ao Cabo!
                         </span>
-                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 font-bold">Dica Crucial</span>
+                        <span class="text-[9px] px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 font-bold">1 Clique</span>
                       </div>
                       <p class="leading-tight text-slate-700 dark:text-slate-300">
-                        O VU Meter está modulando o som da aula. Para a transcrição do Chrome escutar o <strong>CABLE Output</strong> em vez do microfone físico do laptop:
+                        O VU Meter está captando a aula. Para o Chrome transcrever pelo cabo em vez do microfone físico, clique para ativar:
                       </p>
-                      <p class="text-[9.5px] font-bold text-blue-700 dark:text-blue-300 bg-white/70 dark:bg-slate-900/70 p-1.5 rounded border border-amber-200 dark:border-slate-700">
-                        No Windows (Painel de Som ou Configurações), defina o <strong>CABLE Output</strong> como o <strong>Dispositivo Padrão de Entrada (Gravação)</strong>, ou acesse <code class="bg-amber-100 dark:bg-slate-800 px-1 rounded">chrome://settings/content/microphone</code> e selecione o CABLE Output.
-                      </p>
+                      <div class="flex items-center gap-2 pt-0.5">
+                        <button type="button" id="btn-set-cable-default" onclick="setSystemAudioDevice('cable')" class="flex-1 py-1.5 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-1" title="Altera o microfone padrão do Windows para CABLE Output">
+                          Ativar CABLE Output no Windows
+                        </button>
+                        <button type="button" id="btn-set-mic-default" onclick="setSystemAudioDevice('mic')" class="py-1.5 px-2 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold text-[10px] transition-all cursor-pointer shadow-2xs" title="Volta para o microfone do laptop">
+                          Restaurar Microfone
+                        </button>
+                      </div>
                     </div>
 
                     <!-- VU Meter do Palestrante / Aplicativo com Barra Real e LEDs -->
@@ -5619,10 +5624,9 @@
       window.showAudioInputHelpModal = function() {
         alert(
           "COMO TRANSCREVER AULAS (VIMEO, YOUTUBE, VLC) EM SILÊNCIO ABSOLUTO:\n\n" +
-          "Sua máquina já possui o 'VB-Audio Virtual Cable' instalado!\n\n" +
           "1. DEFINA O MICROFONE NO WINDOWS:\n" +
-          "   - Clique no ícone de som perto do relógio > Configurações de som > Entrada.\n" +
-          "   - Escolha 'CABLE Output (VB-Audio Virtual Cable)' como microfone padrão (ou nas permissões do Chrome).\n\n" +
+          "   - Use o botão 'Ativar CABLE Output no Windows' no Cockpit.\n" +
+          "   - Ele define automaticamente o cabo virtual como microfone padrão do sistema!\n\n" +
           "2. NO BRAINLINGO:\n" +
           "   - Clique em 'Guia YouTube' (ou 'VLC') e ative a entrada.\n" +
           "   - Escolha a aba do Vimeo/YouTube e marque 'Compartilhar áudio'.\n\n" +
@@ -5631,6 +5635,79 @@
           "   - A memória do computador NÃO sobrecarrega (0% de CPU).\n" +
           "   - A aula é transcrita e traduzida perfeitamente sem repetições de palavras!"
         );
+      };
+
+      // ========================================================
+      // ALTERNÂNCIA INTELIGENTE DE DISPOSITIVO DE GRAVAÇÃO DO SISTEMA
+      // ========================================================
+      window.setSystemAudioDevice = async function(target = 'cable') {
+        const isCable = (target === 'cable');
+        const btn = document.getElementById(isCable ? 'btn-set-cable-default' : 'btn-set-mic-default');
+        const originalText = btn ? btn.innerText : '';
+        if (btn) {
+          btn.disabled = true;
+          btn.innerText = "Configurando...";
+        }
+
+        // 1. Tenta acionar a API local do BrainLingo (Companion / server.js)
+        try {
+          const res = await fetch(`http://127.0.0.1:8765/api/set-audio-device?device=${target}`, { 
+            signal: AbortSignal.timeout(3000) 
+          });
+          const data = await res.json();
+          if (data && data.ok) {
+            if (btn) {
+              btn.disabled = false;
+              btn.innerText = isCable ? "CABLE Output Ativo" : "Microfone Ativo";
+            }
+            alert(
+              isCable 
+                ? "SUCESSO!\n\nO 'CABLE Output' foi configurado como o Microfone Padrão do Windows.\nO Google Chrome agora transcreverá a aula do vídeo diretamente pelo cabo virtual, em silêncio absoluto!"
+                : "SUCESSO!\n\nO Microfone do laptop foi restaurado como o Microfone Padrão do Windows."
+            );
+            if (isRealMicActive) {
+              safelyDestroySpeechRecognizer(true);
+              setTimeout(startContinuousSpeechTranscription, 400);
+            }
+            return;
+          }
+        } catch(e) {
+          // Servidor local não respondeu (ex: rodando direto da nuvem ou em outro PC)
+        }
+
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = originalText;
+        }
+
+        // 2. Se estiver em outro PC puramente na web, abre a autorização nativa do Windows
+        showWebAudioDeviceModal(target);
+      };
+
+      window.showWebAudioDeviceModal = function(target = 'cable') {
+        const isCable = (target === 'cable');
+        const targetName = isCable ? 'CABLE Output (VB-Audio Virtual Cable)' : 'Microfone do Computador';
+        const index = isCable ? 5 : 6;
+
+        const choice = confirm(
+          "AUTORIZAÇÃO DE ÁUDIO DO WINDOWS:\n\n" +
+          "Deseja alternar o microfone padrão do Windows para: " + targetName + "?\n\n" +
+          "• Clique em 'OK' para abrir as Configurações de Som do Windows agora.\n" +
+          "• Ou clique em 'Cancelar' para baixar o assistente executável de 1 clique."
+        );
+
+        if (choice) {
+          window.location.href = 'ms-settings:sound';
+        } else {
+          const batContent = `@echo off\r\npowershell -NoProfile -Command "Import-Module AudioDeviceCmdlets -ErrorAction SilentlyContinue; Set-AudioDevice -Index ${index}; Write-Host 'Dispositivo configurado: ${targetName}' -ForegroundColor Green"\r\necho Concluido com sucesso! Pode fechar esta janela.\r\ntimeout /t 3 >nul\r\n`;
+          const blob = new Blob([batContent], { type: 'application/x-bat' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = isCable ? 'Ativar_CABLE_Output.bat' : 'Restaurar_Microfone.bat';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
       };
 
       window.toggleLocalAudioMonitor = function() {
