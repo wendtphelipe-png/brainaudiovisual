@@ -1407,29 +1407,43 @@
       }
 
       let audioInputDevices = [];
-      async function refreshDashboardAudioDevices() {
+      async function refreshDashboardAudioDevices(forcePrompt = false) {
         try {
-          if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-            const devs = await navigator.mediaDevices.enumerateDevices();
-            audioInputDevices = devs.filter(d => d.kind === 'audioinput');
-            const selectEl = document.getElementById('new-m-input-device');
-            if (selectEl && audioInputDevices.length > 0) {
-              const currentVal = selectEl.value;
-              selectEl.innerHTML = audioInputDevices.map((d, i) => `
-                <option value="${d.deviceId}" ${(currentVal === d.deviceId || (i === 0 && currentVal === 'default')) ? 'selected' : ''}>
-                  ${d.label || ("Microfone / Entrada " + (i + 1))}
-                </option>
-              `).join('');
-            }
+          if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+          let devs = await navigator.mediaDevices.enumerateDevices();
+          let inputs = devs.filter(d => d.kind === 'audioinput');
+
+          // Se os rótulos estão em branco ou foi forçado, faz uma sonda limpa sem alterar o mixer do Windows
+          if (forcePrompt || inputs.length === 0 || inputs.some(d => !d.label)) {
+            try {
+              const probeStream = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+              });
+              probeStream.getTracks().forEach(t => t.stop());
+              devs = await navigator.mediaDevices.enumerateDevices();
+              inputs = devs.filter(d => d.kind === 'audioinput');
+            } catch(e) {}
+          }
+
+          audioInputDevices = inputs;
+          const selectEl = document.getElementById('new-m-input-device');
+          if (selectEl) {
+            const currentVal = selectEl.value;
+            let optionsHtml = `<option value="default">Dispositivo Padrão do Sistema (Windows Default)</option>`;
+            inputs.forEach((d, i) => {
+              if (d.deviceId === 'default') return; // Já coberto pela primeira opção
+              const label = d.label || ("Placa / Entrada de Áudio " + (i + 1));
+              const isSel = (currentVal === d.deviceId);
+              optionsHtml += `<option value="${d.deviceId}" ${isSel ? 'selected' : ''}>${label}</option>`;
+            });
+            selectEl.innerHTML = optionsHtml;
           }
         } catch(e) {}
       }
 
       window.requestMicPermissionForDashboard = async function() {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          stream.getTracks().forEach(t => t.stop());
-          await refreshDashboardAudioDevices();
+          await refreshDashboardAudioDevices(true);
         } catch(e) {
           alert('Permissão de microfone negada ou dispositivo indisponível.');
         }
@@ -4009,7 +4023,7 @@
       // Estado do Microfone do Palestrante
       let isRealMicActive = false;
       let isTransmitterMicMuted = false;
-      let selectedMicDeviceId = meeting.inputDevice || 'default';
+      let selectedMicDeviceId = meeting.inputDevice || localStorage.getItem('brain_selected_mic_device') || 'default';
       let micMediaStream = null;
       let micAudioContext = null;
       let micAnalyserNode = null;
@@ -4326,16 +4340,21 @@
                   <!-- Seletor de Entrada de Microfone e VU Meter -->
                   <div class="bg-blue-50/60 dark:bg-slate-800/80 border border-blue-200/80 dark:border-slate-700 rounded-2xl p-3 space-y-2.5">
                     <div class="flex items-center justify-between gap-2">
-                      <label class="text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate">
-                        Dispositivo de Entrada:
-                      </label>
-                      <button onclick="refreshAudioDevicesList(true)" class="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline">
-                        Atualizar
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <label class="text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate">
+                          Dispositivo de Entrada:
+                        </label>
+                        <span id="transmitter-device-count-badge" class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 shrink-0">
+                          Detectando...
+                        </span>
+                      </div>
+                      <button id="btn-scan-audio-devices" type="button" onclick="refreshAudioDevicesList(true)" class="text-[10px] px-2 py-0.5 rounded-lg bg-blue-100 dark:bg-blue-950/80 hover:bg-blue-200 dark:hover:bg-blue-900 border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 font-bold transition-all cursor-pointer shadow-2xs" title="Fazer varredura de placas de som USB e microfones conectados ao computador">
+                        Escanear Placas / Entradas
                       </button>
                     </div>
 
                     <select id="transmitter-mic-select" onchange="onTransmitterMicDeviceSelected(this.value)" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-semibold outline-none shadow-2xs">
-                      <option value="default">Microfone Padrão do Sistema</option>
+                      <option value="default">Microfone Padrão do Sistema (Windows Default)</option>
                     </select>
 
                     <!-- VU Meter do Palestrante com Barra Real e LEDs -->
@@ -4873,31 +4892,87 @@
       // ENUMERAÇÃO E CAPTURA DE DISPOSITIVOS DE ÁUDIO
       // ========================================================
       async function refreshAudioDevicesList(forcePrompt = false) {
+        const btnScan = document.getElementById('btn-scan-audio-devices');
+        const badge = document.getElementById('transmitter-device-count-badge');
+        if (btnScan) btnScan.innerText = "Varrendo...";
+
         try {
           if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-          if (forcePrompt) {
+          
+          let devices = await navigator.mediaDevices.enumerateDevices();
+          let audioInputs = devices.filter(d => d.kind === 'audioinput');
+
+          // Se forçado ou se os rótulos de hardware vierem vazios pelo navegador,
+          // executa uma sonda limpa com AGC/AEC desligados para carregar os nomes reais
+          // das placas de áudio USB sem alterar o mixer mestre do Windows
+          if (forcePrompt || audioInputs.length === 0 || audioInputs.some(d => !d.label)) {
             try {
-              const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-              stream.getTracks().forEach(t => t.stop());
-            } catch(e) {}
+              const probeStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  echoCancellation: false,
+                  noiseSuppression: false,
+                  autoGainControl: false
+                }
+              });
+              probeStream.getTracks().forEach(t => t.stop());
+              devices = await navigator.mediaDevices.enumerateDevices();
+              audioInputs = devices.filter(d => d.kind === 'audioinput');
+            } catch(permErr) {
+              console.warn('[BrainLingo] Varredura de áudio aguardando autorização de microfone:', permErr);
+            }
           }
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const audioInputs = devices.filter(d => d.kind === 'audioinput');
+
           const sel = document.getElementById('transmitter-mic-select');
-          if (sel && audioInputs.length > 0) {
-            const curVal = sel.value;
-            sel.innerHTML = audioInputs.map((d, i) => `
-              <option value="${d.deviceId}" ${(curVal === d.deviceId || (i === 0 && curVal === 'default')) ? 'selected' : ''}>
-                ${d.label || ("Entrada de Microfone " + (i + 1))}
-              </option>
-            `).join('');
+          if (sel) {
+            const savedDevId = selectedMicDeviceId || localStorage.getItem('brain_selected_mic_device') || 'default';
+            const curVal = sel.value || savedDevId;
+
+            let html = `<option value="default" ${curVal === 'default' ? 'selected' : ''}>Microfone Padrão do Sistema (Windows Default)</option>`;
+            
+            // Adiciona todas as placas e entradas de áudio detectadas
+            audioInputs.forEach((d, i) => {
+              if (d.deviceId === 'default') return; // Já incluído como opção limpa acima
+              const label = d.label || ("Placa / Entrada de Áudio " + (i + 1));
+              const isSelected = (curVal === d.deviceId);
+              html += `<option value="${d.deviceId}" ${isSelected ? 'selected' : ''}>${label}</option>`;
+            });
+
+            sel.innerHTML = html;
+            if (curVal && curVal !== 'default') {
+              sel.value = curVal;
+            }
           }
-        } catch(e) {}
+
+          if (badge) {
+            const count = audioInputs.length;
+            badge.innerText = count + (count === 1 ? ' entrada detectada' : ' entradas detectadas');
+          }
+        } catch(e) {
+          console.error('[BrainLingo] Erro na varredura de dispositivos de áudio:', e);
+        } finally {
+          if (btnScan) btnScan.innerText = "Escanear Placas / Entradas";
+        }
+      }
+
+      // Escuta em tempo real a conexão ou desconexão física de placas de som USB (Hotplug)
+      if (navigator.mediaDevices && !window._brainDeviceChangeBound) {
+        window._brainDeviceChangeBound = true;
+        navigator.mediaDevices.addEventListener('devicechange', async () => {
+          console.log('[BrainLingo] Alteração nos dispositivos de áudio (Hotplug). Atualizando entradas...');
+          await refreshAudioDevicesList(false);
+          if (typeof refreshDashboardAudioDevices === 'function') {
+            await refreshDashboardAudioDevices(false);
+          }
+        });
       }
 
       window.onTransmitterMicDeviceSelected = function(deviceId) {
         selectedMicDeviceId = deviceId;
         meeting.inputDevice = deviceId;
+        try {
+          localStorage.setItem('brain_selected_mic_device', deviceId);
+        } catch(e) {}
+
         if (isRealMicActive) {
           stopMasterMicCapture();
           setTimeout(startMasterMicCapture, 150);
@@ -4947,18 +5022,42 @@
 
       async function startMasterMicCapture() {
         const select = document.getElementById('transmitter-mic-select');
-        const targetDeviceId = select ? select.value : selectedMicDeviceId;
-        // Permite controle de ganho automático do hardware/navegador para assegurar volume potente
-        const constraints = {
-          audio: (targetDeviceId && targetDeviceId !== 'default') 
-            ? { deviceId: { exact: targetDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
-            : { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        const targetDeviceId = select ? select.value : (selectedMicDeviceId || 'default');
+        
+        // =========================================================================
+        // CAPTURA DE ALTA FIDELIDADE COMPARTILHADA (NÃO INTRUSIVA PARA OUTROS APPS):
+        // 1. autoGainControl: false -> CRÍTICO: Impede que o navegador altere o slider
+        //    de volume mestre do Windows na placa de áudio. Permite que OBS, vMix, Zoom,
+        //    Reaper ou DAWs recebam o mesmo sinal com o ganho exato regulado na placa.
+        // 2. echoCancellation: false -> Desativa cancelamento de eco WebRTC para evitar
+        //    filtros em pente (comb-filtering) ou cortes espectrais na placa de som.
+        // 3. noiseSuppression: false -> Desativa corte de ruído agressivo, mantendo o
+        //    timbre cristalino de microfones profissionais ou conexões de linha (Line In).
+        // 4. channelCount & sampleRate -> Padrão broadcast de estúdio (48 kHz).
+        // Todo tratamento de volume (+7dB) e compressão ocorre em RAM no AudioContext.
+        // =========================================================================
+        const audioConstraints = {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: { ideal: 2, min: 1 },
+          sampleRate: { ideal: 48000 }
         };
+
+        if (targetDeviceId && targetDeviceId !== 'default') {
+          audioConstraints.deviceId = { exact: targetDeviceId };
+        }
+        const constraints = { audio: audioConstraints };
 
         try {
           if (micMediaStream) micMediaStream.getTracks().forEach(t => t.stop());
           micMediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-          await refreshAudioDevicesList();
+          
+          try {
+            localStorage.setItem('brain_selected_mic_device', targetDeviceId);
+          } catch(e) {}
+
+          await refreshAudioDevicesList(false);
 
           if (!micAudioContext || micAudioContext.state === 'closed') {
             micAudioContext = new (window.AudioContext || window.webkitAudioContext)();
