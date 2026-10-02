@@ -4577,6 +4577,17 @@
         } catch(e) {}
       });
 
+      // Estado de Parágrafos Contínuos (Transmissor e Canais Traduzidos)
+      let activeSpeechParagraphSeq = 0;
+      let currentTransmitterParagraph = null; // { id, el, confirmedSpan, liveSpan, cursorEl, startTime }
+      let currentTargetParagraphs = {};       // { [langCode]: { id, el, confirmedSpan, liveSpan, cursorEl } }
+      let paragraphPauseTimer = null;         // Silêncio significante (2.5s) que fecha o parágrafo
+      let liveTranslationDebounceTimer = null;
+      let liveTranslationSeq = 0;
+      let finalizedUtteranceIndices = new Set();
+      let lastConfirmedCleanTranscript = '';
+      let lastConfirmedTimestamp = 0;
+
       // Histórico de transcrições e áudios gravados
       let transmitterTranscriptions = []; // { text, timeStart, timeEnd }
       let targetTranscriptions = {};     // langCode -> [{ text, timeStart, timeEnd }]
@@ -4691,35 +4702,30 @@
         subtitleBroadcast = new BroadcastChannel('brain_subtitles_channel');
       } catch(e) {}
 
-      function connectCockpitMqtt() {
-        if (typeof mqtt === 'undefined') return;
-        try {
-          mqttPublisherClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-            clientId: 'brain_cockpit_' + Math.random().toString(16).substring(2, 8),
-            clean: true,
-            connectTimeout: 5000,
-            reconnectPeriod: 3000
-          });
-          mqttPublisherClient.on('connect', () => {
-            const badge = document.getElementById('cockpit-mqtt-badge');
-            if (badge) {
-              badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Nuvem Conectada (24ms)';
-              badge.className = 'text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1.5 shadow-2xs';
-            }
-            // Inscreve no tópico de presença global para contar espectadores conectados via celular (QR Code)
-            const mqttPresenceTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/presence';
+      // Funções de Espelhamento em Tempo Real para o Co-Host
       function mirrorRemoteTransmitterSubtitle(cleanText, startSec, endSec) {
         if (!cleanText || !cleanText.trim()) return;
         const para = getOrCreateActiveParagraph();
-        if (!para) return;
-        const prev = para.confirmedSpan.textContent.trim();
-        const normClean = cleanNorm(cleanText);
-        const normPrev = cleanNorm(prev);
-        if (normClean && (normPrev.endsWith(normClean) || normPrev === normClean)) {
-          para.liveSpan.textContent = '';
+        if (para && para.confirmedSpan) {
+          const prev = para.confirmedSpan.textContent.trim();
+          const normClean = cleanNorm(cleanText);
+          const normPrev = cleanNorm(prev);
+          if (normClean && (normPrev.endsWith(normClean) || normPrev === normClean)) {
+            para.liveSpan.textContent = '';
+          } else {
+            para.confirmedSpan.textContent = prev ? (prev + ' ' + cleanText) : cleanText;
+            para.liveSpan.textContent = '';
+          }
         } else {
-          para.confirmedSpan.textContent = prev ? (prev + ' ' + cleanText) : cleanText;
-          para.liveSpan.textContent = '';
+          const feed = document.getElementById('transmitter-transcription-feed');
+          if (feed) {
+            const empty = feed.querySelector('.placeholder-empty');
+            if (empty) empty.remove();
+            const div = document.createElement('div');
+            div.className = 'speech-paragraph text-sm sm:text-base leading-relaxed whitespace-normal break-words mb-3';
+            div.innerHTML = `<span class="para-confirmed">${cleanText}</span><span class="para-live font-normal"></span>`;
+            feed.appendChild(div);
+          }
         }
         transmitterTranscriptions.push({ text: cleanText, timeStart: startSec || 0, timeEnd: endSec || 0 });
         const box = document.getElementById('transmitter-subtitle-box');
@@ -4728,8 +4734,9 @@
 
       function mirrorRemoteTransmitterInterim(interimText) {
         const para = getOrCreateActiveParagraph();
-        if (!para) return;
-        para.liveSpan.textContent = interimText ? (' ' + interimText) : '';
+        if (para && para.liveSpan) {
+          para.liveSpan.textContent = interimText ? (' ' + interimText) : '';
+        }
         const box = document.getElementById('transmitter-subtitle-box');
         if (box) box.scrollTop = box.scrollHeight;
       }
@@ -4737,8 +4744,13 @@
       function mirrorRemoteTargetSubtitle(targetLang, cleanText, startSec, endSec) {
         if (!cleanText || !cleanText.trim()) return;
         getOrCreateActiveParagraph();
-        const tp = currentTargetParagraphs[targetLang];
-        if (tp) {
+        let tp = currentTargetParagraphs[targetLang];
+        if (!tp) {
+          const short = targetLang.split('-')[0].toLowerCase();
+          const matchedKey = Object.keys(currentTargetParagraphs).find(k => k.toLowerCase().startsWith(short));
+          if (matchedKey) tp = currentTargetParagraphs[matchedKey];
+        }
+        if (tp && tp.confirmedSpan) {
           const prev = tp.confirmedSpan.textContent.trim();
           const normClean = cleanNorm(cleanText);
           const normPrev = cleanNorm(prev);
@@ -4750,6 +4762,17 @@
           }
           const els = getTargetColumnElements(targetLang);
           if (els && els.box) els.box.scrollTop = els.box.scrollHeight;
+        } else {
+          const els = getTargetColumnElements(targetLang);
+          if (els && els.feed) {
+            const empty = els.feed.querySelector('.placeholder-empty');
+            if (empty) empty.remove();
+            const div = document.createElement('div');
+            div.className = 'speech-paragraph text-sm sm:text-base leading-relaxed whitespace-normal break-words mb-3';
+            div.innerHTML = `<span class="para-confirmed">${cleanText}</span><span class="para-live font-normal"></span>`;
+            els.feed.appendChild(div);
+            if (els.box) els.box.scrollTop = els.box.scrollHeight;
+          }
         }
         if (!targetTranscriptions[targetLang]) targetTranscriptions[targetLang] = [];
         targetTranscriptions[targetLang].push({ text: cleanText, timeStart: startSec || 0, timeEnd: endSec || 0 });
@@ -4757,55 +4780,41 @@
 
       function mirrorRemoteTargetInterim(targetLang, interimText) {
         getOrCreateActiveParagraph();
-        const tp = currentTargetParagraphs[targetLang];
-        if (tp) {
+        let tp = currentTargetParagraphs[targetLang];
+        if (!tp) {
+          const short = targetLang.split('-')[0].toLowerCase();
+          const matchedKey = Object.keys(currentTargetParagraphs).find(k => k.toLowerCase().startsWith(short));
+          if (matchedKey) tp = currentTargetParagraphs[matchedKey];
+        }
+        if (tp && tp.liveSpan) {
           tp.liveSpan.textContent = interimText ? (' ' + interimText) : '';
           const els = getTargetColumnElements(targetLang);
           if (els && els.box) els.box.scrollTop = els.box.scrollHeight;
         }
       }
 
-      function applyRemoteHistorySync(data) {
-        if (!data) return;
-        if (typeof data.elapsed === 'number' && data.elapsed > sessionElapsedSeconds) {
-          sessionElapsedSeconds = data.elapsed;
-          const timerEl = document.getElementById('cockpit-elapsed-timer');
-          if (timerEl) timerEl.innerText = formatDuration(sessionElapsedSeconds);
-        }
-        if (Array.isArray(data.transmitter) && data.transmitter.length > 0) {
-          data.transmitter.forEach(item => {
-            if (item && item.text) {
-              mirrorRemoteTransmitterSubtitle(item.text, item.timeStart, item.timeEnd);
-            }
+      function connectCockpitMqtt() {
+        if (typeof mqtt === 'undefined') return;
+        try {
+          mqttPublisherClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'brain_cockpit_' + Math.random().toString(16).substring(2, 8),
+            clean: true,
+            connectTimeout: 5000,
+            reconnectPeriod: 3000
           });
-        }
-        if (data.targets && typeof data.targets === 'object') {
-          Object.keys(data.targets).forEach(lang => {
-            const list = data.targets[lang];
-            if (Array.isArray(list)) {
-              list.forEach(item => {
-                if (item && item.text) {
-                  mirrorRemoteTargetSubtitle(lang, item.text, item.timeStart, item.timeEnd);
-                }
-              });
-            }
-          });
-        }
-      }
 
-            // Inscreve no tópico de presença global para contar espectadores conectados via celular (QR Code)
+          mqttPublisherClient.on('connect', () => {
+            const badge = document.getElementById('cockpit-mqtt-badge');
+            if (badge) {
+              badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Nuvem Conectada (24ms)';
+              badge.className = 'text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1.5 shadow-2xs';
+            }
             mqttPublisherClient.subscribe(mqttPresenceTopic, { qos: 0 });
-            // Inscreve no tópico de ping de sessões ativas para responder imediatamente aos monitores
             mqttPublisherClient.subscribe('brainaudiovisual/global/active_sessions/ping', { qos: 0 });
-            // Inscreve no canal de legendas da própria sala para sincronizar cockpits remotos
             mqttPublisherClient.subscribe(mqttMeetingTopic, { qos: 0 });
             mqttPublisherClient.subscribe(mqttVuTopic, { qos: 0 });
-            mqttPublisherClient.subscribe(mqttHistoryReqTopic, { qos: 0 });
-            mqttPublisherClient.subscribe(mqttHistoryResTopic, { qos: 0 });
 
-            if (isCoHostMode) {
-              mqttPublisherClient.publish(mqttHistoryReqTopic, JSON.stringify({ req: Date.now() }), { qos: 0 });
-            } else {
+            if (!isCoHostMode) {
               pulseRoomActiveHeartbeat();
             }
           });
@@ -4842,19 +4851,6 @@
                     }
                   }
                 }
-              } else if (topic === mqttHistoryReqTopic) {
-                if (!isCoHostMode && (isRealMicActive || transmitterTranscriptions.length > 0)) {
-                  mqttPublisherClient.publish(mqttHistoryResTopic, JSON.stringify({
-                    transmitter: transmitterTranscriptions,
-                    targets: targetTranscriptions,
-                    elapsed: sessionElapsedSeconds,
-                    startTime: meeting.startTime
-                  }), { qos: 0 });
-                }
-              } else if (topic === mqttHistoryResTopic) {
-                if (isCoHostMode) {
-                  applyRemoteHistorySync(JSON.parse(payload.toString()));
-                }
               } else if (topic === mqttMeetingTopic) {
                 if (isCoHostMode) {
                   const data = JSON.parse(payload.toString());
@@ -4863,14 +4859,14 @@
                       if (data.channel === 'transmitter' || data.channel === 'pt') {
                         mirrorRemoteTransmitterSubtitle(data.text, data.startSec, data.endSec);
                       } else {
-                        const tgt = (data.channel === 'receiver' || data.channel === 'en') ? 'en-US' : (data.channel === 'spanish' || data.channel === 'es') ? 'es-ES' : data.channel;
+                        const tgt = (data.channel === 'receiver' || data.channel === 'en') ? 'en-US' : (data.channel === 'spanish' || data.channel === 'es') ? 'es-ES' : (data.channel === 'french' || data.channel === 'fr') ? 'fr-FR' : (data.channel === 'german' || data.channel === 'de') ? 'de-DE' : (data.channel === 'italian' || data.channel === 'it') ? 'it-IT' : data.channel;
                         mirrorRemoteTargetSubtitle(tgt, data.text, data.startSec, data.endSec);
                       }
                     } else if (data.type === 'LIVE_INTERIM') {
                       if (data.channel === 'transmitter' || data.channel === 'pt') {
                         mirrorRemoteTransmitterInterim(data.text);
                       } else {
-                        const tgt = (data.channel === 'receiver' || data.channel === 'en') ? 'en-US' : (data.channel === 'spanish' || data.channel === 'es') ? 'es-ES' : data.channel;
+                        const tgt = (data.channel === 'receiver' || data.channel === 'en') ? 'en-US' : (data.channel === 'spanish' || data.channel === 'es') ? 'es-ES' : (data.channel === 'french' || data.channel === 'fr') ? 'fr-FR' : (data.channel === 'german' || data.channel === 'de') ? 'de-DE' : (data.channel === 'italian' || data.channel === 'it') ? 'it-IT' : data.channel;
                         mirrorRemoteTargetInterim(tgt, data.text);
                       }
                     } else if (data.type === 'CLOSE_PARAGRAPH') {
@@ -4879,11 +4875,12 @@
                   }
                 }
               }
-            } catch(e) {}
+            } catch(e) {
+              console.warn('[Cockpit MQTT Message Error]:', e);
+            }
           });
         } catch(e) {}
       }
-      connectCockpitMqtt();
 
       function broadcastSubtitleGlobally(channel, text, startSec, endSec) {
         const payload = {
@@ -5729,6 +5726,7 @@
       }
 
       renderCockpitUI();
+      connectCockpitMqtt();
 
       // ========================================================
       // ENUMERAÇÃO E CAPTURA DE DISPOSITIVOS DE ÁUDIO
@@ -6363,16 +6361,6 @@
       // MOTOR DE TRANSCRIÇÃO E TRADUÇÃO INSTANTÂNEA EM FLUXO CONTÍNUO
       // (PARÁGRAFO CONTÍNUO, SOFT-WRAP POR LARGURA, QUEBRA SÓ EM PAUSAS)
       // ========================================================
-      let activeSpeechParagraphSeq = 0;
-      let currentTransmitterParagraph = null; // { id, el, confirmedSpan, liveSpan, cursorEl, startTime }
-      let currentTargetParagraphs = {};       // { [langCode]: { id, el, confirmedSpan, liveSpan, cursorEl } }
-      let paragraphPauseTimer = null;         // Silêncio significante (2.5s) que fecha o parágrafo
-      let liveTranslationDebounceTimer = null;
-      let liveTranslationSeq = 0;
-      let finalizedUtteranceIndices = new Set();
-      let lastConfirmedCleanTranscript = '';
-      let lastConfirmedTimestamp = 0;
-
       // Cache de traduções para evitar chamadas repetidas
       const _translationCache = new Map();
 
