@@ -5660,11 +5660,22 @@
               btn.disabled = false;
               btn.innerText = isCable ? "CABLE Output Ativo" : "Microfone Ativo";
             }
-            alert(
-              isCable 
-                ? "SUCESSO!\n\nO 'CABLE Output' foi configurado como o Microfone Padrão do Windows.\nO Google Chrome agora transcreverá a aula do vídeo diretamente pelo cabo virtual, em silêncio absoluto!"
-                : "SUCESSO!\n\nO Microfone do laptop foi restaurado como o Microfone Padrão do Windows."
-            );
+            if (isCable) {
+              try {
+                navigator.clipboard.writeText('chrome://settings/content/microphone');
+              } catch(e) {}
+              alert(
+                "CONFIGURAÇÃO DO WINDOWS ATIVADA!\n\n" +
+                "O 'CABLE Output' foi ativado com sucesso no seu Windows!\n\n" +
+                "ÚLTIMO PASSO NO GOOGLE CHROME:\n" +
+                "Copiei o link 'chrome://settings/content/microphone' para sua área de transferência.\n\n" +
+                "Abra uma nova aba no Chrome, cole com Ctrl+V e dê Enter.\n" +
+                "No topo, mude o microfone padrão de 'Microphone' para 'CABLE Output'.\n\n" +
+                "Pronto! A transcrição lerá o vídeo com perfeição em silêncio absoluto!"
+              );
+            } else {
+              alert("SUCESSO!\n\nO Microfone do laptop foi restaurado como o Microfone Padrão do Windows.");
+            }
             if (isRealMicActive) {
               safelyDestroySpeechRecognizer(true);
               setTimeout(startContinuousSpeechTranscription, 400);
