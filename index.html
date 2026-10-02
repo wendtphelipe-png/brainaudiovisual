@@ -890,9 +890,13 @@
       return false;
     }
 
-    function getMeetingCockpitUrl(meetingId) {
+    function getMeetingCockpitUrl(meetingId, isRemote = false) {
       const currentPath = window.location.pathname || '/';
-      return currentPath + '?meeting=' + encodeURIComponent(meetingId);
+      let url = currentPath + '?meeting=' + encodeURIComponent(meetingId);
+      if (isRemote) {
+        url += '&cohost=true';
+      }
+      return url;
     }
 
     function getAdminBaseUrl(extraQuery) {
@@ -901,12 +905,20 @@
       return currentPath + '?' + q;
     }
 
-    window.openMeetingCockpit = function(meetingId) {
+    window.openMeetingCockpit = function(meetingId, isRemote = false) {
       if (!meetingId) return;
       try {
-        localStorage.setItem('brain_room_heartbeat_' + meetingId, Date.now().toString());
+        const savedMeetings = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
+        const isLocallySaved = savedMeetings.some(m => m.id === meetingId);
+        if (!isLocallySaved) isRemote = true;
       } catch(e) {}
-      const url = getMeetingCockpitUrl(meetingId);
+
+      if (!isRemote) {
+        try {
+          localStorage.setItem('brain_room_heartbeat_' + meetingId, Date.now().toString());
+        } catch(e) {}
+      }
+      const url = getMeetingCockpitUrl(meetingId, isRemote);
       window.location.href = url;
     };
 
@@ -2117,11 +2129,11 @@
 
                         <!-- Botões de Ação do Card -->
                         <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
-                          <button type="button" onclick="openMeetingCockpit('${m.id}')" class="w-full py-2.5 px-3 bg-gradient-to-r ${m.isRemote ? 'from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800' : 'from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'} text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                          <button type="button" onclick="openMeetingCockpit('${m.id}', ${m.isRemote ? 'true' : 'false'})" class="w-full py-2.5 px-3 bg-gradient-to-r ${m.isRemote ? 'from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800' : 'from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'} text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
                             <span>${m.isRemote ? 'Acessar como Co-Host (Acompanhar e Monitorar)' : 'Entrar no Cockpit da Sala'}</span>
                           </button>
                           <div class="grid grid-cols-2 gap-2">
-                            <a href="${getMeetingCockpitUrl(m.id)}&overlay=subtitles" target="_blank" class="py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-semibold text-center transition-all flex items-center justify-center gap-1">
+                            <a href="${getMeetingCockpitUrl(m.id, m.isRemote)}&overlay=subtitles" target="_blank" class="py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-semibold text-center transition-all flex items-center justify-center gap-1">
                               <span>Janela OBS</span>
                             </a>
                             <button onclick="copyMeetingCockpitUrl('${m.id}')" id="btn-copy-cockpit-${m.id}" class="py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-semibold text-center transition-all flex items-center justify-center gap-1 cursor-pointer">
@@ -4409,8 +4421,7 @@
         } else {
           const savedMeetings = JSON.parse(localStorage.getItem('brain_saved_meetings') || '[]');
           const isLocallySaved = savedMeetings.some(m => m.id === id);
-          const hasLocalHb = !!localStorage.getItem('brain_room_heartbeat_' + id);
-          if (!isLocallySaved && !hasLocalHb) {
+          if (!isLocallySaved) {
             isCoHostMode = true;
           }
           if (meeting && meeting.isRemote) {
@@ -4967,7 +4978,6 @@
       // RENDERIZAÇÃO DA ESTRUTURA HTML DO COCKPIT
       function renderCockpitUI() {
         const sourceInfo = SUPPORTED_LANG_MAP[selectedSourceLanguage] || { name: 'Português', tag: 'PT' };
-        const isCoHostMode = !!(meeting.isRemote || (window._remoteActiveRooms && window._remoteActiveRooms[id] && window._remoteActiveRooms[id].isLive && !isRealMicActive));
 
         root.innerHTML = `
           <!-- HEADER DO COCKPIT LIMPO & MODERNO -->
@@ -5713,7 +5723,9 @@
           </div>
         `;
 
-        refreshAudioDevicesList();
+        if (!isCoHostMode) {
+          refreshAudioDevicesList();
+        }
       }
 
       renderCockpitUI();
