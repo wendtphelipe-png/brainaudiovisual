@@ -196,93 +196,44 @@ async function translateText(text, targetLang) {
 }
 
 /**
- * Studio Neural TTS synthesizer (ElevenLabs / OpenAI TTS-HD / Microsoft Edge Neural SSML)
+ * Studio Neural TTS synthesizer - 100% Gratuito & Ilimitado
+ * Padrão de vozes humanizadas de alta fidelidade idêntico ao Simultaneous Translation
  */
-async function synthesizeTtsAudio(text, lang, gender = 'female', destPath, options = {}) {
+async function synthesizeTtsAudio(text, lang, voiceProfile = 'antonio', destPath) {
     if (!text || !text.trim()) return false;
 
-    // 1. ElevenLabs API (Vozes Hiper-Realistas com Respiração e Cadência Humana)
-    if (options.voiceEngine === 'elevenlabs' && options.elevenlabsApiKey) {
-        try {
-            const elevenVoiceMap = {
-                'male': 'nPczCjzI2devNBz1zQrb', // Brian / Daniel (Narração Médica e Confiante)
-                'female': '21m00Tcm4TlvDq8ikWAM' // Rachel (Locutora de Estúdio)
-            };
-            const voiceId = options.elevenlabsVoiceId || elevenVoiceMap[gender] || elevenVoiceMap.male;
-            const apiUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
-            const reqBody = JSON.stringify({
-                text: text,
-                model_id: "eleven_multilingual_v2",
-                voice_settings: {
-                    stability: 0.52,
-                    similarity_boost: 0.82,
-                    style: 0.18,
-                    use_speaker_boost: true
-                }
-            });
-
-            const buf = await postJsonBuffer(apiUrl, reqBody, {
-                'xi-api-key': options.elevenlabsApiKey,
-                'Content-Type': 'application/json'
-            });
-
-            if (buf && buf.length > 500) {
-                fs.writeFileSync(destPath, buf);
-                return true;
-            }
-        } catch (e) {
-            console.warn(`Aviso ElevenLabs: ${e.message}, utilizando fallback Edge-TTS...`);
+    // Catálogo Humanizado do Simultaneous Translation por idioma
+    const voiceCatalog = {
+        'pt': {
+            'antonio': 'pt-BR-AntonioNeural',             // Médico / Confiante / Formal
+            'francisca': 'pt-BR-FranciscaNeural',         // Estúdio / Clara / Notícias
+            'thalita': 'pt-BR-ThalitaMultilingualNeural', // Expressiva / Natural / Conversacional
+            'duarte': 'pt-PT-DuarteNeural',               // Português Europeu Masculino
+            'raquel': 'pt-PT-RaquelNeural',               // Português Europeu Feminino
+            'male': 'pt-BR-AntonioNeural',
+            'female': 'pt-BR-FranciscaNeural'
+        },
+        'en': {
+            'brian': 'en-US-BrianMultilingualNeural',     // Narrador Profundo / Médico
+            'andrew': 'en-US-AndrewMultilingualNeural',   // Expressivo / Palestrante
+            'ava': 'en-US-AvaMultilingualNeural',         // Calorosa / Humanizada
+            'jenny': 'en-US-JennyNeural',                 // Broadcast Estúdio
+            'guy': 'en-US-GuyNeural',                     // Confiante / Corporativo
+            'male': 'en-US-BrianMultilingualNeural',
+            'female': 'en-US-AvaMultilingualNeural'
+        },
+        'es': {
+            'alvaro': 'es-ES-AlvaroNeural',               // Médico / Confiante / Natural
+            'elvira': 'es-ES-ElviraNeural',               // Estúdio / Notícias / Clara
+            'jorge': 'es-MX-JorgeNeural',                 // Espanhol Latino Masculino
+            'dalia': 'es-MX-DaliaNeural',                 // Espanhol Latino Feminino
+            'male': 'es-ES-AlvaroNeural',
+            'female': 'es-ES-ElviraNeural'
         }
-    }
-
-    // 2. OpenAI TTS-HD (Qualidade Broadcast Narrador)
-    if (options.voiceEngine === 'openai' && options.openaiApiKey) {
-        try {
-            const openAiVoice = gender === 'male' ? 'onyx' : 'nova';
-            const apiUrl = 'https://api.openai.com/v1/audio/speech';
-            const reqBody = JSON.stringify({
-                model: 'tts-1-hd',
-                voice: openAiVoice,
-                input: text,
-                speed: 1.0
-            });
-
-            const buf = await postJsonBuffer(apiUrl, reqBody, {
-                'Authorization': `Bearer ${options.openaiApiKey}`,
-                'Content-Type': 'application/json'
-            });
-
-            if (buf && buf.length > 500) {
-                fs.writeFileSync(destPath, buf);
-                return true;
-            }
-        } catch (e) {
-            console.warn(`Aviso OpenAI TTS: ${e.message}, utilizando fallback Edge-TTS...`);
-        }
-    }
-
-    // 3. Microsoft Edge Neural TTS com SSML Pro (Gratuito, Ilimitado, Broadcast 48kHz)
-    const edgeVoices = {
-        'pt': { female: 'pt-BR-FranciscaNeural', male: 'pt-BR-AntonioNeural' },
-        'en': { female: 'en-US-JennyNeural', male: 'en-US-BrianMultilingualNeural' },
-        'es': { female: 'es-ES-ElviraNeural', male: 'es-ES-AlvaroNeural' }
     };
 
-    const chosenVoice = (edgeVoices[lang] && edgeVoices[lang][gender]) || (gender === 'male' ? 'pt-BR-AntonioNeural' : 'pt-BR-FranciscaNeural');
-
-    // Modulação nativa de velocidade no sintetizador para evitar efeito robótico
-    let rateArg = '+0%';
-    if (options.targetDuration && options.targetDuration > 0) {
-        const wordCount = text.split(/\s+/).filter(Boolean).length;
-        const naturalTime = wordCount / 2.3; // ~140 palavras/minuto
-        if (naturalTime > options.targetDuration * 1.15) {
-            rateArg = '+14%';
-        } else if (naturalTime > options.targetDuration * 1.05) {
-            rateArg = '+7%';
-        } else if (naturalTime < options.targetDuration * 0.75) {
-            rateArg = '-5%';
-        }
-    }
+    const langGroup = voiceCatalog[lang] || voiceCatalog['pt'];
+    const chosenVoice = langGroup[voiceProfile] || langGroup['male'] || 'pt-BR-AntonioNeural';
 
     const textTmpPath = destPath + '.txt';
     try {
@@ -290,7 +241,6 @@ async function synthesizeTtsAudio(text, lang, gender = 'female', destPath, optio
         await runCommand('python', [
             '-m', 'edge_tts',
             '--voice', chosenVoice,
-            '--rate', rateArg,
             '-f', textTmpPath,
             '--write-media', destPath
         ]);
@@ -302,7 +252,7 @@ async function synthesizeTtsAudio(text, lang, gender = 'female', destPath, optio
         if (fs.existsSync(textTmpPath)) try { fs.unlinkSync(textTmpPath); } catch (_) {}
     }
 
-    // 4. Fallback: Google Translate TTS
+    // Fallback: Google Translate TTS
     try {
         const gUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=${lang}&client=tw-ob&q=${encodeURIComponent(text.substring(0, 200))}`;
         const gBuf = await fetchBuffer(gUrl);
@@ -716,23 +666,18 @@ async function processJob(job) {
                 }
 
                 const rawTtsFile = path.join(langDir, `raw_tts_${i}.mp3`);
-                const synthesized = await synthesizeTtsAudio(text, lang, job.voiceGender, rawTtsFile, {
-                    voiceEngine: job.voiceEngine,
-                    elevenlabsApiKey: job.elevenlabsApiKey,
-                    openaiApiKey: job.openaiApiKey,
-                    targetDuration: seg.duration
-                });
+                const synthesized = await synthesizeTtsAudio(text, lang, job.voiceProfile || job.voiceGender, rawTtsFile);
 
                 if (!synthesized || !fs.existsSync(rawTtsFile)) {
                     // Fallback silence if TTS failed
                     const silenceFile = path.join(langDir, `empty_${i}.mp3`);
-                    await runCommand(`"${FFMPEG_BIN}"`, [
+                    await runCommand(FFMPEG_BIN, [
                         '-y',
                         '-f', 'lavfi',
                         '-i', `anullsrc=r=44100:cl=stereo`,
                         '-t', seg.duration.toFixed(3),
                         '-b:a', '192k',
-                        `"${silenceFile}"`
+                        silenceFile
                     ]);
                     concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
                     lastEnd = seg.end;
@@ -745,16 +690,16 @@ async function processJob(job) {
 
                 const fittedTtsFile = path.join(langDir, `fitted_tts_${i}.mp3`);
 
-                if (rawDuration > 0 && targetDuration > 0) {
-                    let speedRatio = rawDuration / targetDuration;
-                    speedRatio = Math.max(0.65, Math.min(1.45, speedRatio));
-
-                    await runCommand(`"${FFMPEG_BIN}"`, [
+                // Preserva a voz 100% humana e natural sem distorção artificial de tempo!
+                // Só aplica aceleração muito sutil se a fala for mais longa que a janela (+15%)
+                if (rawDuration > targetDuration * 1.15 && targetDuration > 0) {
+                    let speedRatio = Math.min(1.15, rawDuration / targetDuration);
+                    await runCommand(FFMPEG_BIN, [
                         '-y',
-                        '-i', `"${rawTtsFile}"`,
+                        '-i', rawTtsFile,
                         '-filter:a', `atempo=${speedRatio.toFixed(3)}`,
                         '-b:a', '192k',
-                        `"${fittedTtsFile}"`
+                        fittedTtsFile
                     ]);
                 } else {
                     fs.copyFileSync(rawTtsFile, fittedTtsFile);
@@ -940,12 +885,8 @@ const server = http.createServer(async (req, res) => {
                     cookieData: payload.cookieData || '',
                     targetLanguages: payload.targetLanguages || ['pt', 'en', 'es'],
                     audioMode: payload.audioMode || 'dubbing', // 'dubbing' | 'voiceover'
-                    voiceGender: payload.voiceGender || 'female',
-                    voiceEngine: payload.voiceEngine || 'edge', // 'edge' | 'elevenlabs' | 'openai'
-                    transcribeEngine: payload.transcribeEngine || 'google', // 'google' | 'whisper' | 'gemini'
-                    elevenlabsApiKey: payload.elevenlabsApiKey || '',
-                    openaiApiKey: payload.openaiApiKey || '',
-                    geminiApiKey: payload.geminiApiKey || '',
+                    voiceProfile: payload.voiceProfile || payload.voiceGender || 'antonio',
+                    voiceGender: payload.voiceGender || 'male',
                     apiKey: payload.apiKey || '',
                     uploadedFilePath: payload.uploadedFilePath || '',
                     uploadedFileName: payload.uploadedFileName || 'video_local.mp4',

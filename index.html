@@ -1433,23 +1433,8 @@
 
       const audioModeEl = document.querySelector('input[name="avAudioMode"]:checked');
       const audioMode = audioModeEl ? audioModeEl.value : 'dubbing';
-      const voiceGenderEl = document.getElementById('avVoiceGender');
-      const voiceGender = voiceGenderEl ? voiceGenderEl.value : 'female';
-      const voiceEngineEl = document.getElementById('avVoiceEngine');
-      const voiceEngine = voiceEngineEl ? voiceEngineEl.value : 'edge';
-      const transcribeEngineEl = document.getElementById('avTranscribeEngine');
-      const transcribeEngine = transcribeEngineEl ? transcribeEngineEl.value : 'google';
-
-      const elevenlabsApiKey = (document.getElementById('avElevenLabsKey') ? document.getElementById('avElevenLabsKey').value.trim() : '') || localStorage.getItem('av_elevenlabs_key') || '';
-      const openaiApiKey = (document.getElementById('avOpenAiKey') ? document.getElementById('avOpenAiKey').value.trim() : '') || localStorage.getItem('av_openai_key') || '';
-
-      // Salva no localStorage para conveniência
-      if (document.getElementById('avElevenLabsKey') && document.getElementById('avElevenLabsKey').value.trim()) {
-        try { localStorage.setItem('av_elevenlabs_key', document.getElementById('avElevenLabsKey').value.trim()); } catch(e) {}
-      }
-      if (document.getElementById('avOpenAiKey') && document.getElementById('avOpenAiKey').value.trim()) {
-        try { localStorage.setItem('av_openai_key', document.getElementById('avOpenAiKey').value.trim()); } catch(e) {}
-      }
+      const voiceProfileEl = document.getElementById('avVoiceProfile');
+      const voiceProfile = voiceProfileEl ? voiceProfileEl.value : 'antonio';
 
       const targetLanguages = ['pt'];
       const langEn = document.getElementById('avLangEn');
@@ -1460,11 +1445,7 @@
       let payload = {
         sourceType: avCurrentTab,
         audioMode,
-        voiceGender,
-        voiceEngine,
-        transcribeEngine,
-        elevenlabsApiKey,
-        openaiApiKey,
+        voiceProfile,
         targetLanguages
       };
 
@@ -1902,59 +1883,39 @@
                       </div>
                     </div>
 
-                    <!-- PERFIL DE VOZ & MOTORES DE IA -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                      <div>
-                        <label for="avVoiceGender" style="display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMuted}; margin-bottom: 8px;">
-                          Perfil de Voz:
-                        </label>
-                        <select id="avVoiceGender" style="width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-size: 13px; font-weight: 700; outline: none;">
-                          <option value="male" selected>Masculina (Narrador / Médico)</option>
-                          <option value="female">Feminina (Narradora / Estúdio)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label for="avVoiceEngine" style="display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMuted}; margin-bottom: 8px;">
-                          Motor de Locução:
-                        </label>
-                        <select id="avVoiceEngine" style="width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-size: 13px; font-weight: 700; outline: none;">
-                          <option value="edge" selected>Microsoft Neural SSML (Gratuito / 48kHz)</option>
-                          <option value="elevenlabs">ElevenLabs (Hiper-Humano c/ Respiração)</option>
-                          <option value="openai">OpenAI TTS-HD (Estúdio Narrador)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <!-- MOTOR DE TRANSCRIÇÃO (STT) -->
+                    <!-- VOZES HUMANIZADAS (PADRÃO SIMULTANEOUS TRANSLATION - 100% GRATUITO) -->
                     <div>
-                      <label for="avTranscribeEngine" style="display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMuted}; margin-bottom: 8px;">
-                        Motor de Transcrição (Speech-to-Text):
+                      <label for="avVoiceProfile" style="display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMuted}; margin-bottom: 8px;">
+                        Voz de Locução Humanizada (Padrão Simultaneous Translation):
                       </label>
-                      <select id="avTranscribeEngine" style="width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-size: 13px; font-weight: 700; outline: none;">
-                        <option value="google" selected>Neural Pro (Google Speech Pro - Gratuito)</option>
-                        <option value="whisper">OpenAI Whisper (Precisão Máxima em Siglas & Termos Médicos)</option>
+                      <select id="avVoiceProfile" style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1.5px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-size: 14px; font-weight: 700; outline: none; cursor: pointer;">
+                        <optgroup label="🇧🇷 Português (Brasil) - Vozes Humanas">
+                          <option value="antonio" selected>Antonio — Voz Médica / Formal / Confiante (Masculina)</option>
+                          <option value="francisca">Francisca — Estúdio / Notícias / Clara (Feminina)</option>
+                          <option value="thalita">Thalita — Expressiva / Conversacional / Natural (Feminina)</option>
+                        </optgroup>
+                        <optgroup label="🇺🇸 Inglês (Internacional) - Vozes Humanas">
+                          <option value="brian">Brian — Narrador Profundo / Médico (Masculina)</option>
+                          <option value="andrew">Andrew — Expressivo / Palestrante (Masculina)</option>
+                          <option value="ava">Ava — Calorosa / Humanizada (Feminina)</option>
+                          <option value="jenny">Jenny — Estúdio Broadcast (Feminina)</option>
+                          <option value="guy">Guy — Corporativo / Confiante (Masculina)</option>
+                        </optgroup>
+                        <optgroup label="🇪🇸 Espanhol - Vozes Humanas">
+                          <option value="alvaro">Alvaro — Médico / Confiante / Natural (Masculina)</option>
+                          <option value="elvira">Elvira — Estúdio / Clara (Feminina)</option>
+                          <option value="jorge">Jorge — Latino / Amigável (Masculina)</option>
+                          <option value="dalia">Dalia — Latina / Expressiva (Feminina)</option>
+                        </optgroup>
+                        <optgroup label="🇵🇹 Português (Portugal) - Vozes Humanas">
+                          <option value="duarte">Duarte — Europeu (Masculina)</option>
+                          <option value="raquel">Raquel — Europeu (Feminina)</option>
+                        </optgroup>
                       </select>
+                      <p style="font-size: 11px; color: ${textMuted}; margin: 6px 0 0 0;">
+                        ✓ Vozes neurais puras em 48kHz idênticas ao Simultaneous Translation, sem corte mecânico de tempo.
+                      </p>
                     </div>
-
-                    <!-- CHAVES DE API OPCIONAIS PARA ELEVENLABS / OPENAI -->
-                    <details style="background: ${isWhiteTheme ? '#f8fafc' : '#1e293b'}; border: 1px solid ${cardBorder}; border-radius: 14px; overflow: hidden;">
-                      <summary style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: ${textMuted}; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
-                        <span>🔑 Chaves de API das IAs (Opcional para ElevenLabs / OpenAI)</span>
-                        <span style="font-size: 10px;">▼</span>
-                      </summary>
-                      <div style="padding: 16px; border-top: 1px solid ${cardBorder}; display: flex; flex-direction: column; gap: 12px;">
-                        <div>
-                          <label for="avElevenLabsKey" style="display: block; font-size: 11px; font-weight: 700; color: ${textMuted}; margin-bottom: 4px;">ElevenLabs API Key (Para vozes ultra-humanas):</label>
-                          <input type="password" id="avElevenLabsKey" value="${localStorage.getItem('av_elevenlabs_key') || ''}" placeholder="xi-..." style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-family: monospace; font-size: 12px; outline: none;">
-                        </div>
-                        <div>
-                          <label for="avOpenAiKey" style="display: block; font-size: 11px; font-weight: 700; color: ${textMuted}; margin-bottom: 4px;">OpenAI API Key (Para Whisper STT e TTS-HD):</label>
-                          <input type="password" id="avOpenAiKey" value="${localStorage.getItem('av_openai_key') || ''}" placeholder="sk-..." style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-family: monospace; font-size: 12px; outline: none;">
-                        </div>
-                        <p style="font-size: 11px; color: #10b981; margin: 0; font-weight: 600;">✓ Chaves salvas localmente no seu navegador com segurança.</p>
-                      </div>
-                    </details>
-                    <p style="font-size: 11px; color: ${textMuted}; margin: 2px 0 0 0;">O motor calcula a cadência nativa por segmento e o FFmpeg atempo preserva a sincronia exata da aula.</p>
 
                     <!-- BOTÃO PRINCIPAL DE EXECUÇÃO -->
                     <div style="margin-top: 8px;">
