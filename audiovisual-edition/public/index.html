@@ -201,7 +201,17 @@
               <input type="text" id="playlistUrlInput" placeholder="https://www.youtube.com/playlist?list=... ou https://vimeo.com/showcase/..." autocomplete="off">
               <button type="button" class="btn-secondary" onclick="pastePlaylistUrl()">Colar</button>
             </div>
-            <span class="input-hint">O sistema irá analisar a pasta e puxar a lista de todos os vídeos instantaneamente.</span>
+            <details class="advanced-accordion">
+              <summary>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                Cookies Netscape (Opcional - para pastas ou vídeos sob login)
+              </summary>
+              <div class="accordion-content">
+                <textarea id="playlistCookieInput" rows="3" placeholder="# Netscape HTTP Cookie File..."></textarea>
+              </div>
+            </details>
+
+            <span class="input-hint mt-2">O sistema irá analisar a pasta e puxar a lista de todos os vídeos instantaneamente.</span>
           </div>
 
           <button type="button" id="extractPlaylistBtn" class="btn-extract" onclick="extractPlaylistVideos()">

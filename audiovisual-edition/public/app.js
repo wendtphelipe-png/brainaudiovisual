@@ -597,7 +597,7 @@ async function extractPlaylistVideos() {
     appendLog(`Extraindo vídeos da playlist: ${url}...`);
 
     try {
-        const cookieData = document.getElementById('batchCookieInput').value.trim();
+        const cookieData = (document.getElementById('playlistCookieInput') ? document.getElementById('playlistCookieInput').value.trim() : '') || (document.getElementById('batchCookieInput') ? document.getElementById('batchCookieInput').value.trim() : '');
         const res = await fetch('/api/extract-playlist', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -659,6 +659,7 @@ async function addSelectedExtractedToQueue() {
         return;
     }
 
+    const cookieData = (document.getElementById('playlistCookieInput') ? document.getElementById('playlistCookieInput').value.trim() : '') || (document.getElementById('batchCookieInput') ? document.getElementById('batchCookieInput').value.trim() : '');
     const itemsToAdd = [];
     cbs.forEach(cb => {
         const idx = parseInt(cb.getAttribute('data-index'), 10);
@@ -666,7 +667,8 @@ async function addSelectedExtractedToQueue() {
         if (video) {
             itemsToAdd.push({
                 url: video.url,
-                title: video.title
+                title: video.title,
+                cookieData: cookieData
             });
         }
     });

@@ -881,25 +881,26 @@ async function processJob(job) {
                 const concatListFile = path.join(langDir, 'concat_list.txt');
                 const concatEntries = [];
 
-                let lastEnd = 0.0;
+                let currentTrackPos = 0.0;
 
                 for (let i = 0; i < segments.length; i++) {
                     const seg = segments[i];
                     const text = seg.translations[lang] || seg.text;
 
-                    // 1. Preenchimento de silêncio anterior
-                    const silenceGap = seg.start - lastEnd;
-                    if (silenceGap > 0.08) {
+                    // 1. Preenchimento de silêncio exato para que este segmento inicie precisamente em seg.start
+                    const neededSilence = seg.start - currentTrackPos;
+                    if (neededSilence > 0.03) {
                         const silenceFile = path.join(langDir, `silence_${i}.mp3`);
                         await runCommand(`"${FFMPEG_BIN}"`, [
                             '-y',
                             '-f', 'lavfi',
                             '-i', `anullsrc=r=44100:cl=stereo`,
-                            '-t', silenceGap.toFixed(3),
+                            '-t', neededSilence.toFixed(3),
                             '-b:a', '192k',
                             `"${silenceFile}"`
                         ]);
                         concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
+                        currentTrackPos += neededSilence;
                     }
 
                     // 2. Síntese de voz TTS
@@ -914,7 +915,7 @@ async function processJob(job) {
                             `"${silenceFile}"`
                         ]);
                         concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
-                        lastEnd = seg.end;
+                        currentTrackPos += seg.duration;
                         continue;
                     }
 
@@ -932,7 +933,7 @@ async function processJob(job) {
                             silenceFile
                         ]);
                         concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
-                        lastEnd = seg.end;
+                        currentTrackPos += seg.duration;
                         continue;
                     }
 
@@ -940,8 +941,9 @@ async function processJob(job) {
                     const targetDuration = seg.duration;
                     const fittedTtsFile = path.join(langDir, `fitted_tts_${i}.mp3`);
 
-                    if (rawDuration > targetDuration * 1.15 && targetDuration > 0) {
-                        let speedRatio = Math.min(1.15, rawDuration / targetDuration);
+                    // Ajuste inteligente de tempo para coincidir com a janela de fala e a legenda
+                    if (targetDuration > 0.4 && rawDuration > targetDuration) {
+                        const speedRatio = Math.min(1.40, Math.max(0.85, rawDuration / targetDuration));
                         await runCommand(FFMPEG_BIN, [
                             '-y',
                             '-i', rawTtsFile,
@@ -953,22 +955,27 @@ async function processJob(job) {
                         fs.copyFileSync(rawTtsFile, fittedTtsFile);
                     }
 
+                    // Registra a duração real inserida no concat para que o próximo silêncio seja perfeito
+                    const actualSnippetDuration = await getAudioDuration(fittedTtsFile);
                     concatEntries.push(`file '${fittedTtsFile.replace(/\\/g, '/')}'`);
-                    lastEnd = seg.end;
+                    currentTrackPos += actualSnippetDuration;
                 }
 
-                if (job.duration > lastEnd) {
-                    const tailSilence = job.duration - lastEnd;
-                    const tailFile = path.join(langDir, `tail_silence.mp3`);
-                    await runCommand(`"${FFMPEG_BIN}"`, [
-                        '-y',
-                        '-f', 'lavfi',
-                        '-i', `anullsrc=r=44100:cl=stereo`,
-                        '-t', tailSilence.toFixed(3),
-                        '-b:a', '192k',
-                        `"${tailFile}"`
-                    ]);
-                    concatEntries.push(`file '${tailFile.replace(/\\/g, '/')}'`);
+                if (job.duration > currentTrackPos) {
+                    const tailSilence = job.duration - currentTrackPos;
+                    if (tailSilence > 0.05) {
+                        const tailFile = path.join(langDir, `tail_silence.mp3`);
+                        await runCommand(`"${FFMPEG_BIN}"`, [
+                            '-y',
+                            '-f', 'lavfi',
+                            '-i', `anullsrc=r=44100:cl=stereo`,
+                            '-t', tailSilence.toFixed(3),
+                            '-b:a', '192k',
+                            `"${tailFile}"`
+                        ]);
+                        concatEntries.push(`file '${tailFile.replace(/\\/g, '/')}'`);
+                        currentTrackPos += tailSilence;
+                    }
                 }
 
                 fs.writeFileSync(concatListFile, concatEntries.join('\n'), 'utf8');
