@@ -178,11 +178,14 @@ function postJsonBuffer(targetUrl, jsonString, headers = {}) {
 /**
  * Fast Google Translate API wrapper for segment translation
  */
-async function translateText(text, targetLang) {
+async function translateText(text, targetLang, sourceLang = 'auto') {
     if (!text || !text.trim()) return '';
     try {
         const q = encodeURIComponent(text);
-        const apiUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${q}`;
+        const sl = sourceLang ? sourceLang.split('-')[0].toLowerCase() : 'auto';
+        const tl = targetLang ? targetLang.split('-')[0].toLowerCase() : 'en';
+        if (sl === tl) return text;
+        const apiUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${q}`;
         const buffer = await fetchBuffer(apiUrl);
         const data = JSON.parse(buffer.toString('utf8'));
         if (data && data[0]) {
@@ -190,50 +193,70 @@ async function translateText(text, targetLang) {
         }
         return text;
     } catch (err) {
-        console.warn(`Translation error for [${targetLang}]: ${err.message}`);
+        console.warn(`Translation error for [${sourceLang} -> ${targetLang}]: ${err.message}`);
         return text;
     }
 }
 
 /**
  * Studio Neural TTS synthesizer - 100% Gratuito & Ilimitado
- * Padrão de vozes humanizadas de alta fidelidade idêntico ao Simultaneous Translation
+ * Padrão de vozes humanizadas com consistência absoluta de gênero entre todos os idiomas
  */
-async function synthesizeTtsAudio(text, lang, voiceProfile = 'antonio', destPath) {
+async function synthesizeTtsAudio(text, lang, voiceProfile = 'female_studio', destPath) {
     if (!text || !text.trim()) return false;
 
-    // Catálogo Humanizado do Simultaneous Translation por idioma
-    const voiceCatalog = {
-        'pt': {
-            'antonio': 'pt-BR-AntonioNeural',             // Médico / Confiante / Formal
-            'francisca': 'pt-BR-FranciscaNeural',         // Estúdio / Clara / Notícias
-            'thalita': 'pt-BR-ThalitaMultilingualNeural', // Expressiva / Natural / Conversacional
-            'duarte': 'pt-PT-DuarteNeural',               // Português Europeu Masculino
-            'raquel': 'pt-PT-RaquelNeural',               // Português Europeu Feminino
-            'male': 'pt-BR-AntonioNeural',
-            'female': 'pt-BR-FranciscaNeural'
+    const l = (lang || 'pt').toLowerCase().split('-')[0];
+
+    // Perfis universais de voz que garantem consistência de gênero em todos os idiomas
+    const voiceProfiles = {
+        'female_studio': {
+            'pt': 'pt-BR-FranciscaNeural', // Estúdio / Notícias / Máxima clareza fonética
+            'en': 'en-US-AvaMultilingualNeural', // Calorosa / Natural
+            'es': 'es-ES-ElviraNeural', // Estúdio / Clara
+            'pt-pt': 'pt-PT-RaquelNeural'
         },
-        'en': {
-            'brian': 'en-US-BrianMultilingualNeural',     // Narrador Profundo / Médico
-            'andrew': 'en-US-AndrewMultilingualNeural',   // Expressivo / Palestrante
-            'ava': 'en-US-AvaMultilingualNeural',         // Calorosa / Humanizada
-            'jenny': 'en-US-JennyNeural',                 // Broadcast Estúdio
-            'guy': 'en-US-GuyNeural',                     // Confiante / Corporativo
-            'male': 'en-US-BrianMultilingualNeural',
-            'female': 'en-US-AvaMultilingualNeural'
+        'female_expressive': {
+            'pt': 'pt-BR-ThalitaMultilingualNeural', // Expressiva / Conversacional
+            'en': 'en-US-JennyNeural', // Estúdio Broadcast
+            'es': 'es-MX-DaliaNeural', // Expressiva Latina
+            'pt-pt': 'pt-PT-RaquelNeural'
         },
-        'es': {
-            'alvaro': 'es-ES-AlvaroNeural',               // Médico / Confiante / Natural
-            'elvira': 'es-ES-ElviraNeural',               // Estúdio / Notícias / Clara
-            'jorge': 'es-MX-JorgeNeural',                 // Espanhol Latino Masculino
-            'dalia': 'es-MX-DaliaNeural',                 // Espanhol Latino Feminino
-            'male': 'es-ES-AlvaroNeural',
-            'female': 'es-ES-ElviraNeural'
+        'male_medical': {
+            'pt': 'pt-BR-AntonioNeural', // Médico / Confiante / Formal
+            'en': 'en-US-BrianMultilingualNeural', // Profundo / Médico / Narrador
+            'es': 'es-ES-AlvaroNeural', // Confiante / Médico
+            'pt-pt': 'pt-PT-DuarteNeural'
+        },
+        'male_speaker': {
+            'pt': 'pt-BR-AntonioNeural', // Médico / Palestrante
+            'en': 'en-US-AndrewMultilingualNeural', // Palestrante / Expressivo
+            'es': 'es-MX-JorgeNeural', // Latino Amigável
+            'pt-pt': 'pt-PT-DuarteNeural'
         }
     };
 
-    const langGroup = voiceCatalog[lang] || voiceCatalog['pt'];
-    const chosenVoice = langGroup[voiceProfile] || langGroup['male'] || 'pt-BR-AntonioNeural';
+    const vp = (voiceProfile || 'female_studio').toLowerCase();
+    let chosenVoice = null;
+
+    if (voiceProfiles[vp] && voiceProfiles[vp][l]) {
+        chosenVoice = voiceProfiles[vp][l];
+    } else {
+        // Mapeamento por gênero derivado caso venha o nome direto de uma voz
+        const isFemale = vp.includes('female') || vp.includes('francisca') || vp.includes('thalita') || 
+                         vp.includes('ava') || vp.includes('elvira') || vp.includes('jenny') || vp.includes('dalia');
+        if (isFemale) {
+            if (l === 'pt') chosenVoice = vp.includes('thalita') ? 'pt-BR-ThalitaMultilingualNeural' : 'pt-BR-FranciscaNeural';
+            else if (l === 'en') chosenVoice = 'en-US-AvaMultilingualNeural';
+            else if (l === 'es') chosenVoice = 'es-ES-ElviraNeural';
+            else chosenVoice = 'pt-BR-FranciscaNeural';
+        } else {
+            // Masculino padrão
+            if (l === 'pt') chosenVoice = 'pt-BR-AntonioNeural';
+            else if (l === 'en') chosenVoice = vp.includes('andrew') ? 'en-US-AndrewMultilingualNeural' : 'en-US-BrianMultilingualNeural';
+            else if (l === 'es') chosenVoice = vp.includes('jorge') ? 'es-MX-JorgeNeural' : 'es-ES-AlvaroNeural';
+            else chosenVoice = 'pt-BR-AntonioNeural';
+        }
+    }
 
     const textTmpPath = destPath + '.txt';
     try {
@@ -541,14 +564,16 @@ async function processJob(job) {
         addJobLog(job, `Transcrição concluída com sucesso: ${validSpeechCount} de ${segments.length} blocos com fala ativa.`);
 
         // ==========================================
-        // ETAPA 4: TRADUÇÃO CONTEXTUAL (PT, EN, ES)
+        // ETAPA 4: TRADUÇÃO CONTEXTUAL MULTILÍNGUE
         // ==========================================
         job.step = 4;
         job.percent = 55;
-        job.statusText = 'Tradução multilíngue contextual (PT, EN, ES)...';
-        addJobLog(job, 'Traduzindo sentenças para Português, Inglês e Espanhol...');
-
+        job.statusText = 'Tradução multilíngue contextual...';
         const targetLangs = job.targetLanguages || ['pt', 'en', 'es'];
+        addJobLog(job, `Traduzindo sentenças para os idiomas selecionados [${targetLangs.map(l => l.toUpperCase()).join(', ')}]...`);
+
+        const sourceLangRaw = job.sourceLanguage || 'pt-BR';
+        const sourceBase = sourceLangRaw.split('-')[0].toLowerCase();
 
         for (let i = 0; i < segments.length; i++) {
             const seg = segments[i];
@@ -560,12 +585,10 @@ async function processJob(job) {
             }
 
             for (const lang of targetLangs) {
-                if (lang === 'pt') {
-                    seg.translations.pt = seg.text;
-                } else if (lang === 'en') {
-                    seg.translations.en = await translateText(seg.text, 'en');
-                } else if (lang === 'es') {
-                    seg.translations.es = await translateText(seg.text, 'es');
+                if (lang === sourceBase) {
+                    seg.translations[lang] = seg.text;
+                } else {
+                    seg.translations[lang] = await translateText(seg.text, lang, sourceBase);
                 }
             }
         }
@@ -883,10 +906,11 @@ const server = http.createServer(async (req, res) => {
                     sourceType: payload.sourceType || 'url',
                     url: payload.url || '',
                     cookieData: payload.cookieData || '',
-                    targetLanguages: payload.targetLanguages || ['pt', 'en', 'es'],
+                    sourceLanguage: payload.sourceLanguage || 'pt-BR',
+                    targetLanguages: (Array.isArray(payload.targetLanguages) && payload.targetLanguages.length > 0) ? payload.targetLanguages : ['en', 'es'],
                     audioMode: payload.audioMode || 'dubbing', // 'dubbing' | 'voiceover'
-                    voiceProfile: payload.voiceProfile || payload.voiceGender || 'antonio',
-                    voiceGender: payload.voiceGender || 'male',
+                    voiceProfile: payload.voiceProfile || 'female_studio',
+                    voiceGender: payload.voiceGender || 'female',
                     apiKey: payload.apiKey || '',
                     uploadedFilePath: payload.uploadedFilePath || '',
                     uploadedFileName: payload.uploadedFileName || 'video_local.mp4',

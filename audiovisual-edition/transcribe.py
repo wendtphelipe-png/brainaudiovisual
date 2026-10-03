@@ -80,6 +80,33 @@ def transcribe_segments(manifest_path, default_lang='pt-BR'):
     r.energy_threshold = 280
     r.dynamic_energy_threshold = True
 
+    # Auto-detection if language is 'auto'
+    if language == 'auto':
+        detected_lang = 'pt-BR'
+        for item in segment_files[:4]:
+            w_path = item['path']
+            if not os.path.exists(w_path):
+                continue
+            try:
+                with sr.AudioFile(w_path) as source:
+                    r.adjust_for_ambient_noise(source, duration=0.10)
+                    audio = r.record(source)
+                    # Test common languages
+                    for test_l in ['pt-BR', 'en-US', 'es-ES']:
+                        try:
+                            sample_text = r.recognize_google(audio, language=test_l)
+                            if sample_text and len(sample_text.strip()) > 4:
+                                detected_lang = test_l
+                                break
+                        except Exception:
+                            pass
+                    if detected_lang != 'pt-BR':
+                        break
+            except Exception:
+                pass
+        language = detected_lang
+        sys.stderr.write(f'Auto-detected spoken audio language: {language}\n')
+
     results = {}
 
     for item in segment_files:

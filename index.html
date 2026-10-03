@@ -1232,7 +1232,7 @@
                 <div class="space-y-2">
                   <button 
                     type="button" 
-                    onclick="window.navigateToAdminModule('audiovisual')" 
+                    onclick="window.openAudioVisualStudio()" 
                     class="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-md shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span>Acessar AudioVisual Edition</span>
@@ -1421,6 +1421,17 @@
       renderAudioVisualEditionPage();
     };
 
+    window.openAudioVisualStudio = function() {
+      if (window.location.protocol === 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        const choice = confirm("🎬 BRAIN AUDIOVISUAL WORKSTATION\n\nO processamento pesado (FFmpeg 7.1, yt-dlp e síntese neural 48kHz) roda localmente no seu computador para garantir máxima velocidade e zero custos de servidor.\n\nDeseja abrir a Workstation Local diretamente no seu computador?\n(http://127.0.0.1:8765/admin?module=audiovisual)\n\n• Clique em [OK] para abrir na sua máquina local.\n• Clique em [Cancelar] para visualizar aqui no navegador.");
+        if (choice) {
+          window.open('http://127.0.0.1:8765/admin?module=audiovisual', '_blank');
+          return;
+        }
+      }
+      window.navigateToAdminModule('audiovisual');
+    };
+
     window.avStartProcessing = async function() {
       const apiBase = window.getAvApiBase();
       const startBtn = document.getElementById('avStartBtn');
@@ -1434,16 +1445,22 @@
       const audioModeEl = document.querySelector('input[name="avAudioMode"]:checked');
       const audioMode = audioModeEl ? audioModeEl.value : 'dubbing';
       const voiceProfileEl = document.getElementById('avVoiceProfile');
-      const voiceProfile = voiceProfileEl ? voiceProfileEl.value : 'antonio';
+      const voiceProfile = voiceProfileEl ? voiceProfileEl.value : 'female_studio';
+      const sourceLanguageEl = document.getElementById('avSourceLanguage');
+      const sourceLanguage = sourceLanguageEl ? sourceLanguageEl.value : 'pt-BR';
 
-      const targetLanguages = ['pt'];
+      const targetLanguages = [];
+      const langPt = document.getElementById('avLangPt');
       const langEn = document.getElementById('avLangEn');
       const langEs = document.getElementById('avLangEs');
+      if (langPt && langPt.checked) targetLanguages.push('pt');
       if (langEn && langEn.checked) targetLanguages.push('en');
       if (langEs && langEs.checked) targetLanguages.push('es');
+      if (targetLanguages.length === 0) targetLanguages.push('en', 'es');
 
       let payload = {
         sourceType: avCurrentTab,
+        sourceLanguage,
         audioMode,
         voiceProfile,
         targetLanguages
@@ -1839,14 +1856,33 @@
 
                   <div style="display: flex; flex-direction: column; gap: 18px;">
                     
+                    <!-- IDIOMA ORIGINAL DO VÍDEO -->
+                    <div>
+                      <label for="avSourceLanguage" style="display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMuted}; margin-bottom: 8px;">
+                        Idioma Original do Áudio / Palestra:
+                      </label>
+                      <select id="avSourceLanguage" style="width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-size: 13px; font-weight: 700; outline: none; cursor: pointer;">
+                        <option value="pt-BR" selected>🇧🇷 Português (Brasil) — Palestrante em Português</option>
+                        <option value="en-US">🇺🇸 Inglês (EUA / Global) — Speaker in English</option>
+                        <option value="es-ES">🇪🇸 Espanhol — Ponente en Español</option>
+                        <option value="fr-FR">🇫🇷 Francês — Orateur en Français</option>
+                        <option value="de-DE">🇩🇪 Alemão — Sprecher auf Deutsch</option>
+                        <option value="it-IT">🇮🇹 Italiano — Relatore in Italiano</option>
+                        <option value="auto">🌐 Detectar Automaticamente pelo Áudio</option>
+                      </select>
+                      <p style="font-size: 11px; color: ${textMuted}; margin: 6px 0 0 0;">
+                        Garante que a IA utilize o modelo acústico correto para transcrever termos técnicos e siglas sem perdas.
+                      </p>
+                    </div>
+
                     <!-- IDIOMAS GERADOS -->
                     <div>
                       <label style="display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMuted}; margin-bottom: 8px;">
                         Idiomas Gerados no Pacote ZIP:
                       </label>
                       <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                        <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1.5px solid #6366f1; background: rgba(99, 102, 241, 0.08); font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
-                          <input type="checkbox" id="avLangPt" checked disabled style="accent-color: #4f46e5;">
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
+                          <input type="checkbox" id="avLangPt" checked style="accent-color: #4f46e5;">
                           <span>🇧🇷 Português (PT)</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
@@ -1858,6 +1894,9 @@
                           <span>🇪🇸 Espanhol (ES)</span>
                         </label>
                       </div>
+                      <p style="font-size: 11px; color: ${textMuted}; margin: 6px 0 0 0;">
+                        Dica: Se a aula já for em Português, você pode desmarcar o PT para gerar apenas a dublagem em EN e ES.
+                      </p>
                     </div>
 
                     <!-- ESTILO DE ÁUDIO -->
@@ -1883,37 +1922,23 @@
                       </div>
                     </div>
 
-                    <!-- VOZES HUMANIZADAS (PADRÃO SIMULTANEOUS TRANSLATION - 100% GRATUITO) -->
+                    <!-- VOZES HUMANIZADAS (PADRÃO SIMULTANEOUS TRANSLATION - GÊNERO CONSISTENTE EM TODOS OS IDIOMAS) -->
                     <div>
                       <label for="avVoiceProfile" style="display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMuted}; margin-bottom: 8px;">
-                        Voz de Locução Humanizada (Padrão Simultaneous Translation):
+                        Perfil de Voz da Locução (Aplicado Uniformemente a Todos os Idiomas):
                       </label>
-                      <select id="avVoiceProfile" style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1.5px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-size: 14px; font-weight: 700; outline: none; cursor: pointer;">
-                        <optgroup label="🇧🇷 Português (Brasil) - Vozes Humanas">
-                          <option value="antonio" selected>Antonio — Voz Médica / Formal / Confiante (Masculina)</option>
-                          <option value="francisca">Francisca — Estúdio / Notícias / Clara (Feminina)</option>
-                          <option value="thalita">Thalita — Expressiva / Conversacional / Natural (Feminina)</option>
+                      <select id="avVoiceProfile" style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1.5px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-size: 13.5px; font-weight: 700; outline: none; cursor: pointer;">
+                        <optgroup label="👩 Vozes Femininas (Gênero Feminino Garantido em Todos os Idiomas)">
+                          <option value="female_studio" selected>👩 Feminina Estúdio / Notícias — Clara & Impecável (Francisca PT • Ava EN • Elvira ES)</option>
+                          <option value="female_expressive">👩 Feminina Expressiva — Conversacional & Natural (Thalita PT • Jenny EN • Dalia ES)</option>
                         </optgroup>
-                        <optgroup label="🇺🇸 Inglês (Internacional) - Vozes Humanas">
-                          <option value="brian">Brian — Narrador Profundo / Médico (Masculina)</option>
-                          <option value="andrew">Andrew — Expressivo / Palestrante (Masculina)</option>
-                          <option value="ava">Ava — Calorosa / Humanizada (Feminina)</option>
-                          <option value="jenny">Jenny — Estúdio Broadcast (Feminina)</option>
-                          <option value="guy">Guy — Corporativo / Confiante (Masculina)</option>
-                        </optgroup>
-                        <optgroup label="🇪🇸 Espanhol - Vozes Humanas">
-                          <option value="alvaro">Alvaro — Médico / Confiante / Natural (Masculina)</option>
-                          <option value="elvira">Elvira — Estúdio / Clara (Feminina)</option>
-                          <option value="jorge">Jorge — Latino / Amigável (Masculina)</option>
-                          <option value="dalia">Dalia — Latina / Expressiva (Feminina)</option>
-                        </optgroup>
-                        <optgroup label="🇵🇹 Português (Portugal) - Vozes Humanas">
-                          <option value="duarte">Duarte — Europeu (Masculina)</option>
-                          <option value="raquel">Raquel — Europeu (Feminina)</option>
+                        <optgroup label="👨 Vozes Masculinas (Gênero Masculino Garantido em Todos os Idiomas)">
+                          <option value="male_medical">👨 Masculina Médica / Formal — Confiante & Profunda (Antonio PT • Brian EN • Alvaro ES)</option>
+                          <option value="male_speaker">👨 Masculina Palestrante — Expressiva & Dinâmica (Antonio PT • Andrew EN • Jorge ES)</option>
                         </optgroup>
                       </select>
                       <p style="font-size: 11px; color: ${textMuted}; margin: 6px 0 0 0;">
-                        ✓ Vozes neurais puras em 48kHz idênticas ao Simultaneous Translation, sem corte mecânico de tempo.
+                        ✓ Ao escolher voz feminina ou masculina, todos os idiomas gerados respeitarão rigorosamente esse mesmo padrão humano em 48kHz.
                       </p>
                     </div>
 
