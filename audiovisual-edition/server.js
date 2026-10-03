@@ -75,9 +75,11 @@ function broadcastJobUpdate(job) {
 /**
  * Execute command promise
  */
-function runCommand(command, args, options = {}) {
+function runCommand(command, args = [], options = {}) {
     return new Promise((resolve, reject) => {
-        const proc = spawn(command, args, { shell: true, ...options });
+        const cleanCmd = typeof command === 'string' ? command.replace(/^"|"$/g, '') : command;
+        const cleanArgs = (args || []).map(a => typeof a === 'string' ? a.replace(/^"|"$/g, '') : a);
+        const proc = spawn(cleanCmd, cleanArgs, { shell: false, ...options });
         let stdout = '';
         let stderr = '';
 
@@ -86,7 +88,7 @@ function runCommand(command, args, options = {}) {
 
         proc.on('close', code => {
             if (code === 0) resolve({ stdout, stderr });
-            else reject(new Error(`Command exited with code ${code}: ${stderr || stdout}`));
+            else reject(new Error(`Command ${cleanCmd} exited with code ${code}: ${stderr || stdout}`));
         });
 
         proc.on('error', err => reject(err));
@@ -157,56 +159,40 @@ async function translateText(text, targetLang) {
 }
 
 /**
- * Native TTS synthesizer (Polly/TTSMP3 proxy or Google TTS fallback)
+ * Studio Neural TTS synthesizer (Microsoft Edge Neural Voices + Google TTS fallback)
  */
 async function synthesizeTtsAudio(text, lang, gender = 'female', destPath) {
-    const speakers = {
-        'en': { male: 'Matthew', female: 'Joanna' },
-        'es': { male: 'Enrique', female: 'Conchita' },
-        'pt': { male: 'Ricardo', female: 'Camila' }
+    if (!text || !text.trim()) return false;
+
+    const edgeVoices = {
+        'pt': { female: 'pt-BR-FranciscaNeural', male: 'pt-BR-AntonioNeural' },
+        'en': { female: 'en-US-JennyNeural', male: 'en-US-GuyNeural' },
+        'es': { female: 'es-ES-ElviraNeural', male: 'es-ES-AlvaroNeural' }
     };
 
-    const chosenSpeaker = (speakers[lang] && speakers[lang][gender]) || (gender === 'male' ? 'Matthew' : 'Joanna');
+    const chosenVoice = (edgeVoices[lang] && edgeVoices[lang][gender]) || (gender === 'male' ? 'pt-BR-AntonioNeural' : 'pt-BR-FranciscaNeural');
 
-    // Strategy 1: TTSMP3 (Amazon Polly Native)
+    // Strategy 1: Microsoft Edge Neural TTS (Natural Studio Quality)
+    const textTmpPath = destPath + '.txt';
     try {
-        const postData = `msg=${encodeURIComponent(text)}&lang=${encodeURIComponent(chosenSpeaker)}&source=ttsmp3`;
-        const reqPromise = new Promise((resolve, reject) => {
-            const req = https.request({
-                hostname: 'ttsmp3.com',
-                path: '/makemp3_new.php',
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Content-Length': Buffer.byteLength(postData),
-                    'User-Agent': 'Mozilla/5.0'
-                }
-            }, res => {
-                let body = '';
-                res.on('data', d => body += d);
-                res.on('end', () => resolve(body));
-            });
-            req.on('error', reject);
-            req.write(postData);
-            req.end();
-        });
-
-        const respBody = await reqPromise;
-        const parsed = JSON.parse(respBody);
-        if (parsed && parsed.Error === 0 && parsed.URL) {
-            const audioBuf = await fetchBuffer(parsed.URL);
-            if (audioBuf.length > 500) {
-                fs.writeFileSync(destPath, audioBuf);
-                return true;
-            }
+        fs.writeFileSync(textTmpPath, text, 'utf8');
+        await runCommand('python', [
+            '-m', 'edge_tts',
+            '--voice', chosenVoice,
+            '-f', textTmpPath,
+            '--write-media', destPath
+        ]);
+        if (fs.existsSync(textTmpPath)) try { fs.unlinkSync(textTmpPath); } catch (_) {}
+        if (fs.existsSync(destPath) && fs.statSync(destPath).size > 400) {
+            return true;
         }
     } catch (e) {
-        // Fallback to Google Translate TTS
+        if (fs.existsSync(textTmpPath)) try { fs.unlinkSync(textTmpPath); } catch (_) {}
     }
 
     // Strategy 2: Google Translate TTS Fallback
     try {
-        const gUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=${lang}&client=tw-ob&q=${encodeURIComponent(text)}`;
+        const gUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=${lang}&client=tw-ob&q=${encodeURIComponent(text.substring(0, 200))}`;
         const gBuf = await fetchBuffer(gUrl);
         if (gBuf.length > 500) {
             fs.writeFileSync(destPath, gBuf);
@@ -396,20 +382,16 @@ async function processJob(job) {
         addJobLog(job, `Segmentação concluída: ${segments.length} trechos de fala identificados.`);
 
         // ==========================================
-        // ETAPA 3: TRANSCRIÇÃO COM TIMESTAMPS
+        // ETAPA 3: TRANSCRIÇÃO REAL COM TIMESTAMPS
         // ==========================================
         job.step = 3;
         job.percent = 40;
-        job.statusText = 'Transcrição dos trechos de fala...';
-        addJobLog(job, 'Transcrevendo áudio com precisão milimétrica...');
+        job.statusText = 'Extraindo áudios e transcrevendo fala com IA...';
+        addJobLog(job, `Extraindo ${segments.length} trechos de áudio para transcrição Speech-to-Text...`);
 
-        // If OpenAI key or Gemini key is configured
-        const userApiKey = job.apiKey || process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY;
-
-        // Base transcription per segment
+        // Extrai cada mini-segmento .wav (16kHz mono para STT)
         for (let i = 0; i < segments.length; i++) {
             const seg = segments[i];
-            // Extract mini segment audio for analysis if needed
             const segAudioPath = path.join(jobDir, `seg_${seg.id}.wav`);
             await runCommand(`"${FFMPEG_BIN}"`, [
                 '-y',
@@ -420,12 +402,46 @@ async function processJob(job) {
                 '-ac', '1',
                 `"${segAudioPath}"`
             ]);
-
-            // Default contextual text based on audio timing
-            seg.text = `Apresentação técnica audiovisual sobre o tema em discussão, abordando os pontos essenciais da aula parte ${seg.id}.`;
         }
 
-        addJobLog(job, `Transcrição concluída para ${segments.length} blocos temporais.`);
+        // Gera o manifesto JSON para o transcritor Python
+        const manifestPath = path.join(jobDir, 'transcribe_manifest.json');
+        const manifestData = {
+            language: job.sourceLanguage || 'pt-BR',
+            segments: segments.map(s => ({
+                id: s.id,
+                path: path.join(jobDir, `seg_${s.id}.wav`)
+            }))
+        };
+        fs.writeFileSync(manifestPath, JSON.stringify(manifestData), 'utf8');
+
+        addJobLog(job, 'Executando Speech-to-Text neural nos blocos de fala...');
+
+        const pythonScript = path.join(__dirname, 'transcribe.py');
+        let transcriptions = {};
+        try {
+            const { stdout: rawOutput } = await runCommand('python', [pythonScript, manifestPath, job.sourceLanguage || 'pt-BR']);
+            const jsonMatch = (rawOutput || '').match(/\{"success":\s*true[\s\S]*\}/);
+            if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                transcriptions = parsed.transcriptions || {};
+            }
+        } catch (sttErr) {
+            addJobLog(job, `Aviso no Speech-to-Text: ${sttErr.message}`, 'warn');
+        }
+
+        let validSpeechCount = 0;
+        for (let i = 0; i < segments.length; i++) {
+            const seg = segments[i];
+            const recognized = transcriptions[String(seg.id)] ? transcriptions[String(seg.id)].trim() : '';
+            seg.text = recognized;
+            if (recognized) {
+                validSpeechCount++;
+                addJobLog(job, `[${formatVttTime(seg.start)} - ${formatVttTime(seg.end)}] "${recognized.substring(0, 50)}${recognized.length > 50 ? '...' : ''}"`);
+            }
+        }
+
+        addJobLog(job, `Transcrição concluída com sucesso: ${validSpeechCount} de ${segments.length} blocos com fala ativa.`);
 
         // ==========================================
         // ETAPA 4: TRADUÇÃO CONTEXTUAL (PT, EN, ES)
@@ -440,6 +456,11 @@ async function processJob(job) {
         for (let i = 0; i < segments.length; i++) {
             const seg = segments[i];
             seg.translations = {};
+
+            if (!seg.text || !seg.text.trim()) {
+                for (const lang of targetLangs) seg.translations[lang] = '';
+                continue;
+            }
 
             for (const lang of targetLangs) {
                 if (lang === 'pt') {
@@ -469,16 +490,20 @@ async function processJob(job) {
         for (const lang of targetLangs) {
             let vttContent = 'WEBVTT - Brain Audiovisual\n\n';
             let srtContent = '';
+            let cueIndex = 1;
 
-            segments.forEach((seg, idx) => {
-                const text = seg.translations[lang] || seg.text;
+            segments.forEach((seg) => {
+                const text = (seg.translations[lang] || seg.text || '').trim();
+                if (!text) return; // Não gera legenda vazia para pausas
+
                 const vttStart = formatVttTime(seg.start);
                 const vttEnd = formatVttTime(seg.end);
                 const srtStart = formatSrtTime(seg.start);
                 const srtEnd = formatSrtTime(seg.end);
 
-                vttContent += `${idx + 1}\n${vttStart} --> ${vttEnd}\n${text}\n\n`;
-                srtContent += `${idx + 1}\n${srtStart} --> ${srtEnd}\n${text}\n\n`;
+                vttContent += `${cueIndex}\n${vttStart} --> ${vttEnd}\n${text}\n\n`;
+                srtContent += `${cueIndex}\n${srtStart} --> ${srtEnd}\n${text}\n\n`;
+                cueIndex++;
             });
 
             fs.writeFileSync(path.join(subtitlesDir, `subtitles_${lang}.vtt`), vttContent, 'utf8');
@@ -527,9 +552,40 @@ async function processJob(job) {
                     concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
                 }
 
-                // 2. Synthesize TTS speech
+                // 2. Synthesize TTS speech (or silence if segment has no speech)
+                if (!text || !text.trim()) {
+                    const silenceFile = path.join(langDir, `empty_${i}.mp3`);
+                    await runCommand(`"${FFMPEG_BIN}"`, [
+                        '-y',
+                        '-f', 'lavfi',
+                        '-i', `anullsrc=r=44100:cl=stereo`,
+                        '-t', seg.duration.toFixed(3),
+                        '-b:a', '192k',
+                        `"${silenceFile}"`
+                    ]);
+                    concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
+                    lastEnd = seg.end;
+                    continue;
+                }
+
                 const rawTtsFile = path.join(langDir, `raw_tts_${i}.mp3`);
-                await synthesizeTtsAudio(text, lang, job.voiceGender, rawTtsFile);
+                const synthesized = await synthesizeTtsAudio(text, lang, job.voiceGender, rawTtsFile);
+
+                if (!synthesized || !fs.existsSync(rawTtsFile)) {
+                    // Fallback silence if TTS failed
+                    const silenceFile = path.join(langDir, `empty_${i}.mp3`);
+                    await runCommand(`"${FFMPEG_BIN}"`, [
+                        '-y',
+                        '-f', 'lavfi',
+                        '-i', `anullsrc=r=44100:cl=stereo`,
+                        '-t', seg.duration.toFixed(3),
+                        '-b:a', '192k',
+                        `"${silenceFile}"`
+                    ]);
+                    concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
+                    lastEnd = seg.end;
+                    continue;
+                }
 
                 // Check raw duration
                 const rawDuration = await getAudioDuration(rawTtsFile);
@@ -539,8 +595,7 @@ async function processJob(job) {
 
                 if (rawDuration > 0 && targetDuration > 0) {
                     let speedRatio = rawDuration / targetDuration;
-                    // Clamp atempo filter within reasonable bounds (0.75x to 1.35x)
-                    speedRatio = Math.max(0.75, Math.min(1.35, speedRatio));
+                    speedRatio = Math.max(0.65, Math.min(1.45, speedRatio));
 
                     await runCommand(`"${FFMPEG_BIN}"`, [
                         '-y',
@@ -681,7 +736,7 @@ Gerado automaticamente por Brain Audiovisual.
         Compress-Archive -Path "$sourceDir/audio_tracks", "$sourceDir/subtitles", "$sourceDir/transcriptions", "$sourceDir/README_INSTRUCOES_UPLOAD.txt" -DestinationPath $destZip -CompressionLevel Optimal;
         `;
 
-        await runCommand('powershell', ['-NoProfile', '-Command', `"${psScript.replace(/\n/g, ' ')}"`]);
+        await runCommand('powershell.exe', ['-NoProfile', '-Command', psScript.replace(/\n/g, ' ')]);
 
         job.zipUrl = `/api/download/${job.id}`;
         job.percent = 100;
