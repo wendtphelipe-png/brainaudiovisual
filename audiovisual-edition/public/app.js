@@ -20,7 +20,33 @@ let stopwatchStartTime = null;
 let stopwatchElapsedTime = 0;
 let stopwatchInterval = null;
 
+let currentTheme = localStorage.getItem('brain_av_theme') || 'light';
+
+function applyTheme(theme) {
+    currentTheme = theme;
+    try { localStorage.setItem('brain_av_theme', theme); } catch (_) {}
+    const icon = document.getElementById('themeToggleIcon');
+    const text = document.getElementById('themeToggleText');
+
+    if (theme === 'dark') {
+        document.body.classList.remove('light-theme');
+        document.body.classList.add('dark-theme');
+        if (icon) icon.innerText = '☀️';
+        if (text) text.innerText = 'Modo Claro';
+    } else {
+        document.body.classList.remove('dark-theme');
+        document.body.classList.add('light-theme');
+        if (icon) icon.innerText = '🌙';
+        if (text) text.innerText = 'Modo Escuro';
+    }
+}
+
+function toggleTheme() {
+    applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    applyTheme(currentTheme);
     initQueueStream();
     startHardwareMonitor();
     setupQueueDropzone();

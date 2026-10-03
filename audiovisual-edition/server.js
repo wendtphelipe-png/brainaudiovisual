@@ -1018,28 +1018,43 @@ async function processJob(job) {
         const destinationFolder = path.join(targetBaseDir, videoFolderName);
         if (!fs.existsSync(destinationFolder)) fs.mkdirSync(destinationFolder, { recursive: true });
 
-        // Copia legendas .VTT para a pasta de destino
+        // Determina sigla do idioma de origem (ex: PT, EN, ES)
+        const sourceLangTag = (job.sourceLanguage || 'pt-BR').split('-')[0].toUpperCase();
+
+        // Copia legendas .VTT para a pasta de destino com SIGLA DO IDIOMA NO INÍCIO
         const destSubtitlesDir = path.join(destinationFolder, 'legendas_vtt');
         if (!fs.existsSync(destSubtitlesDir)) fs.mkdirSync(destSubtitlesDir, { recursive: true });
-        if (fs.existsSync(subtitlesDir)) {
-            const vttFiles = fs.readdirSync(subtitlesDir);
-            for (const f of vttFiles) {
-                fs.copyFileSync(path.join(subtitlesDir, f), path.join(destSubtitlesDir, f));
+        
+        for (const lang of targetLangs) {
+            const langUpper = lang.toUpperCase();
+            const srcVtt = path.join(subtitlesDir, `subtitles_${lang}.vtt`);
+            if (fs.existsSync(srcVtt)) {
+                // Nome oficial solicitado: sigla do idioma sempre no início do título
+                const formattedVttName = `${langUpper}_${videoFolderName}.vtt`;
+                fs.copyFileSync(srcVtt, path.join(destSubtitlesDir, formattedVttName));
+                fs.copyFileSync(srcVtt, path.join(destinationFolder, formattedVttName));
             }
         }
 
-        // Copia áudio original
+        // Copia áudio original com a SIGLA DO IDIOMA NO INÍCIO
         if (fs.existsSync(originalTrackPath)) {
-            fs.copyFileSync(originalTrackPath, path.join(destinationFolder, 'audio_original.mp3'));
+            const originalAudioName = `${sourceLangTag}_${videoFolderName}_audio_original.mp3`;
+            fs.copyFileSync(originalTrackPath, path.join(destinationFolder, originalAudioName));
+            fs.copyFileSync(originalTrackPath, path.join(destinationFolder, 'audio_original.mp3')); // compatibilidade do player
         }
 
-        // Se gerou dublagens, copia faixas de áudio
+        // Se gerou dublagens, copia faixas de áudio com a SIGLA DO IDIOMA NO INÍCIO
         if (job.generateDubbedAudio && fs.existsSync(audioTracksDir)) {
             const destAudioDir = path.join(destinationFolder, 'audio_dublado');
             if (!fs.existsSync(destAudioDir)) fs.mkdirSync(destAudioDir, { recursive: true });
-            const audioFiles = fs.readdirSync(audioTracksDir).filter(f => f.endsWith('.mp3'));
-            for (const f of audioFiles) {
-                fs.copyFileSync(path.join(audioTracksDir, f), path.join(destAudioDir, f));
+            for (const lang of targetLangs) {
+                const langUpper = lang.toUpperCase();
+                const dubbedFile = path.join(audioTracksDir, `audio_${lang}_dubbed.mp3`);
+                if (fs.existsSync(dubbedFile)) {
+                    const formattedDubbedName = `${langUpper}_${videoFolderName}_audio_dublado.mp3`;
+                    fs.copyFileSync(dubbedFile, path.join(destAudioDir, formattedDubbedName));
+                    fs.copyFileSync(dubbedFile, path.join(destinationFolder, formattedDubbedName));
+                }
             }
         }
 

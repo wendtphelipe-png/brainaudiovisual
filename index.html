@@ -1230,16 +1230,16 @@
                 </div>
 
                 <div class="space-y-2">
-                  <button 
-                    type="button" 
-                    onclick="window.openAudioVisualStudio()" 
-                    class="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-md shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer"
+                  <a 
+                    href="http://127.0.0.1:3050" 
+                    target="_blank" 
+                    class="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-md shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer no-underline text-center"
                   >
-                    <span>Acessar AudioVisual Edition</span>
-                  </button>
+                    <span>Acessar AudioVisual Edition (Mesa de Fila & Produção) ↗</span>
+                  </a>
                   <div class="flex items-center justify-between text-[11px] px-1 text-slate-400">
-                    <span>Rota: <code class="font-mono text-purple-400">/admin?module=audiovisual</code></span>
-                    <a href="http://localhost:3050" target="_blank" class="text-indigo-400 hover:text-indigo-300 font-medium">Abrir Standalone (:3050) ↗</a>
+                    <span>Link Direto: <a href="http://127.0.0.1:3050" target="_blank" class="font-mono text-purple-400 hover:underline">http://127.0.0.1:3050</a></span>
+                    <a href="http://127.0.0.1:3050" target="_blank" class="text-indigo-400 hover:text-indigo-300 font-medium">Abrir Standalone (:3050) ↗</a>
                   </div>
                 </div>
               </div>
@@ -1579,14 +1579,7 @@
     };
 
     window.openAudioVisualStudio = function() {
-      if (window.location.protocol === 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        const choice = confirm("🎬 BRAIN AUDIOVISUAL WORKSTATION\n\nO processamento pesado (FFmpeg 7.1, yt-dlp e síntese neural 48kHz) roda localmente no seu computador para garantir máxima velocidade e zero custos de servidor.\n\nDeseja abrir a Workstation Local diretamente no seu computador?\n(http://127.0.0.1:8765/admin?module=audiovisual)\n\n• Clique em [OK] para abrir na sua máquina local.\n• Clique em [Cancelar] para visualizar aqui no navegador.");
-        if (choice) {
-          window.open('http://127.0.0.1:8765/admin?module=audiovisual', '_blank');
-          return;
-        }
-      }
-      window.navigateToAdminModule('audiovisual');
+      window.open('http://127.0.0.1:3050', '_blank');
     };
 
     window.avStartProcessing = async function() {
