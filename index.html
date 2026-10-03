@@ -261,8 +261,13 @@
       });
     }
 
-    // Inicializa o tema memorizado
+    // Inicializa o tema memorizado (respeita tela audiovisual limpa em fundo branco)
     setTimeout(() => {
+      const q = new URLSearchParams(window.location.search);
+      const mod = q.get('module') || q.get('view');
+      if (mod === 'audiovisual' || mod === 'edition') {
+        return;
+      }
       setGlobalTheme(getStoredTheme());
     }, 10);
 
@@ -329,83 +334,86 @@
     // ========================================================
     // ROTEAMENTO DINÂMICO
     // ========================================================
-    const params = new URLSearchParams(window.location.search);
-    const isAudiencePortal = params.get('portal') === 'audience' || params.get('view') === 'portal' || params.get('portal') === 'true' || params.has('pool') || window.location.pathname.startsWith('/portal');
-    const isAudiencePage = params.get('view') === 'audience' || params.get('view') === 'listener' || params.get('listener') === 'true' || window.location.pathname.startsWith('/listener') || window.location.pathname.startsWith('/audience');
-    const isOverlaySubtitles = params.get('overlay') === 'subtitles' || params.get('telao') === 'true' || window.location.pathname.startsWith('/overlay/subtitles') || window.location.pathname.startsWith('/telao');
-    const isAdmin = params.get('admin') === 'true' || params.has('admin') || window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin');
-    const meetingId = params.get('meeting') || (window.location.pathname.startsWith('/meeting/') ? window.location.pathname.split('/')[2] : null);
+    var root = document.getElementById('app-root') || document.body;
 
-    const root = document.getElementById('app-root') || document.body;
+    function handleGlobalRouting() {
+      root = document.getElementById('app-root') || document.body;
+      window.root = root;
+      const params = new URLSearchParams(window.location.search);
+      const isAudiencePortal = params.get('portal') === 'audience' || params.get('view') === 'portal' || params.get('portal') === 'true' || params.has('pool') || window.location.pathname.startsWith('/portal');
+      const isAudiencePage = params.get('view') === 'audience' || params.get('view') === 'listener' || params.get('listener') === 'true' || window.location.pathname.startsWith('/listener') || window.location.pathname.startsWith('/audience');
+      const isOverlaySubtitles = params.get('overlay') === 'subtitles' || params.get('telao') === 'true' || window.location.pathname.startsWith('/overlay/subtitles') || window.location.pathname.startsWith('/telao');
+      const isAdmin = params.get('admin') === 'true' || params.has('admin') || params.has('module') || window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin');
+      const meetingId = params.get('meeting') || (window.location.pathname.startsWith('/meeting/') ? window.location.pathname.split('/')[2] : null);
 
-    try {
-      // 0. ROTA DEDICADA: PORTAL POOL CENTRAL DE IDIOMAS (1 ÚNICO QR CODE PARA O AUDITÓRIO)
-      if (isAudiencePortal && meetingId) {
-        document.body.className = "bg-slate-50 text-slate-800 font-sans antialiased m-0 min-h-screen selection:bg-indigo-500/30 selection:text-indigo-600";
-        setGlobalTheme(getStoredTheme());
-        renderAudiencePortalPage(meetingId);
-      }
-      // 1. ROTA DEDICADA: PÁGINA DO ESPECTADOR / AUDIÊNCIA (?meeting=xyz&view=audience)
-      else if (isAudiencePage && meetingId) {
-        document.body.className = "bg-slate-50 text-slate-800 font-sans antialiased m-0 min-h-screen selection:bg-indigo-500/30 selection:text-indigo-600";
-        setGlobalTheme(getStoredTheme());
-        renderAudienceListenerPage(meetingId);
-      }
-      // 2. ROTA DEDICADA: JANELA EXCLUSIVA DE LEGENDAS PARA OBS / BROADCAST (?meeting=xyz&overlay=subtitles)
-      else if (isOverlaySubtitles && meetingId) {
-        document.body.className = "bg-black text-white font-sans antialiased m-0 min-h-screen overflow-x-hidden selection:bg-blue-500/30 selection:text-blue-200";
-        renderSubtitleOverlayPage(meetingId);
-      }
-      // 3. ROTA: MONITOR DEDICADO DO COCKPIT DA REUNIÃO (?meeting=xyz ou /meeting/xyz)
-      else if (meetingId) {
-        document.body.className = "font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
-        setGlobalTheme(getStoredTheme());
-        try {
-          renderMeetingRoomMonitor(meetingId);
-        } catch(err) {
-          console.error("Erro crítico ao inicializar Cockpit da Reunião:", err);
+      try {
+        // 0. ROTA: ÁREA ADMINISTRATIVA / DASHBOARD CENTRAL DE EVENTOS (/admin ou ?admin=true ou ?module=...)
+        if (isAdmin) {
+          document.body.className = "font-sans antialiased m-0 min-h-screen";
+          routeAdminModule();
+        }
+        // 1. ROTA DEDICADA: PORTAL POOL CENTRAL DE IDIOMAS (1 ÚNICO QR CODE PARA O AUDITÓRIO)
+        else if (isAudiencePortal && meetingId) {
+          document.body.className = "bg-slate-50 text-slate-800 font-sans antialiased m-0 min-h-screen selection:bg-indigo-500/30 selection:text-indigo-600";
+          setGlobalTheme(getStoredTheme());
+          renderAudiencePortalPage(meetingId);
+        }
+        // 2. ROTA DEDICADA: PÁGINA DO ESPECTADOR / AUDIÊNCIA (?meeting=xyz&view=audience)
+        else if (isAudiencePage && meetingId) {
+          document.body.className = "bg-slate-50 text-slate-800 font-sans antialiased m-0 min-h-screen selection:bg-indigo-500/30 selection:text-indigo-600";
+          setGlobalTheme(getStoredTheme());
+          renderAudienceListenerPage(meetingId);
+        }
+        // 3. ROTA DEDICADA: JANELA EXCLUSIVA DE LEGENDAS PARA OBS / BROADCAST (?meeting=xyz&overlay=subtitles)
+        else if (isOverlaySubtitles && meetingId) {
+          document.body.className = "bg-black text-white font-sans antialiased m-0 min-h-screen overflow-x-hidden selection:bg-blue-500/30 selection:text-blue-200";
+          renderSubtitleOverlayPage(meetingId);
+        }
+        // 4. ROTA: MONITOR DEDICADO DO COCKPIT DA REUNIÃO (?meeting=xyz ou /meeting/xyz)
+        else if (meetingId) {
+          document.body.className = "font-sans antialiased m-0 min-h-screen selection:bg-blue-500/30 selection:text-blue-200";
+          setGlobalTheme(getStoredTheme());
+          try {
+            renderMeetingRoomMonitor(meetingId);
+          } catch(err) {
+            console.error("Erro crítico ao inicializar Cockpit da Reunião:", err);
+            root.innerHTML = `
+              <div class="min-h-screen flex items-center justify-center p-6">
+                <div class="max-w-md w-full bg-slate-900 border border-rose-500/40 rounded-3xl p-8 text-center shadow-2xl">
+                  <div class="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs font-black mx-auto mb-4">AVISO</div>
+                  <h2 class="text-base font-bold text-white mb-2">Erro ao Iniciar Cockpit</h2>
+                  <p class="text-xs text-slate-400 mb-6 font-mono">${err.message || String(err)}</p>
+                  <div class="flex items-center justify-center gap-3">
+                    <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Recarregar</button>
+                    <a href="/admin" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Voltar ao Painel</a>
+                  </div>
+                </div>
+              </div>
+            `;
+          }
+        }
+        // 5. ROTA PADRÃO PÚBLICA: PÁGINA EM CONSTRUÇÃO CLEAN E CLARA (/)
+        else {
+          document.body.className = "bg-[#f8fafc] text-[#0f172a] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
+          renderPublicConstructionPage();
+        }
+      } catch(globalRouterErr) {
+        console.error("Erro fatal no roteamento da aplicação:", globalRouterErr);
+        if (root) {
           root.innerHTML = `
             <div class="min-h-screen flex items-center justify-center p-6">
-              <div class="max-w-md w-full bg-slate-900 border border-rose-500/40 rounded-3xl p-8 text-center shadow-2xl">
-                <div class="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs font-black mx-auto mb-4">AVISO</div>
-                <h2 class="text-base font-bold text-white mb-2">Erro ao Iniciar Cockpit</h2>
-                <p class="text-xs text-slate-400 mb-6 font-mono">${err.message || String(err)}</p>
+              <div class="max-w-md w-full bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-800 rounded-3xl p-8 text-center shadow-xl">
+                <div class="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-black mx-auto mb-4">AVISO</div>
+                <h2 class="text-base font-bold text-slate-900 dark:text-white mb-2">Erro de Inicialização</h2>
+                <pre class="text-xs text-slate-500 dark:text-slate-400 mb-6 font-mono text-left overflow-auto max-h-48 whitespace-pre-wrap">${globalRouterErr.stack || globalRouterErr.message || String(globalRouterErr)}</pre>
                 <div class="flex items-center justify-center gap-3">
                   <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Recarregar</button>
-                  <a href="/admin" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Voltar ao Painel</a>
+                  <a href="/admin" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Acessar Admin</a>
                 </div>
               </div>
             </div>
           `;
         }
-      } 
-      // 4. ROTA: ÁREA ADMINISTRATIVA / DASHBOARD CENTRAL DE EVENTOS (/admin ou ?admin=true)
-      else if (isAdmin) {
-        document.body.className = "font-sans antialiased m-0 min-h-screen";
-        setGlobalTheme(getStoredTheme());
-        routeAdminModule();
-      }
-      // 5. ROTA PADRÃO PÚBLICA: PÁGINA EM CONSTRUÇÃO CLEAN E CLARA (/)
-      else {
-        document.body.className = "bg-[#f8fafc] text-[#0f172a] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
-        renderPublicConstructionPage();
-      }
-    } catch(globalRouterErr) {
-      console.error("Erro fatal no roteamento da aplicação:", globalRouterErr);
-      if (root) {
-        root.innerHTML = `
-          <div class="min-h-screen flex items-center justify-center p-6">
-            <div class="max-w-md w-full bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-800 rounded-3xl p-8 text-center shadow-xl">
-              <div class="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-black mx-auto mb-4">AVISO</div>
-              <h2 class="text-base font-bold text-slate-900 dark:text-white mb-2">Erro de Inicialização</h2>
-              <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 font-mono">${globalRouterErr.message || String(globalRouterErr)}</p>
-              <div class="flex items-center justify-center gap-3">
-                <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Recarregar</button>
-                <a href="/admin" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2.5 rounded-xl font-semibold transition-all">Acessar Admin</a>
-              </div>
-            </div>
-          </div>
-        `;
       }
     }
 
@@ -1071,7 +1079,7 @@
 
     window.navigateToAdminModule = function(moduleName) {
       const targetQuery = moduleName ? ('?module=' + encodeURIComponent(moduleName)) : '';
-      const newPath = window.location.pathname.startsWith('/admin') ? '/admin' : window.location.pathname;
+      const newPath = '/admin';
       try {
         window.history.pushState({}, '', newPath + targetQuery);
       } catch(e) {}
@@ -1221,13 +1229,19 @@
                   </div>
                 </div>
 
-                <button 
-                  type="button" 
-                  onclick="window.navigateToAdminModule('audiovisual')" 
-                  class="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-md shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>Acessar AudioVisual Edition</span>
-                </button>
+                <div class="space-y-2">
+                  <button 
+                    type="button" 
+                    onclick="window.navigateToAdminModule('audiovisual')" 
+                    class="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-md shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>Acessar AudioVisual Edition</span>
+                  </button>
+                  <div class="flex items-center justify-between text-[11px] px-1 text-slate-400">
+                    <span>Rota: <code class="font-mono text-purple-400">/admin?module=audiovisual</code></span>
+                    <a href="http://localhost:3050" target="_blank" class="text-indigo-400 hover:text-indigo-300 font-medium">Abrir Standalone (:3050) ↗</a>
+                  </div>
+                </div>
               </div>
 
             </div>
@@ -1246,173 +1260,726 @@
     // ========================================================
     // TELA 2.2: AUDIOVISUAL EDITION (WORKSTATION DE ESTÚDIO)
     // ========================================================
+    var avSelectedFile = null;
+    var avCurrentTab = 'url';
+    var avCurrentEventSource = null;
+    var avActiveAudioTracks = {};
+    var avTheme = 'light'; // Padrão solicitado: fundo branco
+    window.avTheme = avTheme;
+
+    window.getAvApiBase = function() {
+      if (window.AV_API_URL) return window.AV_API_URL;
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'http://' + window.location.hostname + ':3050';
+      }
+      return '';
+    };
+
+    window.avCheckStatus = async function() {
+      const apiBase = window.getAvApiBase();
+      try {
+        const res = await fetch(apiBase + '/api/status');
+        const data = await res.json();
+        
+        const ffmpegEl = document.getElementById('avFfmpegPill');
+        const ytdlpEl = document.getElementById('avYtdlpPill');
+
+        if (ffmpegEl) {
+          if (data.ffmpeg) {
+            ffmpegEl.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span style="color:#047857; font-weight:700;">FFmpeg 7.1 Ativo</span>`;
+            ffmpegEl.style.backgroundColor = '#ecfdf5';
+            ffmpegEl.style.borderColor = '#a7f3d0';
+          } else {
+            ffmpegEl.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span><span style="color:#b91c1c;">FFmpeg Ausente</span>`;
+            ffmpegEl.style.backgroundColor = '#fef2f2';
+            ffmpegEl.style.borderColor = '#fecaca';
+          }
+        }
+
+        if (ytdlpEl) {
+          if (data.ytdlp) {
+            ytdlpEl.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span style="color:#047857; font-weight:700;">yt-dlp Ativo</span>`;
+            ytdlpEl.style.backgroundColor = '#ecfdf5';
+            ytdlpEl.style.borderColor = '#a7f3d0';
+          } else {
+            ytdlpEl.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span><span style="color:#b91c1c;">yt-dlp Ausente</span>`;
+            ytdlpEl.style.backgroundColor = '#fef2f2';
+            ytdlpEl.style.borderColor = '#fecaca';
+          }
+        }
+      } catch (err) {
+        const ffmpegEl = document.getElementById('avFfmpegPill');
+        if (ffmpegEl) {
+          ffmpegEl.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span style="color:#b45309;">Engine :3050 Offline</span>`;
+          ffmpegEl.style.backgroundColor = '#fffbeb';
+          ffmpegEl.style.borderColor = '#fde68a';
+        }
+      }
+    };
+
+    window.avSwitchTab = function(tab) {
+      avCurrentTab = tab;
+      const urlBtn = document.getElementById('avTabUrlBtn');
+      const fileBtn = document.getElementById('avTabFileBtn');
+      const urlContent = document.getElementById('avUrlTabContent');
+      const fileContent = document.getElementById('avFileTabContent');
+
+      if (!urlBtn || !fileBtn || !urlContent || !fileContent) return;
+
+      if (tab === 'url') {
+        urlBtn.style.backgroundColor = '#ffffff';
+        urlBtn.style.color = '#4338ca';
+        urlBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+        fileBtn.style.backgroundColor = 'transparent';
+        fileBtn.style.color = '#64748b';
+        fileBtn.style.boxShadow = 'none';
+        urlContent.style.display = 'block';
+        fileContent.style.display = 'none';
+      } else {
+        fileBtn.style.backgroundColor = '#ffffff';
+        fileBtn.style.color = '#4338ca';
+        fileBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+        urlBtn.style.backgroundColor = 'transparent';
+        urlBtn.style.color = '#64748b';
+        urlBtn.style.boxShadow = 'none';
+        urlContent.style.display = 'none';
+        fileContent.style.display = 'block';
+      }
+    };
+
+    window.avPasteUrl = async function() {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          const input = document.getElementById('avVideoUrl');
+          if (input) input.value = text.trim();
+        }
+      } catch (e) {
+        alert('Por favor, pressione Ctrl+V no campo para colar o link do vídeo.');
+      }
+    };
+
+    window.avSetupDropzone = function() {
+      const dropzone = document.getElementById('avDropzone');
+      if (!dropzone) return;
+      ['dragenter', 'dragover'].forEach(name => {
+        dropzone.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); dropzone.style.borderColor = '#6366f1'; });
+      });
+      ['dragleave', 'drop'].forEach(name => {
+        dropzone.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); dropzone.style.borderColor = '#cbd5e1'; });
+      });
+      dropzone.addEventListener('drop', e => {
+        const dt = e.dataTransfer;
+        if (dt && dt.files && dt.files.length > 0) window.avOnFileSelected(dt.files);
+      });
+    };
+
+    window.avOnFileSelected = function(files) {
+      if (!files || files.length === 0) return;
+      avSelectedFile = files[0];
+      const nameEl = document.getElementById('avFileName');
+      const sizeEl = document.getElementById('avFileSize');
+      const dropzone = document.getElementById('avDropzone');
+      const card = document.getElementById('avFileSelectedCard');
+
+      if (nameEl) nameEl.innerText = avSelectedFile.name;
+      if (sizeEl) sizeEl.innerText = (avSelectedFile.size / (1024 * 1024)).toFixed(1) + ' MB';
+      if (dropzone) dropzone.style.display = 'none';
+      if (card) card.style.display = 'flex';
+    };
+
+    window.avRemoveFile = function() {
+      avSelectedFile = null;
+      const fileInput = document.getElementById('avFileInput');
+      const dropzone = document.getElementById('avDropzone');
+      const card = document.getElementById('avFileSelectedCard');
+      if (fileInput) fileInput.value = '';
+      if (dropzone) dropzone.style.display = 'block';
+      if (card) card.style.display = 'none';
+    };
+
+    window.avAppendLog = function(msg, color = '#38bdf8') {
+      const el = document.getElementById('avTerminalLogs');
+      if (!el) return;
+      const time = new Date().toLocaleTimeString('pt-BR');
+      const div = document.createElement('div');
+      div.style.color = color;
+      div.innerHTML = `<span style="color:#64748b; font-family:monospace; margin-right:6px;">[${time}]</span> ${msg}`;
+      el.appendChild(div);
+      el.scrollTop = el.scrollHeight;
+    };
+
+    window.avToggleTheme = function() {
+      avTheme = (avTheme === 'light') ? 'dark' : 'light';
+      window.avTheme = avTheme;
+      try {
+        localStorage.setItem('brain_theme', avTheme);
+      } catch(e) {}
+      renderAudioVisualEditionPage();
+    };
+
+    window.avStartProcessing = async function() {
+      const apiBase = window.getAvApiBase();
+      const startBtn = document.getElementById('avStartBtn');
+      const audioModeEl = document.querySelector('input[name="avAudioMode"]:checked');
+      const audioMode = audioModeEl ? audioModeEl.value : 'dubbing';
+      const voiceGenderEl = document.getElementById('avVoiceGender');
+      const voiceGender = voiceGenderEl ? voiceGenderEl.value : 'female';
+
+      const targetLanguages = ['pt'];
+      const langEn = document.getElementById('avLangEn');
+      const langEs = document.getElementById('avLangEs');
+      if (langEn && langEn.checked) targetLanguages.push('en');
+      if (langEs && langEs.checked) targetLanguages.push('es');
+
+      let payload = {
+        sourceType: avCurrentTab,
+        audioMode,
+        voiceGender,
+        targetLanguages
+      };
+
+      if (avCurrentTab === 'url') {
+        const urlInput = document.getElementById('avVideoUrl');
+        const url = urlInput ? urlInput.value.trim() : '';
+        if (!url) {
+          alert('Por favor, informe a URL do YouTube ou Vimeo.');
+          if (urlInput) urlInput.focus();
+          return;
+        }
+        payload.url = url;
+        const cookieInput = document.getElementById('avCookieData');
+        payload.cookieData = cookieInput ? cookieInput.value.trim() : '';
+      } else {
+        if (!avSelectedFile) {
+          alert('Por favor, selecione um arquivo de vídeo ou áudio do computador.');
+          return;
+        }
+        if (startBtn) startBtn.disabled = true;
+        window.avAppendLog(`Enviando arquivo local: ${avSelectedFile.name}...`, '#818cf8');
+
+        try {
+          const upRes = await fetch(apiBase + '/api/upload', {
+            method: 'POST',
+            headers: {
+              'Content-Type': avSelectedFile.type || 'application/octet-stream',
+              'X-File-Name': encodeURIComponent(avSelectedFile.name)
+            },
+            body: avSelectedFile
+          });
+          const upData = await upRes.json();
+          if (!upData.success) throw new Error(upData.error || 'Erro no upload');
+          payload.uploadedFilePath = upData.uploadedFilePath;
+          payload.uploadedFileName = avSelectedFile.name;
+          window.avAppendLog('Upload concluído com sucesso. Iniciando pipeline...', '#34d399');
+        } catch (err) {
+          alert('Falha ao enviar arquivo para o servidor de processamento: ' + err.message);
+          if (startBtn) startBtn.disabled = false;
+          return;
+        }
+      }
+
+      if (startBtn) startBtn.disabled = true;
+      const dlCard = document.getElementById('avDownloadCard');
+      const prevCard = document.getElementById('avPreviewCard');
+      if (dlCard) dlCard.style.display = 'none';
+      if (prevCard) prevCard.style.display = 'none';
+
+      try {
+        window.avAppendLog('Registrando job audiovisual na fila...', '#818cf8');
+        const res = await fetch(apiBase + '/api/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        const jobId = data.jobId;
+        window.avAppendLog(`Job iniciado! ID: ${jobId}`, '#34d399');
+        window.avConnectSSE(jobId);
+      } catch (err) {
+        alert('Erro ao iniciar job: ' + err.message);
+        if (startBtn) startBtn.disabled = false;
+      }
+    };
+
+    window.avConnectSSE = function(jobId) {
+      const apiBase = window.getAvApiBase();
+      if (avCurrentEventSource) avCurrentEventSource.close();
+
+      avCurrentEventSource = new EventSource(apiBase + `/api/progress/${jobId}`);
+      avCurrentEventSource.addEventListener('progress', e => {
+        const data = JSON.parse(e.data);
+        window.avUpdateProgressUI(data);
+      });
+      avCurrentEventSource.onerror = () => {
+        console.warn('SSE reconectando...');
+      };
+    };
+
+    window.avUpdateProgressUI = function(data) {
+      const apiBase = window.getAvApiBase();
+      const fillEl = document.getElementById('avProgressBarFill');
+      const pctEl = document.getElementById('avPercentLabel');
+      const statusEl = document.getElementById('avStatusMessage');
+      const startBtn = document.getElementById('avStartBtn');
+
+      if (fillEl) fillEl.style.width = data.percent + '%';
+      if (pctEl) pctEl.innerText = data.percent + '%';
+      if (statusEl && data.statusText) statusEl.innerText = data.statusText;
+
+      // Atualiza os círculos do Stepper
+      for (let i = 1; i <= 6; i++) {
+        const item = document.getElementById(`avStep${i}`);
+        if (!item) continue;
+        const circle = item.querySelector('.av-step-circle') || item.querySelector('div');
+        if (!circle) continue;
+
+        if (i < data.step) {
+          circle.style.backgroundColor = '#10b981';
+          circle.style.color = '#ffffff';
+          circle.style.borderColor = '#10b981';
+          circle.innerText = '✓';
+        } else if (i === data.step) {
+          circle.style.backgroundColor = '#4f46e5';
+          circle.style.color = '#ffffff';
+          circle.style.borderColor = '#4f46e5';
+          circle.innerText = String(i);
+        } else {
+          circle.style.backgroundColor = '#f1f5f9';
+          circle.style.color = '#94a3b8';
+          circle.style.borderColor = '#e2e8f0';
+          circle.innerText = String(i);
+        }
+      }
+
+      // Logs
+      if (data.logs && data.logs.length > 0) {
+        const term = document.getElementById('avTerminalLogs');
+        if (term) {
+          term.innerHTML = '';
+          data.logs.forEach(l => {
+            const div = document.createElement('div');
+            div.style.color = l.type === 'error' ? '#f87171' : '#cbd5e1';
+            div.innerHTML = `<span style="color:#64748b; font-family:monospace; margin-right:6px;">[${l.timestamp}]</span> ${l.message}`;
+            term.appendChild(div);
+          });
+          term.scrollTop = term.scrollHeight;
+        }
+      }
+
+      // Áudios prontos
+      if (data.tracks && Object.keys(data.tracks).length > 0) {
+        avActiveAudioTracks = data.tracks;
+        const prevCard = document.getElementById('avPreviewCard');
+        if (prevCard && prevCard.style.display === 'none') {
+          prevCard.style.display = 'block';
+          window.avSwitchAudioTrack('original');
+        }
+      }
+
+      // Concluído
+      if (data.completed) {
+        if (startBtn) startBtn.disabled = false;
+        const dlCard = document.getElementById('avDownloadCard');
+        const dlLink = document.getElementById('avDownloadZipLink');
+        if (dlCard) dlCard.style.display = 'block';
+        if (dlLink) dlLink.href = apiBase + data.zipUrl;
+        if (avCurrentEventSource) avCurrentEventSource.close();
+      }
+
+      // Erro
+      if (data.error) {
+        if (startBtn) startBtn.disabled = false;
+        if (statusEl) {
+          statusEl.innerText = 'Erro: ' + data.error;
+          statusEl.style.color = '#dc2626';
+        }
+        if (avCurrentEventSource) avCurrentEventSource.close();
+      }
+    };
+
+    window.avSwitchAudioTrack = function(trackKey) {
+      const apiBase = window.getAvApiBase();
+      const player = document.getElementById('avAudioPlayer');
+      const trackUrl = avActiveAudioTracks[trackKey];
+      if (trackUrl && player) {
+        player.src = (trackUrl.startsWith('http') ? '' : apiBase) + trackUrl;
+        player.play().catch(() => {});
+      }
+    };
+
     function renderAudioVisualEditionPage() {
+      const isWhiteTheme = (window.avTheme || avTheme) === 'light';
+      
+      // Sincroniza classes no elemento raiz para que regras globais escuras não prevaleçam
+      if (isWhiteTheme) {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
+        document.body.classList.remove('dark-mode');
+        document.body.classList.add('light-mode');
+        document.body.style.backgroundColor = '#f8fafc';
+        document.body.style.color = '#0f172a';
+      } else {
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('dark');
+        document.body.classList.add('dark-mode');
+        document.body.classList.remove('light-mode');
+        document.body.style.backgroundColor = '#0b0f19';
+        document.body.style.color = '#f8fafc';
+      }
+
+      const pageBg = isWhiteTheme ? '#f8fafc' : '#0b0f19';
+      const cardBg = isWhiteTheme ? '#ffffff' : '#111827';
+      const cardBorder = isWhiteTheme ? '#e2e8f0' : '#1e293b';
+      const textMain = isWhiteTheme ? '#0f172a' : '#f8fafc';
+      const textMuted = isWhiteTheme ? '#64748b' : '#94a3b8';
+      const inputBg = isWhiteTheme ? '#ffffff' : '#1e293b';
+      const inputBorder = isWhiteTheme ? '#cbd5e1' : '#334155';
+
       root.innerHTML = `
-        <div class="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between font-sans selection:bg-purple-500/30 selection:text-purple-300">
+        <div id="audiovisual-studio-view" style="min-height: 100vh; background-color: ${pageBg} !important; color: ${textMain} !important; font-family: 'Plus Jakarta Sans', sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
           
           <!-- HEADER DO ESTÚDIO AUDIOVISUAL -->
-          <header class="bg-slate-900/90 border-b border-slate-800 sticky top-0 z-40 px-6 sm:px-10 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl backdrop-blur-md">
-            <div class="flex items-center gap-3">
-              <button onclick="window.navigateToAdminModule('')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer">
-                <span>Hub Central</span>
+          <header style="background-color: ${cardBg} !important; border-bottom: 1px solid ${cardBorder} !important; position: sticky; top: 0; z-index: 40; padding: 16px 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <button onclick="window.navigateToAdminModule('')" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
+                ← Hub Admin
               </button>
-              <div class="w-px h-5 bg-slate-700"></div>
-              <div class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-600 flex items-center justify-center text-white text-[10px] font-black shadow-md shadow-purple-500/30">AV</div>
+              <div style="width: 1px; height: 22px; background: ${cardBorder};"></div>
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #4f46e5, #9333ea); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 900; font-size: 14px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">AV</div>
                 <div>
-                  <div class="flex items-center gap-2">
-                    <h1 class="text-base font-black text-white tracking-tight">BrainLingo: AudioVisual Edition</h1>
-                    <span class="text-[9px] font-black px-2 py-0.5 rounded-full bg-purple-950/80 text-purple-300 border border-purple-800/80 uppercase tracking-wider flex items-center gap-1">
-                      <span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></span> Workstation Studio v1.0
-                    </span>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <h1 style="font-size: 16px; font-weight: 900; color: ${textMain}; letter-spacing: -0.02em; margin: 0;">AudioVisual Edition</h1>
+                    <span style="font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 9999px; background: rgba(79, 70, 229, 0.1); color: #4f46e5; border: 1px solid rgba(79, 70, 229, 0.25); text-transform: uppercase;">Workstation PRO</span>
                   </div>
-                  <p class="text-[11px] text-slate-400">Suíte de Dublagem Neural, Sincronização Labial e Masterização Broadcast</p>
+                  <p style="font-size: 12px; color: ${textMuted}; margin: 2px 0 0 0;">Dublagem Sincronizada por IA e Pacotes de Legendas (.VTT / .SRT) para YouTube e Vimeo</p>
                 </div>
               </div>
             </div>
 
-            <div class="flex items-center gap-2.5">
-              <button onclick="window.navigateToAdminModule('translation')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 cursor-pointer">
-                Alternar para Simultaneous Translation
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <!-- STATUS SYSTEM PILLS -->
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div id="avFfmpegPill" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; border: 1px solid ${cardBorder}; font-size: 12px; font-weight: 600; color: ${textMuted};">
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span>
+                  <span>Verificando FFmpeg...</span>
+                </div>
+                <div id="avYtdlpPill" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; border: 1px solid ${cardBorder}; font-size: 12px; font-weight: 600; color: ${textMuted};">
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span>
+                  <span>yt-dlp...</span>
+                </div>
+              </div>
+
+              <div style="width: 1px; height: 22px; background: ${cardBorder};"></div>
+
+              <!-- BOTÃO DE TEMA (CLARO / ESCURO) -->
+              <button onclick="window.avToggleTheme()" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
+                ${isWhiteTheme ? '🌙 Modo Escuro' : '☀️ Modo Claro (Branco)'}
               </button>
-              <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 transition-all cursor-pointer">
-                Tema
+
+              <button onclick="window.navigateToAdminModule('translation')" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
+                Simultaneous Translation
               </button>
             </div>
           </header>
 
-          <!-- WORKSTATION DE ESTÚDIO AUDIOVISUAL -->
-          <main class="max-w-7xl w-full mx-auto px-6 sm:px-10 py-8 space-y-8 flex-1">
+          <!-- CONTEÚDO PRINCIPAL (WORKSTATION) -->
+          <main style="max-width: 1360px; width: 100%; margin: 0 auto; padding: 32px 24px; flex: 1;">
             
-            <!-- BANNER DE STATUS DO NOVO BRAÇO -->
-            <div class="bg-gradient-to-r from-purple-950/60 via-slate-900 to-indigo-950/60 border-2 border-purple-500/30 rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div class="space-y-2 max-w-2xl">
-                <span class="text-[10px] font-black uppercase tracking-widest text-purple-400 bg-purple-950/80 border border-purple-800/80 px-2.5 py-0.5 rounded-full">
-                  Novo Braço do Projeto Estruturado
-                </span>
-                <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">
-                  Ambiente de Pós-Produção Audiovisual Preparado
-                </h2>
-                <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  O módulo <strong>AudioVisual Edition</strong> foi totalmente preparado no ecossistema BrainLingo. Aqui você terá acesso à esteira completa de dublagem IA em estúdio, alinhamento labial em vídeo e masterização sonora multitrack com conformidade para plataformas de streaming e cinema.
-                </p>
-              </div>
-              <div class="shrink-0 flex flex-col sm:flex-row gap-3">
-                <button onclick="alert('Workstation AudioVisual Edition ativa! Este novo braço já está conectado à estrutura central do BrainLingo e receberá as automações de estúdio.')" class="px-5 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl text-xs font-black shadow-lg shadow-purple-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer">
-                  <span>Inicializar Workstation</span>
-                </button>
-                <button onclick="window.navigateToAdminModule('translation')" class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl text-xs font-bold transition-all cursor-pointer">
-                  Ir para Tradução ao Vivo
-                </button>
-              </div>
-            </div>
-
-            <!-- MÓDULOS DE ESTÚDIO DA WORKSTATION -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px; align-items: start;">
               
-              <!-- MÓDULO 1: INGESTÃO DE MÍDIA & STEMS -->
-              <div class="bg-slate-900/80 border border-slate-800 hover:border-purple-500/50 rounded-3xl p-6 space-y-4 shadow-sm transition-all flex flex-col justify-between">
-                <div class="space-y-3">
-                  <div class="w-12 h-12 rounded-2xl bg-purple-950/80 text-purple-400 flex items-center justify-center text-xs font-black border border-purple-800/40">VIDEO</div>
-                  <h3 class="text-base font-bold text-white">Central de Ingestão de Vídeo & Stems</h3>
-                  <p class="text-xs text-slate-400 leading-relaxed">
-                    Upload de masters em ProRes, MP4 ou MOV com separação automática de faixas vocais (stem separation) para diálogo, música e efeitos Foley.
-                  </p>
+              <!-- COLUNA ESQUERDA: INGESTÃO & CONFIGURAÇÕES -->
+              <div style="display: flex; flex-direction: column; gap: 24px;">
+                
+                <!-- CARD 1: INGESTÃO DE MÍDIA (LINK YOUTUBE / VIMEO + UPLOAD) -->
+                <div style="background-color: ${cardBg} !important; border: 1px solid ${cardBorder} !important; border-radius: 24px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                  
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid ${cardBorder};">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <div style="width: 32px; height: 32px; border-radius: 10px; background: #e0e7ff; color: #4338ca; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">1</div>
+                      <h2 style="font-size: 16px; font-weight: 800; color: ${textMain}; margin: 0;">Fonte do Vídeo / Aula Gravada</h2>
+                    </div>
+                    <span style="font-size: 12px; color: ${textMuted}; font-weight: 500;">YouTube, Vimeo ou Arquivo Local</span>
+                  </div>
+
+                  <!-- TABS SELETORAS -->
+                  <div style="display: flex; background: ${isWhiteTheme ? '#f1f5f9' : '#0f172a'}; padding: 4px; border-radius: 16px; margin-bottom: 20px;">
+                    <button type="button" id="avTabUrlBtn" onclick="window.avSwitchTab('url')" style="flex: 1; padding: 10px 14px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: #ffffff; color: #4338ca; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                      🔗 Link de Vídeo (YouTube / Vimeo)
+                    </button>
+                    <button type="button" id="avTabFileBtn" onclick="window.avSwitchTab('file')" style="flex: 1; padding: 10px 14px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: transparent; color: #64748b;">
+                      📁 Arquivo Local (Upload do Computador)
+                    </button>
+                  </div>
+
+                  <!-- CONTEÚDO DA ABA: LINK DE VÍDEO (YOUTUBE / VIMEO) -->
+                  <div id="avUrlTabContent" style="display: block;">
+                    <div style="margin-bottom: 16px;">
+                      <label for="avVideoUrl" style="display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMuted}; margin-bottom: 8px;">
+                        Cole aqui o Link do Vídeo (YouTube, Vimeo ou Aula Gravada):
+                      </label>
+                      <div style="display: flex; gap: 8px;">
+                        <input 
+                          type="text" 
+                          id="avVideoUrl" 
+                          placeholder="Ex: https://www.youtube.com/watch?v=... ou https://vimeo.com/..." 
+                          style="flex: 1; padding: 14px 16px; border-radius: 14px; border: 1.5px solid ${inputBorder} !important; background-color: ${inputBg} !important; color: ${textMain} !important; font-size: 14px; outline: none; transition: border-color 0.2s;"
+                        />
+                        <button 
+                          type="button" 
+                          onclick="window.avPasteUrl()" 
+                          style="padding: 0 20px; border-radius: 14px; background: #4f46e5; color: #ffffff; font-weight: 800; font-size: 13px; border: none; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);"
+                        >
+                          Colar Link
+                        </button>
+                      </div>
+                      <p style="font-size: 12px; color: ${textMuted}; margin: 8px 0 0 0;">
+                        ✓ Suporta YouTube e Vimeo públicos, não-listados e protegidos por senha/login corporativo.
+                      </p>
+                    </div>
+
+                    <!-- COOKIES OPCIONAIS PARA VÍDEOS PRIVADOS -->
+                    <details style="background: ${isWhiteTheme ? '#f8fafc' : '#1e293b'}; border: 1px solid ${cardBorder}; border-radius: 14px; overflow: hidden; margin-top: 14px;">
+                      <summary style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: ${textMuted}; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+                        <span>🔒 Vídeo Privado / Sob Login (Cookies Opcionais)</span>
+                        <span style="font-size: 10px;">▼</span>
+                      </summary>
+                      <div style="padding: 14px 16px; border-top: 1px solid ${cardBorder};">
+                        <p style="font-size: 11px; color: ${textMuted}; margin-bottom: 8px;">Para aulas ou congressos corporativos no Vimeo/YouTube sob login, cole cookies Netscape:</p>
+                        <textarea id="avCookieData" rows="2" placeholder="# Netscape HTTP Cookie File..." style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-family: monospace; font-size: 11px; outline: none;"></textarea>
+                      </div>
+                    </details>
+                  </div>
+
+                  <!-- CONTEÚDO DA ABA: ARQUIVO LOCAL (DRAG & DROP) -->
+                  <div id="avFileTabContent" style="display: none;">
+                    <div id="avDropzone" onclick="document.getElementById('avFileInput').click()" style="border: 2px dashed ${inputBorder}; border-radius: 18px; padding: 36px 20px; text-align: center; cursor: pointer; background: ${isWhiteTheme ? '#f8fafc' : '#1e293b'}; transition: all 0.2s;">
+                      <input type="file" id="avFileInput" accept="video/*,audio/*" style="display: none" onchange="window.avOnFileSelected(this.files)">
+                      <div style="width: 52px; height: 52px; border-radius: 16px; background: rgba(79, 70, 229, 0.1); color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 12px auto;">📁</div>
+                      <p style="font-size: 15px; font-weight: 800; color: ${textMain}; margin: 0 0 4px 0;">Arraste e solte seu vídeo ou áudio aqui</p>
+                      <p style="font-size: 12px; color: ${textMuted}; margin: 0 0 16px 0;">MP4, MKV, MOV, MP3, WAV (Sem limite de tamanho)</p>
+                      <button type="button" style="padding: 8px 18px; border-radius: 10px; background: ${isWhiteTheme ? '#ffffff' : '#0f172a'}; border: 1px solid ${inputBorder}; color: ${textMain}; font-weight: 700; font-size: 12px; cursor: pointer;">
+                        Procurar no Computador
+                      </button>
+                    </div>
+
+                    <div id="avFileSelectedCard" style="display: none; padding: 16px; border-radius: 14px; background: rgba(79, 70, 229, 0.08); border: 1px solid rgba(79, 70, 229, 0.3); align-items: center; justify-content: space-between; margin-top: 12px;">
+                      <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; border-radius: 10px; background: #4f46e5; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">✓</div>
+                        <div>
+                          <p id="avFileName" style="font-size: 13px; font-weight: 800; color: ${textMain}; margin: 0;">arquivo.mp4</p>
+                          <p id="avFileSize" style="font-size: 11px; color: ${textMuted}; margin: 2px 0 0 0;">0 MB</p>
+                        </div>
+                      </div>
+                      <button type="button" onclick="window.avRemoveFile()" style="background: transparent; border: none; color: #ef4444; font-weight: 700; font-size: 12px; cursor: pointer;">✕ Remover</button>
+                    </div>
+                  </div>
+
                 </div>
-                <div class="p-3 bg-slate-950/60 border border-dashed border-slate-800 rounded-2xl text-center">
-                  <span class="text-xs text-slate-400 block font-medium">Arraste seus vídeos ou arquivos WAV</span>
-                  <span class="text-[10px] text-purple-400 font-bold mt-1 inline-block">Área de Drop Pronta</span>
+
+                <!-- CARD 2: CONFIGURAÇÕES DE DUBLAGEM & SINCRONISMO -->
+                <div style="background-color: ${cardBg} !important; border: 1px solid ${cardBorder} !important; border-radius: 24px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                  
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid ${cardBorder};">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <div style="width: 32px; height: 32px; border-radius: 10px; background: #f3e8ff; color: #7e22ce; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">2</div>
+                      <h2 style="font-size: 16px; font-weight: 800; color: ${textMain}; margin: 0;">Configurações de Dublagem & Legendas</h2>
+                    </div>
+                    <span style="font-size: 12px; color: ${textMuted}; font-weight: 500;">Idiomas e Estilo de Áudio</span>
+                  </div>
+
+                  <div style="display: flex; flex-direction: column; gap: 18px;">
+                    
+                    <!-- IDIOMAS GERADOS -->
+                    <div>
+                      <label style="display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMuted}; margin-bottom: 8px;">
+                        Idiomas Gerados no Pacote ZIP:
+                      </label>
+                      <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1.5px solid #6366f1; background: rgba(99, 102, 241, 0.08); font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
+                          <input type="checkbox" id="avLangPt" checked disabled style="accent-color: #4f46e5;">
+                          <span>🇧🇷 Português (PT)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
+                          <input type="checkbox" id="avLangEn" checked style="accent-color: #4f46e5;">
+                          <span>🇺🇸 Inglês (EN)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
+                          <input type="checkbox" id="avLangEs" checked style="accent-color: #4f46e5;">
+                          <span>🇪🇸 Espanhol (ES)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <!-- ESTILO DE ÁUDIO -->
+                    <div>
+                      <label style="display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMuted}; margin-bottom: 8px;">
+                        Estilo da Faixa de Áudio:
+                      </label>
+                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; cursor: pointer;">
+                          <input type="radio" name="avAudioMode" value="dubbing" checked style="margin-top: 3px; accent-color: #4f46e5;">
+                          <div>
+                            <span style="display: block; font-size: 13px; font-weight: 800; color: ${textMain};">Dublagem Limpa</span>
+                            <span style="display: block; font-size: 11px; color: ${textMuted}; margin-top: 2px;">100% voz IA sincronizada</span>
+                          </div>
+                        </label>
+                        <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; cursor: pointer;">
+                          <input type="radio" name="avAudioMode" value="voiceover" style="margin-top: 3px; accent-color: #4f46e5;">
+                          <div>
+                            <span style="display: block; font-size: 13px; font-weight: 800; color: ${textMain};">Voice-Over / Overdub</span>
+                            <span style="display: block; font-size: 11px; color: ${textMuted}; margin-top: 2px;">Voz original suave (12%) ao fundo</span>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <!-- PERFIL DE VOZ -->
+                    <div>
+                      <label for="avVoiceGender" style="display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMuted}; margin-bottom: 8px;">
+                        Perfil de Voz:
+                      </label>
+                      <select id="avVoiceGender" style="width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-size: 13px; font-weight: 700; outline: none;">
+                        <option value="female" selected>Feminina (Camila / Joanna / Conchita)</option>
+                        <option value="male">Masculina (Ricardo / Matthew / Enrique)</option>
+                      </select>
+                      <p style="font-size: 11px; color: ${textMuted}; margin: 6px 0 0 0;">O FFmpeg atempo ajusta a velocidade da fala automaticamente para sincronizar nos mesmos segundos do orador original.</p>
+                    </div>
+
+                    <!-- BOTÃO PRINCIPAL DE EXECUÇÃO -->
+                    <div style="margin-top: 8px;">
+                      <button 
+                        type="button" 
+                        id="avStartBtn" 
+                        onclick="window.avStartProcessing()" 
+                        style="width: 100%; padding: 16px; border-radius: 16px; background: linear-gradient(135deg, #4f46e5, #7e22ce); color: #ffffff; font-weight: 900; font-size: 15px; border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(79, 70, 229, 0.35); transition: all 0.2s;"
+                      >
+                        ⚡ INICIAR PROCESSAMENTO AUDIOVISUAL
+                      </button>
+                    </div>
+
+                  </div>
+
                 </div>
+
               </div>
 
-              <!-- MÓDULO 2: NEURAL DUBBING & CLONAGEM -->
-              <div class="bg-slate-900/80 border border-slate-800 hover:border-purple-500/50 rounded-3xl p-6 space-y-4 shadow-sm transition-all flex flex-col justify-between">
-                <div class="space-y-3">
-                  <div class="w-12 h-12 rounded-2xl bg-pink-950/80 text-pink-400 flex items-center justify-center text-xs font-black border border-pink-800/40">VOZ</div>
-                  <h3 class="text-base font-bold text-white">Dublagem Neural com Clonagem Vocal</h3>
-                  <p class="text-xs text-slate-400 leading-relaxed">
-                    Dublagem inteligente que preserva o timbre, a emoção e a respiração original do ator ou palestrante, traduzindo para qualquer idioma de destino.
-                  </p>
-                </div>
-                <div class="space-y-1.5 text-xs text-slate-400">
-                  <div class="flex items-center justify-between bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
-                    <span>Timbre Original:</span>
-                    <span class="font-bold text-emerald-400">Ativado (Zero-Shot)</span>
+              <!-- COLUNA DIREITA: CONSOLE DE PRODUÇÃO, PROGRESSO & DOWNLOAD -->
+              <div style="display: flex; flex-direction: column; gap: 24px;">
+                
+                <div style="background-color: ${cardBg} !important; border: 1px solid ${cardBorder} !important; border-radius: 24px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                  
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid ${cardBorder};">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <span style="width: 10px; height: 10px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+                      <h3 style="font-size: 16px; font-weight: 800; color: ${textMain}; margin: 0;">Console de Produção em Tempo Real</h3>
+                    </div>
+                    <span id="avPercentLabel" style="font-family: monospace; font-size: 16px; font-weight: 900; color: #4f46e5;">0%</span>
                   </div>
-                  <div class="flex items-center justify-between bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
-                    <span>Controle Emocional:</span>
-                    <span class="font-bold text-purple-400">Cinemático / Natural</span>
+
+                  <!-- STEPPER DE 6 FASES -->
+                  <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; text-align: center; margin-bottom: 20px;">
+                    <div id="avStep1" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: #4f46e5; color: #fff; font-weight: 900; font-size: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(79,70,229,0.3);">1</div>
+                      <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Download</span>
+                    </div>
+                    <div id="avStep2" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">2</div>
+                      <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Silêncios</span>
+                    </div>
+                    <div id="avStep3" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">3</div>
+                      <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Transcrição</span>
+                    </div>
+                    <div id="avStep4" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">4</div>
+                      <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Tradução</span>
+                    </div>
+                    <div id="avStep5" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">5</div>
+                      <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Dublagem</span>
+                    </div>
+                    <div id="avStep6" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">6</div>
+                      <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">ZIP</span>
+                    </div>
                   </div>
+
+                  <!-- BARRA DE PROGRESSO -->
+                  <div style="margin-bottom: 20px;">
+                    <div style="width: 100%; height: 10px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; border-radius: 9999px; overflow: hidden; border: 1px solid ${cardBorder};">
+                      <div id="avProgressBarFill" style="height: 100%; width: 0%; background: linear-gradient(90deg, #4f46e5, #9333ea, #10b981); border-radius: 9999px; transition: width 0.3s ease;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: ${textMuted}; font-weight: 600; margin-top: 6px;">
+                      <span id="avStatusMessage">Aguardando início do job...</span>
+                      <span id="avDurationLabel">--:--</span>
+                    </div>
+                  </div>
+
+                  <!-- TERMINAL DE LOGS -->
+                  <div style="background: #090e17; border-radius: 16px; overflow: hidden; border: 1px solid #1e293b; margin-bottom: 20px;">
+                    <div style="background: #0f172a; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1e293b;">
+                      <div style="display: flex; gap: 6px;">
+                        <span style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span>
+                        <span style="width: 10px; height: 10px; border-radius: 50%; background: #f59e0b;"></span>
+                        <span style="width: 10px; height: 10px; border-radius: 50%; background: #10b981;"></span>
+                      </div>
+                      <span style="font-family: monospace; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.05em;">ENGINE TERMINAL LOGS</span>
+                      <button onclick="document.getElementById('avTerminalLogs').innerHTML = ''" style="background: transparent; border: none; font-size: 11px; color: #64748b; cursor: pointer;">Limpar</button>
+                    </div>
+                    <div id="avTerminalLogs" style="padding: 14px; font-family: monospace; font-size: 12px; line-height: 1.6; height: 190px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+                      <div style="color: #38bdf8;"><span style="color:#64748b; margin-right:6px;">[00:00:00]</span> AudioVisual Edition Engine inicializada. Aguardando comando.</div>
+                    </div>
+                  </div>
+
+                  <!-- AUDIO PREVIEW PLAYER -->
+                  <div id="avPreviewCard" style="display: none; padding: 16px; border-radius: 16px; background: ${isWhiteTheme ? '#f8fafc' : '#1e293b'}; border: 1px solid ${cardBorder}; margin-bottom: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                      <h4 style="font-size: 13px; font-weight: 800; color: ${textMain}; margin: 0;">🎧 Pré-escuta de Faixas Dubladas</h4>
+                      <div style="display: flex; gap: 6px;">
+                        <button type="button" onclick="window.avSwitchAudioTrack('original')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: #4f46e5; color: #fff; border: none; cursor: pointer;">Original</button>
+                        <button type="button" onclick="window.avSwitchAudioTrack('pt')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#0f172a'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">PT 🇧🇷</button>
+                        <button type="button" onclick="window.avSwitchAudioTrack('en')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#0f172a'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">EN 🇺🇸</button>
+                        <button type="button" onclick="window.avSwitchAudioTrack('es')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#0f172a'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">ES 🇪🇸</button>
+                      </div>
+                    </div>
+                    <audio id="avAudioPlayer" controls style="width: 100%; height: 36px;"></audio>
+                  </div>
+
+                  <!-- DOWNLOAD CARD -->
+                  <div id="avDownloadCard" style="display: none; padding: 20px; border-radius: 18px; background: rgba(16, 185, 129, 0.1); border: 2px solid rgba(16, 185, 129, 0.4); text-align: center;">
+                    <div style="width: 44px; height: 44px; border-radius: 50%; background: #10b981; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; margin: 0 auto 10px auto; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">✓</div>
+                    <h4 style="font-size: 15px; font-weight: 900; color: #047857; margin: 0 0 4px 0;">Pacote Audiovisual Pronto!</h4>
+                    <p style="font-size: 12px; color: ${textMuted}; margin: 0 0 16px 0;">Faixas MP3 sincronizadas + Legendas .VTT e .SRT prontas para subir no YouTube e Vimeo.</p>
+                    <a id="avDownloadZipLink" href="#" download style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; border-radius: 14px; background: #10b981; color: #ffffff; font-weight: 900; font-size: 14px; text-decoration: none; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);">
+                      <span>📥 BAIXAR PACOTE COMPLETO (.ZIP)</span>
+                    </a>
+                  </div>
+
                 </div>
+
               </div>
 
-              <!-- MÓDULO 3: SMART LIP-SYNC AI -->
-              <div class="bg-slate-900/80 border border-slate-800 hover:border-purple-500/50 rounded-3xl p-6 space-y-4 shadow-sm transition-all flex flex-col justify-between">
-                <div class="space-y-3">
-                  <div class="w-12 h-12 rounded-2xl bg-indigo-950/80 text-indigo-400 flex items-center justify-center text-xs font-black border border-indigo-800/40">SYNC</div>
-                  <h3 class="text-base font-bold text-white">Smart Lip-Sync Visual Engine</h3>
-                  <p class="text-xs text-slate-400 leading-relaxed">
-                    Sincronismo labial visual que ajusta milimetricamente a movimentação labial do locutor no vídeo para corresponder à fonética do idioma dublado.
-                  </p>
-                </div>
-                <div class="p-3 bg-indigo-950/40 border border-indigo-800/40 rounded-2xl text-center">
-                  <span class="text-xs font-bold text-indigo-300">Resolução Suportada até 4K 60fps</span>
-                  <p class="text-[10px] text-slate-400 mt-0.5">Elimina o efeito artificial de dublagens tradicionais</p>
-                </div>
-              </div>
-
-            </div>
-
-            <!-- TIMELINE PREVIEW DO ESTÚDIO (DAW INTEGRADA) -->
-            <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-              <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div class="flex items-center gap-2">
-                  <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">DAW</span>
-                  <h3 class="text-sm font-bold text-white">Timeline Multi-Track DAW (Visualização de Estúdio)</h3>
-                </div>
-                <span class="text-[11px] font-mono text-purple-400 font-bold bg-purple-950/60 border border-purple-800/60 px-2.5 py-1 rounded-xl">
-                  SMPTE 00:00:00:00
-                </span>
-              </div>
-
-              <div class="space-y-2 font-mono text-xs">
-                <!-- Track 1: Original Dialog -->
-                <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800/80 flex items-center justify-between gap-4">
-                  <span class="w-28 text-slate-400 font-bold text-[11px]">Track 1 • Original Vocals</span>
-                  <div class="flex-1 h-5 bg-slate-800/60 rounded-lg overflow-hidden flex items-center px-2">
-                    <div class="w-full h-2 bg-gradient-to-r from-blue-500/40 via-indigo-500/60 to-blue-500/40 rounded"></div>
-                  </div>
-                  <span class="text-[11px] text-slate-400">0.0 dB</span>
-                </div>
-
-                <!-- Track 2: Neural Dubbed Vocals -->
-                <div class="p-3 bg-slate-950/80 rounded-2xl border border-purple-900/50 flex items-center justify-between gap-4">
-                  <span class="w-28 text-purple-300 font-bold text-[11px]">Track 2 • Dub Master AI</span>
-                  <div class="flex-1 h-5 bg-purple-950/60 rounded-lg overflow-hidden flex items-center px-2">
-                    <div class="w-full h-2 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 rounded animate-pulse"></div>
-                  </div>
-                  <span class="text-[11px] text-purple-300 font-bold">+0.5 dB</span>
-                </div>
-
-                <!-- Track 3: Foley & Music -->
-                <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800/80 flex items-center justify-between gap-4">
-                  <span class="w-28 text-slate-400 font-bold text-[11px]">Track 3 • Music & SFX</span>
-                  <div class="flex-1 h-5 bg-slate-800/60 rounded-lg overflow-hidden flex items-center px-2">
-                    <div class="w-full h-2 bg-gradient-to-r from-emerald-500/40 via-teal-500/50 to-emerald-500/40 rounded"></div>
-                  </div>
-                  <span class="text-[11px] text-slate-400">-3.2 dB</span>
-                </div>
-              </div>
             </div>
 
           </main>
 
-          <footer class="py-5 border-t border-slate-800 text-center text-xs text-slate-500">
-            <p>BrainLingo: AudioVisual Edition • Próxima Atualização do Ecossistema Brain Audiovisual</p>
+          <!-- FOOTER -->
+          <footer style="background-color: ${cardBg} !important; border-top: 1px solid ${cardBorder} !important; padding: 18px; text-align: center; font-size: 12px; color: ${textMuted};">
+            <p style="margin: 0;">Brain Audiovisual • AudioVisual Edition PRO • Sincronismo Labial e Dublagem Multi-idioma</p>
           </footer>
 
         </div>
       `;
+
+      // Inicializa status e eventos após a DOM estar montada
+      setTimeout(() => {
+        window.avCheckStatus();
+        window.avSetupDropzone();
+      }, 50);
     }
 
     // ========================================================
@@ -7829,6 +8396,16 @@
           }
         });
       }, 100);
+    }
+
+    // ========================================================
+    // INICIALIZAÇÃO DO ROTEAMENTO GLOBAL
+    // ========================================================
+    window.addEventListener('popstate', handleGlobalRouting);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', handleGlobalRouting);
+    } else {
+      handleGlobalRouting();
     }
 
   </script>

@@ -1,0 +1,20 @@
+{
+  "name": "brainaudiovisual-edition",
+  "version": "1.0.0",
+  "description": "Brain Audiovisual - AudioVisual Edition (YouTube/Vimeo/Local to Multilingual Dubbed MP3 + VTT/SRT Package)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "audiovisual",
+    "dubbing",
+    "subtitles",
+    "vtt",
+    "srt",
+    "youtube",
+    "vimeo"
+  ],
+  "author": "Brain Audiovisual",
+  "license": "ISC"
+}

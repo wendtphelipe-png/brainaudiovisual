@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brain Audiovisual — AudioVisual Edition</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f2fe' stroke-width='2'><circle cx='12' cy='12' r='10'/><polygon points='10 8 16 12 10 16 10 8'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- TOP HEADER -->
+    <header class="studio-header">
+      <div class="header-brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title-wrap">
+            <h1 class="brand-title">BRAIN AUDIOVISUAL</h1>
+            <span class="edition-badge">AudioVisual Edition PRO</span>
+          </div>
+          <p class="brand-subtitle">Dublagem Sincronizada por IA e Pacotes de Legendas (.VTT / .SRT) para YouTube e Vimeo</p>
+        </div>
+      </div>
+
+      <div class="system-status-pills">
+        <div class="status-pill" id="ffmpegStatus">
+          <span class="status-dot active"></span>
+          <span>FFmpeg 7.1 Studio</span>
+        </div>
+        <div class="status-pill" id="ytdlpStatus">
+          <span class="status-dot active"></span>
+          <span>yt-dlp Engine</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN STUDIO WORKSPACE -->
+    <main class="studio-main">
+      <div class="grid-layout">
+        
+        <!-- LEFT COLUMN: INGESTION & CONFIG -->
+        <section class="studio-panel config-panel">
+          <div class="panel-header">
+            <div class="panel-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            </div>
+            <h2>1. Fonte do Vídeo / Aula Gravada</h2>
+          </div>
+
+          <!-- TABS: LINK VS LOCAL FILE -->
+          <div class="tab-container">
+            <button class="tab-btn active" id="tabUrlBtn" onclick="switchSourceTab('url')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+              Link (YouTube / Vimeo)
+            </button>
+            <button class="tab-btn" id="tabFileBtn" onclick="switchSourceTab('file')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+              Arquivo Local (Upload)
+            </button>
+          </div>
+
+          <!-- TAB CONTENT: URL -->
+          <div id="urlTabContent" class="tab-content active">
+            <div class="input-group">
+              <label for="videoUrl">URL do Vídeo</label>
+              <div class="input-with-button">
+                <input type="text" id="videoUrl" placeholder="https://www.youtube.com/watch?v=... ou https://vimeo.com/..." autocomplete="off">
+                <button type="button" class="btn-secondary" onclick="pasteFromClipboard()">Colar</button>
+              </div>
+              <span class="input-hint">Suporta YouTube, Vimeo, aulas gravadas e congressos com links públicos ou não listados.</span>
+            </div>
+
+            <!-- PRIVACY & COOKIES ACCORDION -->
+            <details class="advanced-accordion">
+              <summary>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                Vídeo Protegido / Privado (Cookies Opcionais)
+              </summary>
+              <div class="accordion-content">
+                <p>Para vídeos privados ou sob login no Vimeo/YouTube, cole abaixo o conteúdo dos cookies no formato Netscape:</p>
+                <textarea id="cookieInput" rows="3" placeholder="# Netscape HTTP Cookie File..."></textarea>
+              </div>
+            </details>
+          </div>
+
+          <!-- TAB CONTENT: LOCAL FILE -->
+          <div id="fileTabContent" class="tab-content">
+            <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+              <input type="file" id="fileInput" accept="video/*,audio/*" style="display: none" onchange="handleFileSelected(this.files)">
+              <div class="dropzone-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              </div>
+              <p class="dropzone-title">Arraste e solte o vídeo ou áudio aqui</p>
+              <p class="dropzone-sub">MP4, MKV, MOV, MP3, WAV (Sem limite de tamanho)</p>
+              <button type="button" class="btn-browse">Escolher Arquivo do Computador</button>
+            </div>
+            <div id="selectedFileInfo" class="selected-file-card" style="display: none;">
+              <div class="file-card-details">
+                <div class="file-name" id="selectedFileName">video.mp4</div>
+                <div class="file-size" id="selectedFileSize">0 MB</div>
+              </div>
+              <button type="button" class="btn-remove" onclick="removeSelectedFile()">✕</button>
+            </div>
+          </div>
+
+          <!-- SECTION 2: DUBLAGEM & SINCRONISMO CONFIG -->
+          <div class="panel-header mt-6">
+            <div class="panel-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+            </div>
+            <h2>2. Configurações de Dublagem & Legendas</h2>
+          </div>
+
+          <div class="config-grid">
+            <!-- IDIOMAS -->
+            <div class="config-box">
+              <label class="config-label">Idiomas Gerados no ZIP</label>
+              <div class="lang-pills">
+                <label class="lang-pill">
+                  <input type="checkbox" id="langPt" checked disabled>
+                  <span class="flag">🇧🇷</span>
+                  <span class="name">Português (PT)</span>
+                </label>
+                <label class="lang-pill">
+                  <input type="checkbox" id="langEn" checked>
+                  <span class="flag">🇺🇸</span>
+                  <span class="name">Inglês (EN)</span>
+                </label>
+                <label class="lang-pill">
+                  <input type="checkbox" id="langEs" checked>
+                  <span class="flag">🇪🇸</span>
+                  <span class="name">Espanhol (ES)</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- MODO DE ÁUDIO -->
+            <div class="config-box">
+              <label class="config-label">Estilo da Faixa de Áudio</label>
+              <div class="radio-cards">
+                <label class="radio-card">
+                  <input type="radio" name="audioMode" value="dubbing" checked>
+                  <div class="radio-content">
+                    <span class="radio-title">Dublagem Limpa</span>
+                    <span class="radio-desc">100% voz traduzida, isolamento total</span>
+                  </div>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="audioMode" value="voiceover">
+                  <div class="radio-content">
+                    <span class="radio-title">Voice-Over / Overdub</span>
+                    <span class="radio-desc">Voz original suave (12%) ao fundo</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- GÊNERO DA VOZ -->
+            <div class="config-box">
+              <label class="config-label">Perfil de Voz</label>
+              <div class="select-wrapper">
+                <select id="voiceGender">
+                  <option value="female" selected>Feminina (Camila / Joanna / Conchita)</option>
+                  <option value="male">Masculina (Ricardo / Matthew / Enrique)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACTION BUTTON -->
+          <div class="action-footer">
+            <button type="button" id="startBtn" class="btn-primary-glow" onclick="startProcessing()">
+              <span class="btn-icon">⚡</span>
+              <span class="btn-text">INICIAR PROCESSAMENTO AUDIOVISUAL</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- RIGHT COLUMN: LIVE PROGRESS & PRODUCTION CONSOLE -->
+        <section class="studio-panel live-panel">
+          <div class="panel-header">
+            <div class="panel-icon pulse-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+            </div>
+            <h2>Console de Produção em Tempo Real</h2>
+          </div>
+
+          <!-- PROGRESS STEPPER -->
+          <div class="stepper-container">
+            <div class="step-item" id="step1">
+              <div class="step-circle">1</div>
+              <div class="step-label">Ingestão / Download</div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item" id="step2">
+              <div class="step-circle">2</div>
+              <div class="step-label">Análise de Silêncio</div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item" id="step3">
+              <div class="step-circle">3</div>
+              <div class="step-label">Transcrição</div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item" id="step4">
+              <div class="step-circle">4</div>
+              <div class="step-label">Tradução</div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item" id="step5">
+              <div class="step-circle">5</div>
+              <div class="step-label">Sincronismo TTS</div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item" id="step6">
+              <div class="step-circle">6</div>
+              <div class="step-label">Pacote ZIP</div>
+            </div>
+          </div>
+
+          <!-- PROGRESS BAR -->
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="progressBarFill" style="width: 0%"></div>
+            </div>
+            <div class="progress-stats">
+              <span class="status-msg" id="statusMessage">Aguardando início do job...</span>
+              <span class="percent-label" id="percentLabel">0%</span>
+            </div>
+          </div>
+
+          <!-- TERMINAL CONSOLE LOGS -->
+          <div class="terminal-card">
+            <div class="terminal-header">
+              <div class="terminal-dots">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+              </div>
+              <span class="terminal-title">LIVE FFMPEG & ENGINE LOGS</span>
+              <span class="terminal-clear" onclick="clearLogs()">Limpar</span>
+            </div>
+            <div class="terminal-body" id="terminalLogs">
+              <div class="log-line info"><span class="log-time">[00:00:00]</span> Brain Audiovisual Studio Engine inicializado e pronto.</div>
+            </div>
+          </div>
+
+          <!-- AUDIO PLAYER PREVIEW -->
+          <div class="preview-card" id="previewCard" style="display: none;">
+            <div class="preview-header">
+              <h3>🎧 Pré-Visualização das Faixas Geradas</h3>
+              <div class="track-selector">
+                <button type="button" class="track-tab active" onclick="switchAudioTrack('original')">Áudio Original</button>
+                <button type="button" class="track-tab" onclick="switchAudioTrack('pt')">Dublagem PT 🇧🇷</button>
+                <button type="button" class="track-tab" onclick="switchAudioTrack('en')">Dublagem EN 🇺🇸</button>
+                <button type="button" class="track-tab" onclick="switchAudioTrack('es')">Dublagem ES 🇪🇸</button>
+              </div>
+            </div>
+            <div class="audio-player-wrapper">
+              <audio id="audioPreviewPlayer" controls style="width: 100%"></audio>
+            </div>
+          </div>
+
+          <!-- FINAL DOWNLOAD CARD (SHOWN WHEN COMPLETE) -->
+          <div class="download-card" id="downloadCard" style="display: none;">
+            <div class="download-icon">📦</div>
+            <div class="download-info">
+              <h3>Pacote Audiovisual Pronto para Download!</h3>
+              <p>Contém 3 faixas MP3 sincronizadas, 6 arquivos de legenda (.VTT e .SRT), metadados e guia de upload para YouTube e Vimeo.</p>
+            </div>
+            <a href="#" id="downloadZipBtn" class="btn-download" download>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>BAIXAR PACOTE COMPLETO (.ZIP)</span>
+            </a>
+          </div>
+
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
