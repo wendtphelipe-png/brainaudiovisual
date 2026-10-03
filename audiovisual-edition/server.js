@@ -7,10 +7,65 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { spawn, exec } = require('child_process');
+const { spawn, exec, execFile } = require('child_process');
 const crypto = require('crypto');
 const https = require('https');
 const url = require('url');
+const os = require('os');
+
+let prevCpuTimes = os.cpus();
+
+function getCpuUsagePercent() {
+    const currentCpus = os.cpus();
+    let idleDiff = 0;
+    let totalDiff = 0;
+    for (let i = 0; i < currentCpus.length; i++) {
+        const prev = prevCpuTimes[i] ? prevCpuTimes[i].times : { user: 0, nice: 0, sys: 0, idle: 0, irq: 0 };
+        const curr = currentCpus[i].times;
+        const prevTotal = Object.values(prev).reduce((a, b) => a + b, 0);
+        const currTotal = Object.values(curr).reduce((a, b) => a + b, 0);
+        idleDiff += (curr.idle - prev.idle);
+        totalDiff += (currTotal - prevTotal);
+    }
+    prevCpuTimes = currentCpus;
+    if (totalDiff <= 0) return 1;
+    const usage = Math.round(100 - (100 * idleDiff / totalDiff));
+    return Math.max(1, Math.min(100, usage));
+}
+
+function getGpuStats() {
+    return new Promise((resolve) => {
+        execFile('nvidia-smi', [
+            '--query-gpu=name,utilization.gpu,utilization.memory,memory.used,memory.total',
+            '--format=csv,noheader,nounits'
+        ], { timeout: 1200 }, (err, stdout) => {
+            if (err || !stdout) {
+                return resolve(null);
+            }
+            try {
+                const parts = stdout.trim().split(',').map(s => s.trim());
+                if (parts.length >= 5) {
+                    const name = parts[0];
+                    const gpuUsage = parseInt(parts[1], 10) || 0;
+                    const vramUsage = parseInt(parts[2], 10) || 0;
+                    const memUsed = parseInt(parts[3], 10) || 0;
+                    const memTotal = parseInt(parts[4], 10) || 0;
+                    const memPct = memTotal > 0 ? Math.round((memUsed / memTotal) * 100) : 0;
+                    return resolve({
+                        available: true,
+                        name: name,
+                        usagePercent: gpuUsage,
+                        vramPercent: vramUsage,
+                        memoryUsedMb: memUsed,
+                        memoryTotalMb: memTotal,
+                        memoryPercent: memPct
+                    });
+                }
+            } catch (_) {}
+            resolve(null);
+        });
+    });
+}
 
 const PORT = process.env.PORT || 3050;
 const BASE_DIR = __dirname;
@@ -890,6 +945,37 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') {
         res.writeHead(200);
         return res.end();
+    }
+
+    // 0. API: System Resources (CPU, GPU, RAM) & Binary Status
+    if (pathname === '/api/system-stats' || pathname === '/api/status') {
+        const cpuPercent = getCpuUsagePercent();
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        const usedMem = totalMem - freeMem;
+        const ramStats = {
+            totalGb: (totalMem / (1024 ** 3)).toFixed(1),
+            usedGb: (usedMem / (1024 ** 3)).toFixed(1),
+            freeGb: (freeMem / (1024 ** 3)).toFixed(1),
+            usagePercent: Math.round((usedMem / totalMem) * 100)
+        };
+        const cpus = os.cpus();
+        const cpuInfo = {
+            model: cpus.length > 0 ? cpus[0].model.trim() : 'CPU',
+            cores: cpus.length,
+            usagePercent: cpuPercent
+        };
+        const gpuInfo = await getGpuStats();
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+            success: true,
+            ffmpeg: fs.existsSync(FFMPEG_BIN),
+            ytdlp: fs.existsSync(YTDLP_BIN),
+            cpu: cpuInfo,
+            ram: ramStats,
+            gpu: gpuInfo
+        }));
     }
 
     // 1. API: Process Job Request (JSON)

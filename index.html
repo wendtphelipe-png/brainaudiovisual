@@ -1320,6 +1320,163 @@
       }
     };
 
+    // ==========================================
+    // CRONÔMETRO CORRIDO & TELEMETRIA DE HARDWARE
+    // ==========================================
+    var avTimerInterval = null;
+    var avTimerStart = 0;
+    var avTimerElapsedMs = 0;
+
+    window.avStartTimer = function() {
+      window.avStopTimer();
+      avTimerStart = Date.now();
+      const clockEl = document.getElementById('avTimerClock');
+      const statusEl = document.getElementById('avTimerStatus');
+      const pulseEl = document.getElementById('avTimerPulse');
+      if (statusEl) {
+        statusEl.innerText = 'PROCESSANDO...';
+        statusEl.style.color = '#3b82f6';
+      }
+      if (pulseEl) {
+        pulseEl.style.backgroundColor = '#3b82f6';
+        pulseEl.style.boxShadow = '0 0 8px #3b82f6';
+      }
+
+      avTimerInterval = setInterval(() => {
+        avTimerElapsedMs = Date.now() - avTimerStart;
+        if (clockEl) clockEl.innerText = window.avFormatTimer(avTimerElapsedMs);
+      }, 200);
+    };
+
+    window.avPauseTimer = function(isSuccess = true) {
+      if (avTimerInterval) {
+        clearInterval(avTimerInterval);
+        avTimerInterval = null;
+      }
+      const statusEl = document.getElementById('avTimerStatus');
+      const pulseEl = document.getElementById('avTimerPulse');
+
+      if (statusEl) {
+        if (isSuccess) {
+          statusEl.innerText = 'CONCLUÍDO';
+          statusEl.style.color = '#10b981';
+          if (pulseEl) {
+            pulseEl.style.backgroundColor = '#10b981';
+            pulseEl.style.boxShadow = '0 0 8px #10b981';
+          }
+        } else {
+          statusEl.innerText = 'PAUSADO / ERRO';
+          statusEl.style.color = '#ef4444';
+          if (pulseEl) {
+            pulseEl.style.backgroundColor = '#ef4444';
+            pulseEl.style.boxShadow = '0 0 8px #ef4444';
+          }
+        }
+      }
+    };
+
+    window.avStopTimer = function() {
+      if (avTimerInterval) {
+        clearInterval(avTimerInterval);
+        avTimerInterval = null;
+      }
+      avTimerElapsedMs = 0;
+      const clockEl = document.getElementById('avTimerClock');
+      const statusEl = document.getElementById('avTimerStatus');
+      const pulseEl = document.getElementById('avTimerPulse');
+      if (clockEl) clockEl.innerText = '00:00:00';
+      if (statusEl) {
+        statusEl.innerText = 'AGUARDANDO';
+        statusEl.style.color = '#94a3b8';
+      }
+      if (pulseEl) {
+        pulseEl.style.backgroundColor = '#94a3b8';
+        pulseEl.style.boxShadow = 'none';
+      }
+    };
+
+    window.avFormatTimer = function(ms) {
+      const totalSec = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSec / 3600);
+      const minutes = Math.floor((totalSec % 3600) / 60);
+      const seconds = totalSec % 60;
+      const pad = n => String(n).padStart(2, '0');
+      return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    };
+
+    var avHardwareInterval = null;
+
+    window.avStartHardwareMonitor = function() {
+      if (avHardwareInterval) clearInterval(avHardwareInterval);
+      window.avUpdateHardwareStats();
+      avHardwareInterval = setInterval(window.avUpdateHardwareStats, 1500);
+    };
+
+    window.avStopHardwareMonitor = function() {
+      if (avHardwareInterval) {
+        clearInterval(avHardwareInterval);
+        avHardwareInterval = null;
+      }
+    };
+
+    window.avUpdateHardwareStats = async function() {
+      const apiBase = window.getAvApiBase ? window.getAvApiBase() : '';
+      try {
+        const res = await fetch(apiBase + '/api/system-stats');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || !data.success) return;
+
+        // CPU
+        const cpuEl = document.getElementById('avHwCpuVal');
+        const cpuBar = document.getElementById('avHwCpuBar');
+        const cpuModel = document.getElementById('avHwCpuModel');
+        if (data.cpu) {
+          if (cpuEl) cpuEl.innerText = `${data.cpu.usagePercent}%`;
+          if (cpuBar) {
+            cpuBar.style.width = `${data.cpu.usagePercent}%`;
+            cpuBar.style.backgroundColor = data.cpu.usagePercent > 80 ? '#ef4444' : data.cpu.usagePercent > 50 ? '#f59e0b' : '#3b82f6';
+          }
+          if (cpuModel && data.cpu.model) {
+            cpuModel.innerText = `${data.cpu.model.replace(/\(R\)|\(TM\)/gi, '').trim().substring(0, 24)} (${data.cpu.cores} Cores)`;
+          }
+        }
+
+        // GPU
+        const gpuEl = document.getElementById('avHwGpuVal');
+        const gpuBar = document.getElementById('avHwGpuBar');
+        const gpuName = document.getElementById('avHwGpuName');
+        if (data.gpu && data.gpu.available) {
+          if (gpuEl) gpuEl.innerText = `${data.gpu.usagePercent}%`;
+          if (gpuBar) {
+            gpuBar.style.width = `${data.gpu.usagePercent}%`;
+            gpuBar.style.backgroundColor = data.gpu.usagePercent > 80 ? '#ef4444' : data.gpu.usagePercent > 50 ? '#f59e0b' : '#10b981';
+          }
+          if (gpuName) {
+            gpuName.innerText = `${data.gpu.name} • VRAM ${(data.gpu.memoryUsedMb/1024).toFixed(1)}/${(data.gpu.memoryTotalMb/1024).toFixed(1)} GB`;
+          }
+        } else {
+          if (gpuEl) gpuEl.innerText = '0%';
+          if (gpuName) gpuName.innerText = 'Acelerador Integrado';
+        }
+
+        // RAM
+        const ramEl = document.getElementById('avHwRamVal');
+        const ramBar = document.getElementById('avHwRamBar');
+        const ramDetail = document.getElementById('avHwRamDetail');
+        if (data.ram) {
+          if (ramEl) ramEl.innerText = `${data.ram.usagePercent}%`;
+          if (ramBar) {
+            ramBar.style.width = `${data.ram.usagePercent}%`;
+            ramBar.style.backgroundColor = data.ram.usagePercent > 85 ? '#ef4444' : data.ram.usagePercent > 70 ? '#f59e0b' : '#8b5cf6';
+          }
+          if (ramDetail) {
+            ramDetail.innerText = `${data.ram.usedGb} / ${data.ram.totalGb} GB (${data.ram.freeGb} GB livres)`;
+          }
+        }
+      } catch (_) {}
+    };
+
     window.avSwitchTab = function(tab) {
       avCurrentTab = tab;
       const urlBtn = document.getElementById('avTabUrlBtn');
@@ -1519,6 +1676,7 @@
       if (prevCard) prevCard.style.display = 'none';
 
       try {
+        window.avStartTimer();
         window.avAppendLog('Registrando job audiovisual na fila...', '#818cf8');
         const res = await fetch(apiBase + '/api/process', {
           method: 'POST',
@@ -1541,6 +1699,7 @@
         window.avAppendLog(`Job iniciado! ID: ${jobId}`, '#34d399');
         window.avConnectSSE(jobId);
       } catch (err) {
+        window.avPauseTimer(false);
         alert('Erro ao iniciar job: ' + err.message);
         if (startBtn) startBtn.disabled = false;
       }
@@ -1623,6 +1782,7 @@
 
       // Concluído
       if (data.completed) {
+        window.avPauseTimer(true);
         if (startBtn) startBtn.disabled = false;
         const dlCard = document.getElementById('avDownloadCard');
         const dlLink = document.getElementById('avDownloadZipLink');
@@ -1633,6 +1793,7 @@
 
       // Erro
       if (data.error) {
+        window.avPauseTimer(false);
         if (startBtn) startBtn.disabled = false;
         if (statusEl) {
           statusEl.innerText = 'Erro: ' + data.error;
@@ -1965,12 +2126,21 @@
                 
                 <div style="background-color: ${cardBg} !important; border: 1px solid ${cardBorder} !important; border-radius: 24px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
                   
-                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid ${cardBorder};">
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid ${cardBorder};">
                     <div style="display: flex; align-items: center; gap: 10px;">
                       <span style="width: 10px; height: 10px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
                       <h3 style="font-size: 16px; font-weight: 800; color: ${textMain}; margin: 0;">Console de Produção em Tempo Real</h3>
                     </div>
-                    <span id="avPercentLabel" style="font-family: monospace; font-size: 16px; font-weight: 900; color: #4f46e5;">0%</span>
+                    
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <!-- CRONÔMETRO CORRIDO -->
+                      <div id="avTimerContainer" style="display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#f1f5f9' : '#0f172a'}; border: 1.5px solid ${cardBorder};">
+                        <span id="avTimerPulse" style="width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; display: inline-block; transition: all 0.3s ease;"></span>
+                        <span id="avTimerClock" style="font-family: monospace; font-size: 14px; font-weight: 900; color: ${textMain}; letter-spacing: 0.05em;">00:00:00</span>
+                        <span id="avTimerStatus" style="font-size: 10px; font-weight: 800; color: ${textMuted}; text-transform: uppercase;">AGUARDANDO</span>
+                      </div>
+                      <span id="avPercentLabel" style="font-family: monospace; font-size: 18px; font-weight: 900; color: #4f46e5;">0%</span>
+                    </div>
                   </div>
 
                   <!-- STEPPER DE 6 FASES -->
@@ -2009,6 +2179,59 @@
                     <div style="display: flex; justify-content: space-between; font-size: 12px; color: ${textMuted}; font-weight: 600; margin-top: 6px;">
                       <span id="avStatusMessage">Aguardando início do job...</span>
                       <span id="avDurationLabel">--:--</span>
+                    </div>
+                  </div>
+
+                  <!-- MONITOR DE RECURSOS DO HARDWARE (CPU, GPU, RAM) -->
+                  <div style="background: ${isWhiteTheme ? '#f8fafc' : '#0b1120'}; border-radius: 18px; padding: 14px 16px; border: 1px solid ${cardBorder}; margin-bottom: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="font-size: 13px;">⚡</span>
+                        <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMain};">Telemetria de Recursos do PC (Tempo Real)</span>
+                      </div>
+                      <span style="font-size: 10px; font-weight: 800; color: #10b981; display: flex; align-items: center; gap: 5px;">
+                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981; display: inline-block;"></span> AO VIVO
+                      </span>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                      
+                      <!-- CPU WIDGET -->
+                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#1e293b'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+                          <span style="font-size: 10px; font-weight: 800; color: ${textMuted};">CPU (PROCESSADOR)</span>
+                          <span id="avHwCpuVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #3b82f6;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#e2e8f0' : '#334155'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
+                          <div id="avHwCpuBar" style="height: 100%; width: 0%; background: #3b82f6; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
+                        </div>
+                        <p id="avHwCpuModel" style="font-size: 10px; color: ${textMuted}; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CPU...</p>
+                      </div>
+
+                      <!-- GPU WIDGET -->
+                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#1e293b'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+                          <span style="font-size: 10px; font-weight: 800; color: ${textMuted};">GPU (PLACA DE VÍDEO)</span>
+                          <span id="avHwGpuVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #10b981;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#e2e8f0' : '#334155'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
+                          <div id="avHwGpuBar" style="height: 100%; width: 0%; background: #10b981; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
+                        </div>
+                        <p id="avHwGpuName" style="font-size: 10px; color: ${textMuted}; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">GPU...</p>
+                      </div>
+
+                      <!-- RAM WIDGET -->
+                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#1e293b'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+                          <span style="font-size: 10px; font-weight: 800; color: ${textMuted};">MEMÓRIA RAM</span>
+                          <span id="avHwRamVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #8b5cf6;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#e2e8f0' : '#334155'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
+                          <div id="avHwRamBar" style="height: 100%; width: 0%; background: #8b5cf6; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
+                        </div>
+                        <p id="avHwRamDetail" style="font-size: 10px; color: ${textMuted}; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">RAM...</p>
+                      </div>
+
                     </div>
                   </div>
 
@@ -2072,6 +2295,7 @@
       setTimeout(() => {
         window.avCheckStatus();
         window.avSetupDropzone();
+        window.avStartHardwareMonitor();
       }, 50);
     }
 

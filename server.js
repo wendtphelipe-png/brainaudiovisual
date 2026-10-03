@@ -31,6 +31,7 @@ const server = http.createServer((req, res) => {
       req.url.startsWith('/api/progress') || 
       req.url.startsWith('/api/audio') || 
       req.url.startsWith('/api/download') || 
+      req.url.startsWith('/api/system-stats') || 
       req.url.startsWith('/api/status')) {
     
     // Suporte CORS total
