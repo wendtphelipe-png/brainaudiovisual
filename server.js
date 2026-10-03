@@ -3,8 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const PORT = 8765;
 const BASE = 'G:/Outros computadores/Meu laptop/Web Projects/BrainLingo';
+
 const server = http.createServer((req, res) => {
-  // Endpoint de API para alternância de dispositivo de áudio no Windows
+  // 1. Endpoint de API para alternância de dispositivo de áudio no Windows
   if (req.url.startsWith('/api/set-audio-device')) {
     const urlObj = new URL(req.url, 'http://127.0.0.1:8765');
     const target = urlObj.searchParams.get('device') || 'cable';
@@ -24,6 +25,48 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // 2. Proxy transparente para o motor audiovisual standalone (:3050)
+  if (req.url.startsWith('/api/process') || 
+      req.url.startsWith('/api/upload') || 
+      req.url.startsWith('/api/progress') || 
+      req.url.startsWith('/api/audio') || 
+      req.url.startsWith('/api/download') || 
+      req.url.startsWith('/api/status')) {
+    
+    // Suporte CORS total
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200);
+      return res.end();
+    }
+
+    const proxyReq = http.request({
+      host: '127.0.0.1',
+      port: 3050,
+      path: req.url,
+      method: req.method,
+      headers: req.headers
+    }, proxyRes => {
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res);
+    });
+
+    proxyReq.on('error', err => {
+      res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({
+        success: false,
+        error: 'O motor audiovisual local (porta 3050) está iniciando ou offline: ' + err.message
+      }));
+    });
+
+    req.pipe(proxyReq);
+    return;
+  }
+
+  // 3. Roteamento de arquivos estáticos e rotas de SPA
   let cleanPath = req.url.split('?')[0];
   let fp;
   if (cleanPath === '/admin' || cleanPath.startsWith('/admin') || cleanPath === '/' || cleanPath.startsWith('/meeting') || cleanPath.startsWith('/portal') || cleanPath.startsWith('/listener') || cleanPath.startsWith('/audience') || cleanPath.startsWith('/telao')) {
@@ -41,4 +84,8 @@ const server = http.createServer((req, res) => {
     res.end(data);
   });
 });
-server.listen(PORT, '127.0.0.1', () => { require('fs').writeFileSync('server_ready.txt', 'ok'); });
+
+server.listen(PORT, '127.0.0.1', () => { 
+  require('fs').writeFileSync('server_ready.txt', 'ok'); 
+  console.log(`BrainLingo Hub running on http://127.0.0.1:${PORT}`);
+});

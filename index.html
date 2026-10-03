@@ -1269,6 +1269,9 @@
 
     window.getAvApiBase = function() {
       if (window.AV_API_URL) return window.AV_API_URL;
+      if (window.location.port === '8765') {
+        return ''; // Proxy transparente na porta 8765
+      }
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return 'http://' + window.location.hostname + ':3050';
       }
@@ -1421,6 +1424,13 @@
     window.avStartProcessing = async function() {
       const apiBase = window.getAvApiBase();
       const startBtn = document.getElementById('avStartBtn');
+
+      if (window.location.protocol === 'https:' && !apiBase) {
+        alert('ATENÇÃO: O motor de renderização pesada (FFmpeg 7.1, yt-dlp e IA Neural) roda localmente no seu computador para máximo desempenho.\n\nPara iniciar o processamento dos vídeos, acesse pelo console local da sua máquina:\nhttp://127.0.0.1:8765/admin?module=audiovisual');
+        window.open('http://127.0.0.1:8765/admin?module=audiovisual', '_blank');
+        return;
+      }
+
       const audioModeEl = document.querySelector('input[name="avAudioMode"]:checked');
       const audioMode = audioModeEl ? audioModeEl.value : 'dubbing';
       const voiceGenderEl = document.getElementById('avVoiceGender');
@@ -1467,7 +1477,13 @@
             },
             body: avSelectedFile
           });
-          const upData = await upRes.json();
+          const rawUp = await upRes.text();
+          let upData;
+          try {
+            upData = JSON.parse(rawUp);
+          } catch (e) {
+            throw new Error('O servidor retornou resposta não-JSON no upload. Certifique-se de usar o console local http://127.0.0.1:8765/admin?module=audiovisual');
+          }
           if (!upData.success) throw new Error(upData.error || 'Erro no upload');
           payload.uploadedFilePath = upData.uploadedFilePath;
           payload.uploadedFileName = avSelectedFile.name;
@@ -1492,14 +1508,16 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) {
+        const rawText = await res.text();
+        let data;
+        try {
+          data = JSON.parse(rawText);
+        } catch (e) {
           if (window.location.protocol === 'https:') {
-            throw new Error('O motor de processamento (Node :3050 + FFmpeg/yt-dlp) roda localmente no seu computador. Para iniciar o processamento dos vídeos, acesse pelo console local da sua máquina: http://127.0.0.1:8765/admin?module=audiovisual');
+            throw new Error('O motor de renderização roda localmente no seu computador. Para iniciar o processamento, abra o console local da sua máquina: http://127.0.0.1:8765/admin?module=audiovisual');
           }
-          throw new Error('O servidor de processamento retornou resposta não-JSON. Certifique-se de que o backend local (porta 3050) está ativo.');
+          throw new Error('O servidor de processamento retornou resposta inesperada. Certifique-se de que o backend local (porta 3050 ou 8765) está ativo.');
         }
-        const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
         const jobId = data.jobId;
@@ -1618,6 +1636,7 @@
     };
 
     function renderAudioVisualEditionPage() {
+      const root = document.getElementById('app-root') || document.body;
       const isWhiteTheme = (window.avTheme || avTheme) === 'light';
       
       // Sincroniza classes no elemento raiz para que regras globais escuras não prevaleçam
