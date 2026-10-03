@@ -1462,9 +1462,43 @@ const server = http.createServer(async (req, res) => {
                 if (!fs.existsSync(targetPath)) {
                     fs.mkdirSync(targetPath, { recursive: true });
                 }
-                spawn('explorer.exe', [targetPath], { detached: true, stdio: 'ignore' }).unref();
+                const normPath = path.win32.normalize(targetPath);
+                // No Windows, Start-Process explorer.exe garante abertura sem erro de código 1
+                const psCmd = `powershell.exe -NoProfile -Command "Start-Process explorer.exe -ArgumentList '${normPath.replace(/'/g, "''")}'"`;
+                exec(psCmd, (err) => {
+                    if (err) console.warn('[OpenFolder] Fallback ao abrir explorer:', err.message);
+                });
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, folder: targetPath }));
+                res.end(JSON.stringify({ success: true, folder: normPath }));
+            } catch (e) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        });
+        return;
+    }
+
+    // 0.13 POST /api/browse-folder - Abre diálogo nativo do Windows para selecionar pasta
+    if (pathname === '/api/browse-folder' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const { currentPath } = JSON.parse(body || '{}');
+                const initialDir = (currentPath && fs.existsSync(currentPath)) ? currentPath : (fs.existsSync('D:\\') ? 'D:\\' : 'C:\\');
+                const psCmd = `powershell.exe -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = 'Selecione a pasta de destino para salvar os arquivos do Brain Audiovisual'; $dialog.SelectedPath = '${initialDir.replace(/'/g, "''")}'; $dialog.ShowNewFolderButton = $true; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath } else { Write-Output '' }"`;
+                exec(psCmd, { windowsHide: false }, (err, stdout) => {
+                    const picked = (stdout || '').trim();
+                    if (picked) {
+                        queueState.outputDir = picked;
+                        saveQueueState();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, folderPath: picked }));
+                    } else {
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, cancelled: true }));
+                    }
+                });
             } catch (e) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: false, error: e.message }));

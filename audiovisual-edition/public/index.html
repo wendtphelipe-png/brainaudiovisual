@@ -88,7 +88,6 @@
 
         <!-- TEMA CLARO / ESCURO TOGGLE -->
         <button type="button" id="themeToggleBtn" class="btn-theme-toggle" onclick="toggleTheme()" title="Alternar entre Modo Claro e Modo Escuro">
-          <span id="themeToggleIcon">🌙</span>
           <span id="themeToggleText">Modo Escuro</span>
         </button>
       </div>
@@ -98,20 +97,20 @@
     <section class="destination-config-bar">
       <div class="dest-col-main">
         <label for="destinationFolderInput" class="dest-label">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-          PASTA DE DESTINO AUTOMÁTICO (SALVAMENTO DOS VÍDEOS CONCLUÍDOS):
+          PASTA DE DESTINO AUTOMÁTICO (SALVAMENTO DOS VÍDEOS):
         </label>
         <div class="dest-input-wrap">
           <input type="text" id="destinationFolderInput" value="D:\downloads\BrainAudiovisual_Saida" placeholder="Caminho da pasta local de destino...">
-          <button type="button" class="btn-dest-save" onclick="saveQueueSettings()">💾 Salvar Destino</button>
-          <button type="button" class="btn-dest-open" onclick="openRootDestinationFolder()">📂 Abrir no Windows Explorer</button>
+          <button type="button" class="btn-dest-choose" onclick="browseDestinationFolder()" title="Abrir janela para escolher a pasta no computador">Escolher Pasta</button>
+          <button type="button" class="btn-dest-save" onclick="saveQueueSettings()" title="Salvar pasta selecionada">Salvar Pasta</button>
+          <button type="button" class="btn-dest-open" onclick="openRootDestinationFolder()" title="Abrir esta pasta no Windows Explorer">Abrir Pasta no Explorer</button>
         </div>
-        <span class="dest-hint">Cada vídeo concluído é salvo automaticamente na sua própria subpasta nomeada com arquivos <code>.VTT</code>, áudio original e pacote <code>.ZIP</code>.</span>
+        <span class="dest-hint">Cada vídeo concluído é salvo automaticamente na sua pasta com legendas <code>.VTT</code>, áudios e pacote <code>.ZIP</code>.</span>
       </div>
 
       <div class="dest-col-options">
         <div class="option-pill-box">
-          <label for="concurrencySelect" class="option-pill-label">⚡ Multiprocessamento:</label>
+          <label for="concurrencySelect" class="option-pill-label">Multiprocessamento:</label>
           <select id="concurrencySelect" onchange="saveQueueSettings()">
             <option value="1">1 vídeo por vez (Leve)</option>
             <option value="2" selected>2 vídeos simultâneos (Recomendado)</option>
@@ -125,7 +124,7 @@
             <span class="toggle-slider"></span>
             <span class="toggle-text">Gerar Áudios Dublados (Locução)</span>
           </label>
-          <span class="speed-badge">⚡ Modo Rápido Ativo (Sem SRT e sem Dubbed: economia máxima de tempo)</span>
+          <span class="speed-badge">Modo Rápido Ativo (Sem redundâncias de áudio/SRT)</span>
         </div>
       </div>
     </section>
@@ -172,7 +171,7 @@
             <label for="batchUrlsInput">Cole os links dos vídeos (um por linha):</label>
             <textarea id="batchUrlsInput" rows="6" placeholder="https://www.youtube.com/watch?v=...&#10;https://vimeo.com/...&#10;https://www.youtube.com/watch?v=..."></textarea>
             <div class="textarea-actions">
-              <button type="button" class="btn-secondary-sm" onclick="pasteLinksToTextarea()">📋 Colar da Área de Transferência</button>
+              <button type="button" class="btn-secondary-sm" onclick="pasteLinksToTextarea()">Colar Links</button>
               <button type="button" class="btn-secondary-sm" onclick="document.getElementById('batchUrlsInput').value=''">Limpar</button>
             </div>
           </div>
@@ -188,7 +187,6 @@
           </details>
 
           <button type="button" class="btn-primary-glow mt-4" onclick="addBatchLinksToQueue()">
-            <span class="btn-icon">➕</span>
             <span>ENVIAR LINKS PARA A FILA</span>
           </button>
         </div>
@@ -215,8 +213,7 @@
           </div>
 
           <button type="button" id="extractPlaylistBtn" class="btn-extract" onclick="extractPlaylistVideos()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <span>PUXAR TODOS OS VÍDEOS DA PASTA</span>
+            <span>BUSCAR VÍDEOS NA PASTA</span>
           </button>
 
           <!-- EXTRACTED VIDEOS PREVIEW LIST -->
@@ -227,7 +224,6 @@
             </div>
             <div class="extracted-list" id="extractedListContainer"></div>
             <button type="button" class="btn-primary-glow mt-3" onclick="addSelectedExtractedToQueue()">
-              <span class="btn-icon">➕</span>
               <span>ADICIONAR SELECIONADOS À FILA</span>
             </button>
           </div>
@@ -252,18 +248,15 @@
           <div class="lang-pills">
             <label class="lang-pill">
               <input type="checkbox" id="queueLangPt" checked disabled>
-              <span class="flag">🇧🇷</span>
-              <span class="name">Português (Original/Refinado)</span>
+              <span class="flag">Português (Original/Refinado)</span>
             </label>
             <label class="lang-pill">
               <input type="checkbox" id="queueLangEn" checked onchange="saveQueueSettings()">
-              <span class="flag">🇺🇸</span>
-              <span class="name">Inglês (.VTT)</span>
+              <span class="flag">Inglês (.VTT)</span>
             </label>
             <label class="lang-pill">
               <input type="checkbox" id="queueLangEs" checked onchange="saveQueueSettings()">
-              <span class="flag">🇪🇸</span>
-              <span class="name">Espanhol (.VTT)</span>
+              <span class="flag">Espanhol (.VTT)</span>
             </label>
           </div>
         </div>
@@ -290,15 +283,13 @@
 
           <div class="queue-actions-cluster">
             <button type="button" id="startQueueBtn" class="btn-queue-start" onclick="startQueueExecution()">
-              <span class="icon">▶️</span>
-              <span>INICIAR FILA</span>
+              <span>INICIAR PRODUÇÃO</span>
             </button>
             <button type="button" id="pauseQueueBtn" class="btn-queue-pause" onclick="pauseQueueExecution()" style="display: none;">
-              <span class="icon">⏸️</span>
-              <span>PAUSAR</span>
+              <span>PAUSAR PRODUÇÃO</span>
             </button>
-            <button type="button" class="btn-secondary-sm" onclick="clearCompletedQueue()">🧹 Limpar Concluídos</button>
-            <button type="button" class="btn-secondary-sm danger" onclick="clearAllQueue()">🗑️ Limpar Tudo</button>
+            <button type="button" class="btn-secondary-sm" onclick="clearCompletedQueue()">Limpar Concluídos</button>
+            <button type="button" class="btn-secondary-sm danger" onclick="clearAllQueue()">Limpar Toda a Fila</button>
           </div>
         </div>
 

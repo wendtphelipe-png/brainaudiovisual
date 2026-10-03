@@ -31,12 +31,10 @@ function applyTheme(theme) {
     if (theme === 'dark') {
         document.body.classList.remove('light-theme');
         document.body.classList.add('dark-theme');
-        if (icon) icon.innerText = '☀️';
         if (text) text.innerText = 'Modo Claro';
     } else {
         document.body.classList.remove('dark-theme');
         document.body.classList.add('light-theme');
-        if (icon) icon.innerText = '🌙';
         if (text) text.innerText = 'Modo Escuro';
     }
 }
@@ -292,29 +290,29 @@ function renderQueueItems(items) {
         } else if (item.status === 'processing') {
             badgeHtml = `<span class="item-badge badge-processing"><span class="pulse-dot"></span>Processando...</span>`;
         } else if (item.status === 'completed') {
-            badgeHtml = `<span class="item-badge badge-completed">✅ Concluído</span>`;
+            badgeHtml = `<span class="item-badge badge-completed">Concluído</span>`;
         } else if (item.status === 'error') {
-            badgeHtml = `<span class="item-badge badge-error">❌ Erro</span>`;
+            badgeHtml = `<span class="item-badge badge-error">Erro</span>`;
         }
 
         const percent = Math.min(100, Math.max(0, item.percent || 0));
         const statusText = item.statusText || (item.status === 'queued' ? 'Aguardando vez na esteira...' : '');
 
-        // Action buttons
+        // Action buttons (sem emojis, nomes claros e objetivos)
         let actionsHtml = '';
         if (item.status === 'completed') {
             actionsHtml = `
                 <button type="button" class="btn-card-action btn-open-dest" onclick="openItemDestination('${item.id}')" title="Abrir pasta onde o vídeo foi salvo">
-                    📂 Abrir Pasta
+                    Abrir Pasta
                 </button>
-                ${item.zipUrl ? `<a href="${item.zipUrl}" class="btn-card-action btn-download-zip" download title="Baixar Pacote ZIP">📥 Baixar ZIP</a>` : ''}
-                <button type="button" class="btn-card-action btn-retry" onclick="retryQueueItem('${item.id}')" title="Reprocessar este vídeo">🔄</button>
-                <button type="button" class="btn-card-action btn-remove" onclick="removeQueueItem('${item.id}')" title="Remover da lista">✕</button>
+                ${item.zipUrl ? `<a href="${item.zipUrl}" class="btn-card-action btn-download-zip" download title="Baixar Pacote ZIP">Baixar ZIP</a>` : ''}
+                <button type="button" class="btn-card-action btn-retry" onclick="retryQueueItem('${item.id}')" title="Reprocessar este vídeo">Reprocessar</button>
+                <button type="button" class="btn-card-action btn-remove" onclick="removeQueueItem('${item.id}')" title="Remover da lista">Remover</button>
             `;
         } else if (item.status === 'error') {
             actionsHtml = `
-                <button type="button" class="btn-card-action btn-retry" onclick="retryQueueItem('${item.id}')">🔄 Tentar Novamente</button>
-                <button type="button" class="btn-card-action btn-remove" onclick="removeQueueItem('${item.id}')">✕</button>
+                <button type="button" class="btn-card-action btn-retry" onclick="retryQueueItem('${item.id}')">Tentar Novamente</button>
+                <button type="button" class="btn-card-action btn-remove" onclick="removeQueueItem('${item.id}')">Remover</button>
             `;
         } else if (item.status === 'processing') {
             actionsHtml = `
@@ -322,14 +320,14 @@ function renderQueueItems(items) {
             `;
         } else { // queued
             actionsHtml = `
-                <button type="button" class="btn-card-action btn-remove" onclick="removeQueueItem('${item.id}')" title="Remover da fila">✕</button>
+                <button type="button" class="btn-card-action btn-remove" onclick="removeQueueItem('${item.id}')" title="Remover da fila">Remover</button>
             `;
         }
 
         card.innerHTML = `
             <div class="card-top-row">
                 <div class="card-title-group">
-                    <span class="card-icon">${item.sourceType === 'file' ? '📁' : '🎬'}</span>
+                    <span class="card-type-tag">${item.sourceType === 'file' ? 'ARQUIVO' : 'VÍDEO'}</span>
                     <div class="card-title-text" title="${escapeHtml(item.title || item.url)}">
                         ${escapeHtml(item.title || item.url)}
                     </div>
@@ -404,15 +402,44 @@ async function saveQueueSettings() {
     }
 }
 
+async function browseDestinationFolder() {
+    const currentVal = document.getElementById('destinationFolderInput').value.trim();
+    appendLog('Abrindo janela do Windows para escolher a pasta de destino...');
+    try {
+        const res = await fetch('/api/browse-folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentPath: currentVal })
+        });
+        const data = await res.json();
+        if (data.success && data.folderPath) {
+            document.getElementById('destinationFolderInput').value = data.folderPath;
+            await saveQueueSettings();
+            appendLog(`Pasta de destino definida e salva com sucesso: ${data.folderPath}`);
+        } else if (data.cancelled) {
+            appendLog('Seleção de pasta cancelada no Windows Explorer.');
+        } else if (data.error) {
+            alert('Erro ao selecionar pasta: ' + data.error);
+        }
+    } catch (e) {
+        alert('Erro ao comunicar com o seletor de pasta: ' + e.message);
+    }
+}
+
 async function openRootDestinationFolder() {
     const destInput = document.getElementById('destinationFolderInput').value.trim();
     try {
-        await fetch('/api/open-folder', {
+        const res = await fetch('/api/open-folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ folderPath: destInput })
         });
-        appendLog(`Abrindo pasta no Windows Explorer: ${destInput}`);
+        const data = await res.json();
+        if (data.success) {
+            appendLog(`Pasta aberta no Windows Explorer: ${data.folder}`);
+        } else {
+            alert('Não foi possível abrir a pasta: ' + (data.error || 'Erro desconhecido'));
+        }
     } catch (e) {
         alert('Erro ao abrir pasta: ' + e.message);
     }
@@ -422,11 +449,17 @@ async function openItemDestination(itemId) {
     const item = (currentQueue.items || []).find(i => i.id === itemId);
     const folder = (item && item.outputPath) ? item.outputPath : currentQueue.outputDir;
     try {
-        await fetch('/api/open-folder', {
+        const res = await fetch('/api/open-folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ folderPath: folder })
         });
+        const data = await res.json();
+        if (data.success) {
+            appendLog(`Pasta do item aberta no Explorer: ${data.folder}`);
+        } else {
+            alert('Não foi possível abrir a pasta do item: ' + (data.error || 'Erro desconhecido'));
+        }
     } catch (e) {
         alert('Erro ao abrir pasta do item: ' + e.message);
     }
@@ -438,7 +471,7 @@ async function startQueueExecution() {
         const res = await fetch('/api/queue/start', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-            appendLog('▶️ Esteira de processamento iniciada!');
+            appendLog('Esteira de processamento iniciada!');
             fetchQueueState();
         }
     } catch (e) {
