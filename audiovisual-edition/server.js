@@ -121,7 +121,7 @@ function formatSrtTime(seconds) {
  */
 function fetchBuffer(targetUrl) {
     return new Promise((resolve, reject) => {
-        const parsed = url.parse(targetUrl);
+        const parsed = new URL(targetUrl);
         const client = parsed.protocol === 'https:' ? https : http;
         client.get(targetUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }, res => {
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
@@ -135,6 +135,43 @@ function fetchBuffer(targetUrl) {
             res.on('end', () => resolve(Buffer.concat(chunks)));
             res.on('error', reject);
         }).on('error', reject);
+    });
+}
+
+/**
+ * HTTP POST helper to send JSON and retrieve audio buffer
+ */
+function postJsonBuffer(targetUrl, jsonString, headers = {}) {
+    return new Promise((resolve, reject) => {
+        const parsed = new URL(targetUrl);
+        const client = parsed.protocol === 'https:' ? https : http;
+        const options = {
+            hostname: parsed.hostname,
+            port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+            path: parsed.pathname + parsed.search,
+            method: 'POST',
+            headers: {
+                'User-Agent': 'BrainAudiovisual/1.0',
+                ...headers
+            }
+        };
+
+        const req = client.request(options, res => {
+            const chunks = [];
+            res.on('data', c => chunks.push(c));
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    resolve(Buffer.concat(chunks));
+                } else {
+                    reject(new Error(`API responded with ${res.statusCode}: ${Buffer.concat(chunks).toString()}`));
+                }
+            });
+            res.on('error', reject);
+        });
+
+        req.on('error', reject);
+        if (jsonString) req.write(jsonString);
+        req.end();
     });
 }
 
@@ -159,26 +196,101 @@ async function translateText(text, targetLang) {
 }
 
 /**
- * Studio Neural TTS synthesizer (Microsoft Edge Neural Voices + Google TTS fallback)
+ * Studio Neural TTS synthesizer (ElevenLabs / OpenAI TTS-HD / Microsoft Edge Neural SSML)
  */
-async function synthesizeTtsAudio(text, lang, gender = 'female', destPath) {
+async function synthesizeTtsAudio(text, lang, gender = 'female', destPath, options = {}) {
     if (!text || !text.trim()) return false;
 
+    // 1. ElevenLabs API (Vozes Hiper-Realistas com Respiração e Cadência Humana)
+    if (options.voiceEngine === 'elevenlabs' && options.elevenlabsApiKey) {
+        try {
+            const elevenVoiceMap = {
+                'male': 'nPczCjzI2devNBz1zQrb', // Brian / Daniel (Narração Médica e Confiante)
+                'female': '21m00Tcm4TlvDq8ikWAM' // Rachel (Locutora de Estúdio)
+            };
+            const voiceId = options.elevenlabsVoiceId || elevenVoiceMap[gender] || elevenVoiceMap.male;
+            const apiUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+            const reqBody = JSON.stringify({
+                text: text,
+                model_id: "eleven_multilingual_v2",
+                voice_settings: {
+                    stability: 0.52,
+                    similarity_boost: 0.82,
+                    style: 0.18,
+                    use_speaker_boost: true
+                }
+            });
+
+            const buf = await postJsonBuffer(apiUrl, reqBody, {
+                'xi-api-key': options.elevenlabsApiKey,
+                'Content-Type': 'application/json'
+            });
+
+            if (buf && buf.length > 500) {
+                fs.writeFileSync(destPath, buf);
+                return true;
+            }
+        } catch (e) {
+            console.warn(`Aviso ElevenLabs: ${e.message}, utilizando fallback Edge-TTS...`);
+        }
+    }
+
+    // 2. OpenAI TTS-HD (Qualidade Broadcast Narrador)
+    if (options.voiceEngine === 'openai' && options.openaiApiKey) {
+        try {
+            const openAiVoice = gender === 'male' ? 'onyx' : 'nova';
+            const apiUrl = 'https://api.openai.com/v1/audio/speech';
+            const reqBody = JSON.stringify({
+                model: 'tts-1-hd',
+                voice: openAiVoice,
+                input: text,
+                speed: 1.0
+            });
+
+            const buf = await postJsonBuffer(apiUrl, reqBody, {
+                'Authorization': `Bearer ${options.openaiApiKey}`,
+                'Content-Type': 'application/json'
+            });
+
+            if (buf && buf.length > 500) {
+                fs.writeFileSync(destPath, buf);
+                return true;
+            }
+        } catch (e) {
+            console.warn(`Aviso OpenAI TTS: ${e.message}, utilizando fallback Edge-TTS...`);
+        }
+    }
+
+    // 3. Microsoft Edge Neural TTS com SSML Pro (Gratuito, Ilimitado, Broadcast 48kHz)
     const edgeVoices = {
         'pt': { female: 'pt-BR-FranciscaNeural', male: 'pt-BR-AntonioNeural' },
-        'en': { female: 'en-US-JennyNeural', male: 'en-US-GuyNeural' },
+        'en': { female: 'en-US-JennyNeural', male: 'en-US-BrianMultilingualNeural' },
         'es': { female: 'es-ES-ElviraNeural', male: 'es-ES-AlvaroNeural' }
     };
 
     const chosenVoice = (edgeVoices[lang] && edgeVoices[lang][gender]) || (gender === 'male' ? 'pt-BR-AntonioNeural' : 'pt-BR-FranciscaNeural');
 
-    // Strategy 1: Microsoft Edge Neural TTS (Natural Studio Quality)
+    // Modulação nativa de velocidade no sintetizador para evitar efeito robótico
+    let rateArg = '+0%';
+    if (options.targetDuration && options.targetDuration > 0) {
+        const wordCount = text.split(/\s+/).filter(Boolean).length;
+        const naturalTime = wordCount / 2.3; // ~140 palavras/minuto
+        if (naturalTime > options.targetDuration * 1.15) {
+            rateArg = '+14%';
+        } else if (naturalTime > options.targetDuration * 1.05) {
+            rateArg = '+7%';
+        } else if (naturalTime < options.targetDuration * 0.75) {
+            rateArg = '-5%';
+        }
+    }
+
     const textTmpPath = destPath + '.txt';
     try {
         fs.writeFileSync(textTmpPath, text, 'utf8');
         await runCommand('python', [
             '-m', 'edge_tts',
             '--voice', chosenVoice,
+            '--rate', rateArg,
             '-f', textTmpPath,
             '--write-media', destPath
         ]);
@@ -190,7 +302,7 @@ async function synthesizeTtsAudio(text, lang, gender = 'female', destPath) {
         if (fs.existsSync(textTmpPath)) try { fs.unlinkSync(textTmpPath); } catch (_) {}
     }
 
-    // Strategy 2: Google Translate TTS Fallback
+    // 4. Fallback: Google Translate TTS
     try {
         const gUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=${lang}&client=tw-ob&q=${encodeURIComponent(text.substring(0, 200))}`;
         const gBuf = await fetchBuffer(gUrl);
@@ -310,17 +422,17 @@ async function processJob(job) {
         job.tracks = { original: `/api/audio/${job.id}/original` };
 
         // ==========================================
-        // ETAPA 2: ANÁLISE ESPECTRAL E SEGMENTAÇÃO VAD
+        // ETAPA 2: ANÁLISE ESPECTRAL E SEGMENTAÇÃO VAD COM PADDING PRO
         // ==========================================
         job.step = 2;
         job.percent = 25;
-        job.statusText = 'Análise de silêncios e segmentação de fala...';
+        job.statusText = 'Análise de silêncios e segmentação contextual com padding...';
         addJobLog(job, 'Executando detecção de atividade vocal (VAD) com FFmpeg...');
 
-        // Detect silences with silencedetect filter
-        const { stderr: silenceLog } = await runCommand(`"${FFMPEG_BIN}"`, [
-            '-i', `"${rawAudioPath}"`,
-            '-af', 'silencedetect=noise=-30dB:d=0.45',
+        // Detect silences with silencedetect: noise=-34dB:d=0.55 (preserva palavras baixas e respiração)
+        const { stderr: silenceLog } = await runCommand(FFMPEG_BIN, [
+            '-i', rawAudioPath,
+            '-af', 'silencedetect=noise=-34dB:d=0.55',
             '-f', 'null', '-'
         ]);
 
@@ -333,53 +445,82 @@ async function processJob(job) {
         while ((m = reStart.exec(silenceLog)) !== null) silenceStarts.push(parseFloat(m[1]));
         while ((m = reEnd.exec(silenceLog)) !== null) silenceEnds.push(parseFloat(m[1]));
 
-        // Build continuous spoken segments from silences
-        const segments = [];
+        // Build continuous spoken chunks
+        const rawChunks = [];
         let curStart = 0.0;
 
         for (let i = 0; i < silenceStarts.length; i++) {
             const sStart = silenceStarts[i];
-            const sEnd = silenceEnds[i] || sStart + 0.5;
+            const sEnd = silenceEnds[i] || sStart + 0.55;
 
-            if (sStart - curStart >= 1.2) {
-                // Meaningful spoken chunk
-                segments.push({
-                    id: segments.length + 1,
+            if (sStart - curStart >= 0.8) {
+                rawChunks.push({
                     start: parseFloat(curStart.toFixed(2)),
-                    end: parseFloat(sStart.toFixed(2)),
-                    duration: parseFloat((sStart - curStart).toFixed(2))
+                    end: parseFloat(sStart.toFixed(2))
                 });
             }
             curStart = sEnd;
         }
 
-        // Final segment if trailing speech exists
-        if (job.duration - curStart >= 1.0) {
-            segments.push({
-                id: segments.length + 1,
+        // Final chunk if trailing speech exists
+        if (job.duration - curStart >= 0.8) {
+            rawChunks.push({
                 start: parseFloat(curStart.toFixed(2)),
-                end: parseFloat(job.duration.toFixed(2)),
-                duration: parseFloat((job.duration - curStart).toFixed(2))
+                end: parseFloat(job.duration.toFixed(2))
             });
         }
 
-        // If video was too quiet or continuous, divide into natural 5s phrases
+        // Fusão de orações próximas (pausas <= 0.60s) para manter frases completas e coerência de contexto
+        const mergedChunks = [];
+        for (let i = 0; i < rawChunks.length; i++) {
+            const cur = rawChunks[i];
+            if (mergedChunks.length === 0) {
+                mergedChunks.push({ ...cur });
+            } else {
+                const prev = mergedChunks[mergedChunks.length - 1];
+                const pause = cur.start - prev.end;
+                if (pause <= 0.60 && (cur.end - prev.start) <= 20.0) {
+                    prev.end = cur.end; // Une orações de mesma linha de raciocínio
+                } else {
+                    mergedChunks.push({ ...cur });
+                }
+            }
+        }
+
+        // Aplicação de Padding de Segurança (Garante que a última palavra NUNCA seja cortada)
+        const segments = mergedChunks.map((seg, idx) => {
+            const paddedStart = Math.max(0, parseFloat((seg.start - 0.15).toFixed(2)));
+            const paddedEnd = Math.min(job.duration, parseFloat((seg.end + 0.40).toFixed(2)));
+            return {
+                id: idx + 1,
+                start: paddedStart,
+                end: paddedEnd,
+                duration: parseFloat((paddedEnd - paddedStart).toFixed(2)),
+                // Margem estendida para extração de áudio STT (+0.50s de rabo de fala)
+                wavStart: Math.max(0, parseFloat((seg.start - 0.20).toFixed(2))),
+                wavEnd: Math.min(job.duration, parseFloat((seg.end + 0.50).toFixed(2)))
+            };
+        });
+
+        // Caso o áudio seja contínuo sem silêncios detectados, divide em blocos naturais de 6s
         if (segments.length === 0) {
             let t = 0;
-            const stepSec = 5.0;
+            const stepSec = 6.0;
             while (t < job.duration) {
                 const segEnd = Math.min(t + stepSec, job.duration);
                 segments.push({
                     id: segments.length + 1,
                     start: parseFloat(t.toFixed(2)),
                     end: parseFloat(segEnd.toFixed(2)),
-                    duration: parseFloat((segEnd - t).toFixed(2))
+                    duration: parseFloat((segEnd - t).toFixed(2)),
+                    wavStart: parseFloat(t.toFixed(2)),
+                    wavEnd: parseFloat(segEnd.toFixed(2))
                 });
                 t = segEnd;
             }
         }
 
-        addJobLog(job, `Segmentação concluída: ${segments.length} trechos de fala identificados.`);
+        addJobLog(job, `Segmentação contextual concluída: ${segments.length} blocos com padding de segurança.`);
 
         // ==========================================
         // ETAPA 3: TRANSCRIÇÃO REAL COM TIMESTAMPS
@@ -389,18 +530,21 @@ async function processJob(job) {
         job.statusText = 'Extraindo áudios e transcrevendo fala com IA...';
         addJobLog(job, `Extraindo ${segments.length} trechos de áudio para transcrição Speech-to-Text...`);
 
-        // Extrai cada mini-segmento .wav (16kHz mono para STT)
+        // Extrai cada mini-segmento .wav (16kHz mono para STT com margem de segurança)
         for (let i = 0; i < segments.length; i++) {
             const seg = segments[i];
             const segAudioPath = path.join(jobDir, `seg_${seg.id}.wav`);
-            await runCommand(`"${FFMPEG_BIN}"`, [
+            const extractStart = (seg.wavStart !== undefined ? seg.wavStart : seg.start).toFixed(3);
+            const extractEnd = (seg.wavEnd !== undefined ? seg.wavEnd : seg.end).toFixed(3);
+
+            await runCommand(FFMPEG_BIN, [
                 '-y',
-                '-ss', seg.start.toString(),
-                '-to', seg.end.toString(),
-                '-i', `"${rawAudioPath}"`,
+                '-i', rawAudioPath,
+                '-ss', extractStart,
+                '-to', extractEnd,
                 '-ar', '16000',
                 '-ac', '1',
-                `"${segAudioPath}"`
+                segAudioPath
             ]);
         }
 
@@ -408,6 +552,9 @@ async function processJob(job) {
         const manifestPath = path.join(jobDir, 'transcribe_manifest.json');
         const manifestData = {
             language: job.sourceLanguage || 'pt-BR',
+            engine: job.transcribeEngine || 'google',
+            openaiApiKey: job.openaiApiKey || '',
+            geminiApiKey: job.geminiApiKey || '',
             segments: segments.map(s => ({
                 id: s.id,
                 path: path.join(jobDir, `seg_${s.id}.wav`)
@@ -415,7 +562,7 @@ async function processJob(job) {
         };
         fs.writeFileSync(manifestPath, JSON.stringify(manifestData), 'utf8');
 
-        addJobLog(job, 'Executando Speech-to-Text neural nos blocos de fala...');
+        addJobLog(job, `Executando Speech-to-Text neural [Motor: ${(job.transcribeEngine || 'Google Neural').toUpperCase()}]...`);
 
         const pythonScript = path.join(__dirname, 'transcribe.py');
         let transcriptions = {};
@@ -569,7 +716,12 @@ async function processJob(job) {
                 }
 
                 const rawTtsFile = path.join(langDir, `raw_tts_${i}.mp3`);
-                const synthesized = await synthesizeTtsAudio(text, lang, job.voiceGender, rawTtsFile);
+                const synthesized = await synthesizeTtsAudio(text, lang, job.voiceGender, rawTtsFile, {
+                    voiceEngine: job.voiceEngine,
+                    elevenlabsApiKey: job.elevenlabsApiKey,
+                    openaiApiKey: job.openaiApiKey,
+                    targetDuration: seg.duration
+                });
 
                 if (!synthesized || !fs.existsSync(rawTtsFile)) {
                     // Fallback silence if TTS failed
@@ -765,7 +917,7 @@ const server = http.createServer(async (req, res) => {
     // CORS Headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', '*');
 
     if (req.method === 'OPTIONS') {
         res.writeHead(200);
@@ -789,6 +941,11 @@ const server = http.createServer(async (req, res) => {
                     targetLanguages: payload.targetLanguages || ['pt', 'en', 'es'],
                     audioMode: payload.audioMode || 'dubbing', // 'dubbing' | 'voiceover'
                     voiceGender: payload.voiceGender || 'female',
+                    voiceEngine: payload.voiceEngine || 'edge', // 'edge' | 'elevenlabs' | 'openai'
+                    transcribeEngine: payload.transcribeEngine || 'google', // 'google' | 'whisper' | 'gemini'
+                    elevenlabsApiKey: payload.elevenlabsApiKey || '',
+                    openaiApiKey: payload.openaiApiKey || '',
+                    geminiApiKey: payload.geminiApiKey || '',
                     apiKey: payload.apiKey || '',
                     uploadedFilePath: payload.uploadedFilePath || '',
                     uploadedFileName: payload.uploadedFileName || 'video_local.mp4',

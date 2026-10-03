@@ -55,11 +55,13 @@ const server = http.createServer((req, res) => {
     });
 
     proxyReq.on('error', err => {
-      res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({
-        success: false,
-        error: 'O motor audiovisual local (porta 3050) está iniciando ou offline: ' + err.message
-      }));
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({
+          success: false,
+          error: 'O motor audiovisual local (porta 3050) está iniciando ou offline: ' + err.message
+        }));
+      }
     });
 
     req.pipe(proxyReq);
