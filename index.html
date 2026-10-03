@@ -1492,6 +1492,13 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          if (window.location.protocol === 'https:') {
+            throw new Error('O motor de processamento (Node :3050 + FFmpeg/yt-dlp) roda localmente no seu computador. Para iniciar o processamento dos vídeos, acesse pelo console local da sua máquina: http://127.0.0.1:8765/admin?module=audiovisual');
+          }
+          throw new Error('O servidor de processamento retornou resposta não-JSON. Certifique-se de que o backend local (porta 3050) está ativo.');
+        }
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
@@ -1689,6 +1696,21 @@
           <!-- CONTEÚDO PRINCIPAL (WORKSTATION) -->
           <main style="max-width: 1360px; width: 100%; margin: 0 auto; padding: 32px 24px; flex: 1;">
             
+            ${window.location.protocol === 'https:' ? `
+              <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 18px; padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-size: 26px;">⚡</span>
+                  <div>
+                    <h4 style="font-size: 13px; font-weight: 800; color: #1e40af; margin: 0;">Motor Local de Alta Performance (FFmpeg 7.1 + yt-dlp)</h4>
+                    <p style="font-size: 12px; color: #3b82f6; margin: 2px 0 0 0;">O processamento pesado dos vídeos roda diretamente no hardware da sua máquina. Para processar sem restrições HTTPS do navegador, use o console local:</p>
+                  </div>
+                </div>
+                <a href="http://127.0.0.1:8765/admin?module=audiovisual" style="background: #2563eb; color: #ffffff; padding: 9px 18px; border-radius: 12px; font-weight: 800; font-size: 12px; text-decoration: none; white-space: nowrap; box-shadow: 0 2px 6px rgba(37,99,235,0.25);">
+                  Abrir Console Local (Porta 8765) ➔
+                </a>
+              </div>
+            ` : ''}
+
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px; align-items: start;">
               
               <!-- COLUNA ESQUERDA: INGESTÃO & CONFIGURAÇÕES -->
