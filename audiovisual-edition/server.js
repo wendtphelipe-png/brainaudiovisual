@@ -99,6 +99,9 @@ function addJobLog(job, message, type = 'info') {
     job.logs.push(entry);
     console.log(`[Job ${job.id}] [${timestamp}] ${message}`);
     broadcastJobUpdate(job);
+    if (job.onProgress) {
+        try { job.onProgress(job.percent, job.step, job.statusText); } catch (_) {}
+    }
 }
 
 function broadcastJobUpdate(job) {
@@ -126,6 +129,169 @@ function broadcastJobUpdate(job) {
         }
     });
 }
+
+// ==========================================
+// PERSISTÊNCIA DA FILA & MULTIPROCESSAMENTO
+// ==========================================
+const QUEUE_STATE_FILE = path.join(TEMP_DIR, 'queue_state.json');
+const DEFAULT_OUTPUT_DIR = 'D:\\downloads\\BrainAudiovisual_Saida';
+
+// Garante existência da pasta de saída padrão
+try {
+    if (!fs.existsSync(DEFAULT_OUTPUT_DIR)) fs.mkdirSync(DEFAULT_OUTPUT_DIR, { recursive: true });
+} catch (_) {}
+
+let queueState = {
+    concurrency: 2,
+    outputDir: DEFAULT_OUTPUT_DIR,
+    generateDubbedAudio: false, // Padrão solicitado: sem áudios dubbed e sem .srt para máxima velocidade
+    sourceLanguage: 'pt-BR',
+    voiceProfile: 'female_studio',
+    targetLanguages: ['en', 'es'],
+    isProcessing: false,
+    items: []
+};
+
+const queueClients = new Set();
+
+function broadcastQueueUpdate() {
+    const payload = `data: ${JSON.stringify(queueState)}\n\n`;
+    for (const client of queueClients) {
+        try {
+            client.write(payload);
+        } catch (_) {
+            queueClients.delete(client);
+        }
+    }
+}
+
+function loadQueueState() {
+    try {
+        if (fs.existsSync(QUEUE_STATE_FILE)) {
+            const raw = fs.readFileSync(QUEUE_STATE_FILE, 'utf8');
+            const data = JSON.parse(raw);
+            if (data && Array.isArray(data.items)) {
+                queueState.concurrency = data.concurrency || 2;
+                queueState.outputDir = data.outputDir || DEFAULT_OUTPUT_DIR;
+                queueState.generateDubbedAudio = !!data.generateDubbedAudio;
+                queueState.sourceLanguage = data.sourceLanguage || 'pt-BR';
+                queueState.voiceProfile = data.voiceProfile || 'female_studio';
+                queueState.targetLanguages = data.targetLanguages || ['en', 'es'];
+                
+                // Em caso de reinicialização ou perda de energia, restaura o estado:
+                queueState.items = data.items.map(item => {
+                    if (item.status === 'processing') {
+                        return { ...item, status: 'queued', percent: 0, statusText: 'Pronto para retomar' };
+                    }
+                    return item;
+                });
+                console.log(`[Queue] Carregada fila persistente com ${queueState.items.length} itens do disco.`);
+            }
+        }
+    } catch (e) {
+        console.warn(`[Queue] Aviso ao ler estado persistente: ${e.message}`);
+    }
+}
+
+function saveQueueState() {
+    try {
+        fs.writeFileSync(QUEUE_STATE_FILE, JSON.stringify(queueState, null, 2), 'utf8');
+    } catch (e) {
+        console.error(`[Queue] Erro ao salvar estado da fila: ${e.message}`);
+    }
+    broadcastQueueUpdate();
+}
+
+function sanitizeFilename(name) {
+    if (!name) return 'video_' + Date.now();
+    return name
+        .replace(/[\\/:*?"<>|]/g, '')
+        .replace(/\s+/g, '_')
+        .replace(/_{2,}/g, '_')
+        .replace(/^[._]+|[._]+$/g, '')
+        .substring(0, 100) || ('video_' + Date.now());
+}
+
+let activeQueueWorkers = 0;
+
+async function processNextQueueItems() {
+    if (!queueState.isProcessing) return;
+    const maxConcurrency = Math.max(1, Math.min(4, queueState.concurrency || 2));
+
+    while (activeQueueWorkers < maxConcurrency && queueState.isProcessing) {
+        const nextItem = queueState.items.find(i => i.status === 'queued');
+        if (!nextItem) break;
+
+        nextItem.status = 'processing';
+        nextItem.percent = 5;
+        nextItem.statusText = 'Iniciando processamento na esteira...';
+        nextItem.startedAt = Date.now();
+        activeQueueWorkers++;
+        saveQueueState();
+
+        // Worker assíncrono paralelo
+        (async (item) => {
+            try {
+                const job = {
+                    id: item.id,
+                    sourceType: item.sourceType || 'url',
+                    url: item.url || '',
+                    title: item.title || '',
+                    cookieData: item.cookieData || '',
+                    sourceLanguage: item.sourceLanguage || queueState.sourceLanguage || 'pt-BR',
+                    targetLanguages: item.targetLanguages || queueState.targetLanguages || ['en', 'es'],
+                    audioMode: item.audioMode || 'dubbing',
+                    voiceProfile: item.voiceProfile || queueState.voiceProfile || 'female_studio',
+                    voiceGender: 'female',
+                    generateDubbedAudio: item.generateDubbedAudio !== undefined ? item.generateDubbedAudio : queueState.generateDubbedAudio,
+                    outputDir: item.outputDir || queueState.outputDir || DEFAULT_OUTPUT_DIR,
+                    uploadedFilePath: item.uploadedFilePath || '',
+                    uploadedFileName: item.uploadedFileName || 'video.mp4',
+                    step: 0,
+                    percent: 5,
+                    statusText: 'Iniciando...',
+                    logs: [],
+                    tracks: {},
+                    completed: false,
+                    error: null,
+                    clients: new Set(),
+                    onProgress: (pct, stp, txt) => {
+                        item.percent = pct;
+                        item.step = stp;
+                        item.statusText = txt;
+                        broadcastQueueUpdate();
+                    }
+                };
+
+                jobs.set(job.id, job);
+                await processJob(job);
+
+                item.status = 'completed';
+                item.percent = 100;
+                item.title = job.title || item.title;
+                item.statusText = 'Concluído com sucesso!';
+                item.completedAt = Date.now();
+                item.elapsedMs = item.completedAt - item.startedAt;
+                item.outputPath = job.savedToFolder || '';
+                item.zipUrl = job.zipUrl || '';
+            } catch (err) {
+                console.error(`[Queue Item ${item.id}] Erro:`, err);
+                item.status = 'error';
+                item.error = err.message || 'Falha no processamento';
+                item.statusText = `Erro: ${item.error}`;
+            } finally {
+                activeQueueWorkers--;
+                saveQueueState();
+                if (queueState.isProcessing) {
+                    processNextQueueItems();
+                }
+            }
+        })(nextItem);
+    }
+}
+
+// Inicializa a fila salva no disco
+loadQueueState();
 
 /**
  * Execute command promise
@@ -383,6 +549,14 @@ async function processJob(job) {
         const rawAudioPath = path.join(jobDir, 'raw_audio.mp3');
 
         if (job.sourceType === 'url') {
+            try {
+                const { stdout: titleOut } = await runCommand(YTDLP_BIN, ['--print', '%(title)s', '--no-warnings', job.url]);
+                if (titleOut && titleOut.trim()) {
+                    job.title = titleOut.trim().split(/\r?\n/)[0];
+                    addJobLog(job, `Título do vídeo detectado: "${job.title}"`);
+                }
+            } catch (_) {}
+
             addJobLog(job, `Baixando fluxo de áudio via yt-dlp: ${job.url}`);
             const ytdlpArgs = [
                 '-x',
@@ -650,12 +824,12 @@ async function processJob(job) {
         addJobLog(job, 'Traduções finalizadas preservando todos os marcadores de tempo.');
 
         // ==========================================
-        // ETAPA 5: GERAÇÃO DE LEGENDAS (.VTT E .SRT)
+        // ETAPA 5: GERAÇÃO DE LEGENDAS NATIVAS (.VTT)
         // ==========================================
         job.step = 5;
         job.percent = 70;
-        job.statusText = 'Gerando arquivos de legendas .VTT e .SRT...';
-        addJobLog(job, 'Compilando legendas no padrão YouTube Studio e Vimeo...');
+        job.statusText = 'Gerando arquivos de legendas .VTT...';
+        addJobLog(job, 'Compilando legendas .VTT no padrão YouTube Studio e Vimeo (arquivos SRT excluídos)...');
 
         const subtitlesDir = path.join(jobDir, 'subtitles');
         if (!fs.existsSync(subtitlesDir)) fs.mkdirSync(subtitlesDir, { recursive: true });
@@ -664,7 +838,6 @@ async function processJob(job) {
 
         for (const lang of targetLangs) {
             let vttContent = 'WEBVTT - Brain Audiovisual\n\n';
-            let srtContent = '';
             let cueIndex = 1;
 
             segments.forEach((seg) => {
@@ -673,252 +846,278 @@ async function processJob(job) {
 
                 const vttStart = formatVttTime(seg.start);
                 const vttEnd = formatVttTime(seg.end);
-                const srtStart = formatSrtTime(seg.start);
-                const srtEnd = formatSrtTime(seg.end);
 
                 vttContent += `${cueIndex}\n${vttStart} --> ${vttEnd}\n${text}\n\n`;
-                srtContent += `${cueIndex}\n${srtStart} --> ${srtEnd}\n${text}\n\n`;
                 cueIndex++;
             });
 
             fs.writeFileSync(path.join(subtitlesDir, `subtitles_${lang}.vtt`), vttContent, 'utf8');
-            fs.writeFileSync(path.join(subtitlesDir, `subtitles_${lang}.srt`), srtContent, 'utf8');
-            job.subtitles[lang] = { vtt: `subtitles_${lang}.vtt`, srt: `subtitles_${lang}.srt` };
+            job.subtitles[lang] = { vtt: `subtitles_${lang}.vtt` };
         }
-        addJobLog(job, 'Legendas .vtt e .srt geradas com sucesso para todos os idiomas.');
+        addJobLog(job, 'Legendas .VTT geradas com sucesso para todos os idiomas selecionados.');
 
         // ==========================================
-        // ETAPA 6: SÍNTESE E SINCRONISMO DE DUBLAGEM (TIME-STRETCHING)
+        // ETAPA 6: SÍNTESE E SINCRONISMO DE DUBLAGEM
         // ==========================================
-        job.step = 6;
-        job.percent = 85;
-        job.statusText = 'Síntese de voz e sincronismo de dublagem (Time-Anchoring)...';
-        addJobLog(job, 'Gerando faixas de áudio MP3 sincronizadas com FFmpeg atempo...');
-
         const audioTracksDir = path.join(jobDir, 'audio_tracks');
         if (!fs.existsSync(audioTracksDir)) fs.mkdirSync(audioTracksDir, { recursive: true });
 
-        for (const lang of targetLangs) {
-            addJobLog(job, `Processando faixa de áudio sincronizada [${lang.toUpperCase()}]...`);
-            const langDir = path.join(jobDir, `tts_${lang}`);
-            if (!fs.existsSync(langDir)) fs.mkdirSync(langDir, { recursive: true });
+        if (!job.generateDubbedAudio) {
+            addJobLog(job, 'Áudio dubbed desativado para economia de tempo e recursos do PC. Pulando síntese de voz.');
+            job.step = 6;
+            job.percent = 90;
+            job.statusText = 'Modo ultra-rápido: áudios dubbed ignorados com sucesso.';
+        } else {
+            job.step = 6;
+            job.percent = 85;
+            job.statusText = 'Síntese de voz e sincronismo de dublagem (Time-Anchoring)...';
+            addJobLog(job, 'Gerando faixas de áudio MP3 sincronizadas com FFmpeg atempo...');
 
-            const concatListFile = path.join(langDir, 'concat_list.txt');
-            const concatEntries = [];
+            for (const lang of targetLangs) {
+                addJobLog(job, `Processando faixa de áudio sincronizada [${lang.toUpperCase()}]...`);
+                const langDir = path.join(jobDir, `tts_${lang}`);
+                if (!fs.existsSync(langDir)) fs.mkdirSync(langDir, { recursive: true });
 
-            let lastEnd = 0.0;
+                const concatListFile = path.join(langDir, 'concat_list.txt');
+                const concatEntries = [];
 
-            for (let i = 0; i < segments.length; i++) {
-                const seg = segments[i];
-                const text = seg.translations[lang] || seg.text;
+                let lastEnd = 0.0;
 
-                // 1. Fill leading silence gap before this segment
-                const silenceGap = seg.start - lastEnd;
-                if (silenceGap > 0.08) {
-                    const silenceFile = path.join(langDir, `silence_${i}.mp3`);
+                for (let i = 0; i < segments.length; i++) {
+                    const seg = segments[i];
+                    const text = seg.translations[lang] || seg.text;
+
+                    // 1. Preenchimento de silêncio anterior
+                    const silenceGap = seg.start - lastEnd;
+                    if (silenceGap > 0.08) {
+                        const silenceFile = path.join(langDir, `silence_${i}.mp3`);
+                        await runCommand(`"${FFMPEG_BIN}"`, [
+                            '-y',
+                            '-f', 'lavfi',
+                            '-i', `anullsrc=r=44100:cl=stereo`,
+                            '-t', silenceGap.toFixed(3),
+                            '-b:a', '192k',
+                            `"${silenceFile}"`
+                        ]);
+                        concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
+                    }
+
+                    // 2. Síntese de voz TTS
+                    if (!text || !text.trim()) {
+                        const silenceFile = path.join(langDir, `empty_${i}.mp3`);
+                        await runCommand(`"${FFMPEG_BIN}"`, [
+                            '-y',
+                            '-f', 'lavfi',
+                            '-i', `anullsrc=r=44100:cl=stereo`,
+                            '-t', seg.duration.toFixed(3),
+                            '-b:a', '192k',
+                            `"${silenceFile}"`
+                        ]);
+                        concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
+                        lastEnd = seg.end;
+                        continue;
+                    }
+
+                    const rawTtsFile = path.join(langDir, `raw_tts_${i}.mp3`);
+                    const synthesized = await synthesizeTtsAudio(text, lang, job.voiceProfile || job.voiceGender, rawTtsFile);
+
+                    if (!synthesized || !fs.existsSync(rawTtsFile)) {
+                        const silenceFile = path.join(langDir, `empty_${i}.mp3`);
+                        await runCommand(FFMPEG_BIN, [
+                            '-y',
+                            '-f', 'lavfi',
+                            '-i', `anullsrc=r=44100:cl=stereo`,
+                            '-t', seg.duration.toFixed(3),
+                            '-b:a', '192k',
+                            silenceFile
+                        ]);
+                        concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
+                        lastEnd = seg.end;
+                        continue;
+                    }
+
+                    const rawDuration = await getAudioDuration(rawTtsFile);
+                    const targetDuration = seg.duration;
+                    const fittedTtsFile = path.join(langDir, `fitted_tts_${i}.mp3`);
+
+                    if (rawDuration > targetDuration * 1.15 && targetDuration > 0) {
+                        let speedRatio = Math.min(1.15, rawDuration / targetDuration);
+                        await runCommand(FFMPEG_BIN, [
+                            '-y',
+                            '-i', rawTtsFile,
+                            '-filter:a', `atempo=${speedRatio.toFixed(3)}`,
+                            '-b:a', '192k',
+                            fittedTtsFile
+                        ]);
+                    } else {
+                        fs.copyFileSync(rawTtsFile, fittedTtsFile);
+                    }
+
+                    concatEntries.push(`file '${fittedTtsFile.replace(/\\/g, '/')}'`);
+                    lastEnd = seg.end;
+                }
+
+                if (job.duration > lastEnd) {
+                    const tailSilence = job.duration - lastEnd;
+                    const tailFile = path.join(langDir, `tail_silence.mp3`);
                     await runCommand(`"${FFMPEG_BIN}"`, [
                         '-y',
                         '-f', 'lavfi',
                         '-i', `anullsrc=r=44100:cl=stereo`,
-                        '-t', silenceGap.toFixed(3),
+                        '-t', tailSilence.toFixed(3),
                         '-b:a', '192k',
-                        `"${silenceFile}"`
+                        `"${tailFile}"`
                     ]);
-                    concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
+                    concatEntries.push(`file '${tailFile.replace(/\\/g, '/')}'`);
                 }
 
-                // 2. Synthesize TTS speech (or silence if segment has no speech)
-                if (!text || !text.trim()) {
-                    const silenceFile = path.join(langDir, `empty_${i}.mp3`);
+                fs.writeFileSync(concatListFile, concatEntries.join('\n'), 'utf8');
+
+                const dubbedCleanPath = path.join(audioTracksDir, `audio_${lang}_clean.mp3`);
+                await runCommand(`"${FFMPEG_BIN}"`, [
+                    '-y',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', `"${concatListFile}"`,
+                    '-c:a', 'libmp3lame',
+                    '-b:a', '192k',
+                    `"${dubbedCleanPath}"`
+                ]);
+
+                const finalTrackPath = path.join(audioTracksDir, `audio_${lang}_dubbed.mp3`);
+
+                if (job.audioMode === 'voiceover') {
                     await runCommand(`"${FFMPEG_BIN}"`, [
                         '-y',
-                        '-f', 'lavfi',
-                        '-i', `anullsrc=r=44100:cl=stereo`,
-                        '-t', seg.duration.toFixed(3),
+                        '-i', `"${dubbedCleanPath}"`,
+                        '-i', `"${rawAudioPath}"`,
+                        '-filter_complex', `"[1:a]volume=0.12[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2"`,
                         '-b:a', '192k',
-                        `"${silenceFile}"`
+                        `"${finalTrackPath}"`
                     ]);
-                    concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
-                    lastEnd = seg.end;
-                    continue;
-                }
-
-                const rawTtsFile = path.join(langDir, `raw_tts_${i}.mp3`);
-                const synthesized = await synthesizeTtsAudio(text, lang, job.voiceProfile || job.voiceGender, rawTtsFile);
-
-                if (!synthesized || !fs.existsSync(rawTtsFile)) {
-                    // Fallback silence if TTS failed
-                    const silenceFile = path.join(langDir, `empty_${i}.mp3`);
-                    await runCommand(FFMPEG_BIN, [
-                        '-y',
-                        '-f', 'lavfi',
-                        '-i', `anullsrc=r=44100:cl=stereo`,
-                        '-t', seg.duration.toFixed(3),
-                        '-b:a', '192k',
-                        silenceFile
-                    ]);
-                    concatEntries.push(`file '${silenceFile.replace(/\\/g, '/')}'`);
-                    lastEnd = seg.end;
-                    continue;
-                }
-
-                // Check raw duration
-                const rawDuration = await getAudioDuration(rawTtsFile);
-                const targetDuration = seg.duration;
-
-                const fittedTtsFile = path.join(langDir, `fitted_tts_${i}.mp3`);
-
-                // Preserva a voz 100% humana e natural sem distorção artificial de tempo!
-                // Só aplica aceleração muito sutil se a fala for mais longa que a janela (+15%)
-                if (rawDuration > targetDuration * 1.15 && targetDuration > 0) {
-                    let speedRatio = Math.min(1.15, rawDuration / targetDuration);
-                    await runCommand(FFMPEG_BIN, [
-                        '-y',
-                        '-i', rawTtsFile,
-                        '-filter:a', `atempo=${speedRatio.toFixed(3)}`,
-                        '-b:a', '192k',
-                        fittedTtsFile
-                    ]);
+                    addJobLog(job, `Mixagem Voice-Over finalizada para [${lang.toUpperCase()}].`);
                 } else {
-                    fs.copyFileSync(rawTtsFile, fittedTtsFile);
+                    fs.copyFileSync(dubbedCleanPath, finalTrackPath);
+                    addJobLog(job, `Faixa de Dublagem limpa finalizada para [${lang.toUpperCase()}].`);
                 }
 
-                concatEntries.push(`file '${fittedTtsFile.replace(/\\/g, '/')}'`);
-                lastEnd = seg.end;
+                job.tracks[lang] = `/api/audio/${job.id}/${lang}`;
             }
-
-            // Fill trailing silence if video extends past last sentence
-            if (job.duration > lastEnd) {
-                const tailSilence = job.duration - lastEnd;
-                const tailFile = path.join(langDir, `tail_silence.mp3`);
-                await runCommand(`"${FFMPEG_BIN}"`, [
-                    '-y',
-                    '-f', 'lavfi',
-                    '-i', `anullsrc=r=44100:cl=stereo`,
-                    '-t', tailSilence.toFixed(3),
-                    '-b:a', '192k',
-                    `"${tailFile}"`
-                ]);
-                concatEntries.push(`file '${tailFile.replace(/\\/g, '/')}'`);
-            }
-
-            // Write concat file
-            fs.writeFileSync(concatListFile, concatEntries.join('\n'), 'utf8');
-
-            const dubbedCleanPath = path.join(audioTracksDir, `audio_${lang}_clean.mp3`);
-            await runCommand(`"${FFMPEG_BIN}"`, [
-                '-y',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', `"${concatListFile}"`,
-                '-c:a', 'libmp3lame',
-                '-b:a', '192k',
-                `"${dubbedCleanPath}"`
-            ]);
-
-            const finalTrackPath = path.join(audioTracksDir, `audio_${lang}_dubbed.mp3`);
-
-            if (job.audioMode === 'voiceover') {
-                // Mix original audio at 12% in background with dubbed audio at 100%
-                await runCommand(`"${FFMPEG_BIN}"`, [
-                    '-y',
-                    '-i', `"${dubbedCleanPath}"`,
-                    '-i', `"${rawAudioPath}"`,
-                    '-filter_complex', `"[1:a]volume=0.12[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2"`,
-                    '-b:a', '192k',
-                    `"${finalTrackPath}"`
-                ]);
-                addJobLog(job, `Mixagem Voice-Over finalizada para [${lang.toUpperCase()}].`);
-            } else {
-                fs.copyFileSync(dubbedCleanPath, finalTrackPath);
-                addJobLog(job, `Faixa de Dublagem limpa finalizada para [${lang.toUpperCase()}].`);
-            }
-
-            job.tracks[lang] = `/api/audio/${job.id}/${lang}`;
         }
 
         // ==========================================
-        // ETAPA 7: CRIAÇÃO DO PACOTE ZIP FINAL
+        // ETAPA 7: SALVAMENTO NA PASTA DE DESTINO E PACOTE ZIP
         // ==========================================
         job.percent = 95;
-        job.statusText = 'Compactando pacote ZIP para YouTube e Vimeo...';
-        addJobLog(job, 'Criando arquivo ZIP estruturado com instruções de upload...');
+        job.statusText = 'Salvando na pasta de destino selecionada...';
+        addJobLog(job, 'Exportando arquivos estruturados para a pasta final...');
+
+        // Identifica pasta de destino e nome limpo do vídeo
+        const targetBaseDir = job.outputDir || queueState.outputDir || DEFAULT_OUTPUT_DIR;
+        const videoFolderName = sanitizeFilename(job.title || `video_${job.id}`);
+        const destinationFolder = path.join(targetBaseDir, videoFolderName);
+        if (!fs.existsSync(destinationFolder)) fs.mkdirSync(destinationFolder, { recursive: true });
+
+        // Copia legendas .VTT para a pasta de destino
+        const destSubtitlesDir = path.join(destinationFolder, 'legendas_vtt');
+        if (!fs.existsSync(destSubtitlesDir)) fs.mkdirSync(destSubtitlesDir, { recursive: true });
+        if (fs.existsSync(subtitlesDir)) {
+            const vttFiles = fs.readdirSync(subtitlesDir);
+            for (const f of vttFiles) {
+                fs.copyFileSync(path.join(subtitlesDir, f), path.join(destSubtitlesDir, f));
+            }
+        }
+
+        // Copia áudio original
+        if (fs.existsSync(originalTrackPath)) {
+            fs.copyFileSync(originalTrackPath, path.join(destinationFolder, 'audio_original.mp3'));
+        }
+
+        // Se gerou dublagens, copia faixas de áudio
+        if (job.generateDubbedAudio && fs.existsSync(audioTracksDir)) {
+            const destAudioDir = path.join(destinationFolder, 'audio_dublado');
+            if (!fs.existsSync(destAudioDir)) fs.mkdirSync(destAudioDir, { recursive: true });
+            const audioFiles = fs.readdirSync(audioTracksDir).filter(f => f.endsWith('.mp3'));
+            for (const f of audioFiles) {
+                fs.copyFileSync(path.join(audioTracksDir, f), path.join(destAudioDir, f));
+            }
+        }
 
         // Create instructions README
         const readmeContent = `====================================================================
 BRAIN AUDIOVISUAL - AUDIOVISUAL EDITION
-PACOTE DE DUBLAGEM E LEGENDAS SINCRONIZADAS PARA YOUTUBE E VIMEO
+PACOTE DE LEGENDAS E ÁUDIO PARA YOUTUBE E VIMEO
 ====================================================================
 
 ID do Projeto: ${job.id}
+Título: ${job.title || 'Vídeo sem título'}
 Data de Criação: ${new Date().toLocaleString('pt-BR')}
-Modo de Áudio: ${job.audioMode === 'voiceover' ? 'Voice-Over (Original suave ao fundo)' : 'Dublagem Limpa (100% IA)'}
-Duração Total: ${job.duration.toFixed(1)} segundos
+Duração Total: ${job.duration.toFixed(1)} segundos (${(job.duration / 60).toFixed(1)} min)
+Áudios Dublados: ${job.generateDubbedAudio ? 'Gerados com sucesso' : 'Desativados para economia de tempo'}
 
 --------------------------------------------------------------------
-CONTEÚDO DO PACOTE:
+CONTEÚDO DO DIRETÓRIO:
 --------------------------------------------------------------------
-📁 audio_tracks/
-   - audio_pt_dubbed.mp3  -> Faixa de áudio traduzida em Português
-   - audio_en_dubbed.mp3  -> Faixa de áudio traduzida em Inglês
-   - audio_es_dubbed.mp3  -> Faixa de áudio traduzida em Espanhol
+📁 legendas_vtt/
+   - subtitles_*.vtt  -> Legendas WebVTT nativas para cada idioma
 
-📁 subtitles/
-   - subtitles_pt.vtt / .srt  -> Legendas em Português
-   - subtitles_en.vtt / .srt  -> Legendas em Inglês
-   - subtitles_es.vtt / .srt  -> Legendas em Espanhol
-
+🎵 audio_original.mp3 -> Áudio original extraído em alta fidelidade (192kbps)
+${job.generateDubbedAudio ? '📁 audio_dublado/\n   - Faixas MP3 dubladas sincronizadas\n' : ''}
 📁 transcriptions/
-   - transcript_timeline.json  -> Marcações de tempo e frases
+   - transcript_timeline.json  -> Marcações completas de tempo, texto e traduções
 
 --------------------------------------------------------------------
 INSTRUÇÕES DE UPLOAD:
 --------------------------------------------------------------------
 1. NO YOUTUBE (YouTube Studio):
    - Acesse seu vídeo em studio.youtube.com
-   - Vá na aba "Legendas" (Subtitles) para subir os arquivos .vtt ou .srt
-     associando ao respectivo idioma (Português, Inglês, Espanhol).
-   - Se o seu canal tiver o recurso "Faixas de Áudio Multi-idioma" (Multi-language Audio),
-     adicione os arquivos MP3 na respectiva seção de áudio do vídeo.
+   - Vá na aba "Legendas" (Subtitles) para subir os arquivos .VTT
+     associando ao respectivo idioma.
 
 2. NO VIMEO (Vimeo Pro / Business / Enterprise):
    - Acesse o gerenciador de vídeos do Vimeo.
    - Na aba "Áudio & Legendas", faça o upload das legendas .VTT.
-   - Na seção de faixas de áudio alternativas, envie os arquivos MP3.
 
 Gerado automaticamente por Brain Audiovisual.
 `;
 
-        fs.writeFileSync(path.join(jobDir, 'README_INSTRUCOES_UPLOAD.txt'), readmeContent, 'utf8');
+        fs.writeFileSync(path.join(destinationFolder, 'README_INSTRUCOES_UPLOAD.txt'), readmeContent, 'utf8');
 
         // Save transcript JSON
         const transcriptDir = path.join(jobDir, 'transcriptions');
         if (!fs.existsSync(transcriptDir)) fs.mkdirSync(transcriptDir, { recursive: true });
-        fs.writeFileSync(
-            path.join(transcriptDir, 'transcript_timeline.json'),
-            JSON.stringify({ jobId: job.id, duration: job.duration, segments }, null, 2),
-            'utf8'
-        );
+        const transcriptPayload = JSON.stringify({ jobId: job.id, title: job.title || '', duration: job.duration, segments }, null, 2);
+        fs.writeFileSync(path.join(transcriptDir, 'transcript_timeline.json'), transcriptPayload, 'utf8');
+        fs.writeFileSync(path.join(destinationFolder, 'transcript_timeline.json'), transcriptPayload, 'utf8');
 
         // Package with PowerShell Compress-Archive
-        const zipFileName = `BrainAudiovisual_Package_${job.id}.zip`;
+        const zipFileName = `${videoFolderName}_BrainAudiovisual.zip`;
         const zipFilePath = path.join(OUTPUT_DIR, zipFileName);
 
         const psScript = `
-        $sourceDir = '${jobDir.replace(/\\/g, '/')}';
+        $destFolder = '${destinationFolder.replace(/\\/g, '/')}';
         $destZip = '${zipFilePath.replace(/\\/g, '/')}';
         if (Test-Path $destZip) { Remove-Item $destZip -Force };
-        Compress-Archive -Path "$sourceDir/audio_tracks", "$sourceDir/subtitles", "$sourceDir/transcriptions", "$sourceDir/README_INSTRUCOES_UPLOAD.txt" -DestinationPath $destZip -CompressionLevel Optimal;
+        Compress-Archive -Path "$destFolder/*" -DestinationPath $destZip -CompressionLevel Optimal;
         `;
 
-        await runCommand('powershell.exe', ['-NoProfile', '-Command', psScript.replace(/\n/g, ' ')]);
+        try {
+            await runCommand('powershell.exe', ['-NoProfile', '-Command', psScript.replace(/\n/g, ' ')]);
+            if (fs.existsSync(zipFilePath)) {
+                fs.copyFileSync(zipFilePath, path.join(destinationFolder, zipFileName));
+            }
+        } catch (e) {
+            console.warn(`[Job ${job.id}] Aviso ao gerar ZIP complementar: ${e.message}`);
+        }
 
+        job.savedToFolder = destinationFolder;
         job.zipUrl = `/api/download/${job.id}`;
         job.percent = 100;
         job.step = 7;
         job.completed = true;
         job.statusText = 'Concluído com sucesso!';
-        addJobLog(job, `Pacote ZIP criado com sucesso: ${zipFileName}`);
+        addJobLog(job, `Arquivos salvos automaticamente na pasta: ${destinationFolder}`);
+        addJobLog(job, `Pacote ZIP gerado: ${zipFileName}`);
         broadcastJobUpdate(job);
 
     } catch (err) {
@@ -976,6 +1175,280 @@ const server = http.createServer(async (req, res) => {
             ram: ramStats,
             gpu: gpuInfo
         }));
+    }
+
+    // ==========================================
+    // API: FILA PERSISTENTE E PROCESSAMENTO EM LOTE
+    // ==========================================
+
+    // 0.1 GET /api/queue - Consulta estado atual da fila
+    if (pathname === '/api/queue' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, ...queueState }));
+    }
+
+    // 0.2 GET /api/queue/stream - SSE em tempo real da fila
+    if (pathname === '/api/queue/stream') {
+        res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
+        });
+        res.write(`data: ${JSON.stringify(queueState)}\n\n`);
+        queueClients.add(res);
+        req.on('close', () => queueClients.delete(res));
+        return;
+    }
+
+    // 0.3 POST /api/queue/config - Atualização das preferências da fila
+    if (pathname === '/api/queue/config' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const payload = JSON.parse(body);
+                if (payload.concurrency !== undefined) queueState.concurrency = Math.max(1, Math.min(4, parseInt(payload.concurrency, 10) || 2));
+                if (payload.outputDir) queueState.outputDir = payload.outputDir.trim();
+                if (payload.generateDubbedAudio !== undefined) queueState.generateDubbedAudio = !!payload.generateDubbedAudio;
+                if (payload.sourceLanguage) queueState.sourceLanguage = payload.sourceLanguage;
+                if (payload.voiceProfile) queueState.voiceProfile = payload.voiceProfile;
+                if (Array.isArray(payload.targetLanguages)) queueState.targetLanguages = payload.targetLanguages;
+
+                try {
+                    if (!fs.existsSync(queueState.outputDir)) fs.mkdirSync(queueState.outputDir, { recursive: true });
+                } catch (_) {}
+
+                saveQueueState();
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, queueState }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        });
+        return;
+    }
+
+    // 0.4 POST /api/queue/add - Adiciona múltiplos links ou itens à fila
+    if (pathname === '/api/queue/add' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const payload = JSON.parse(body);
+                const incoming = Array.isArray(payload.items) ? payload.items : (Array.isArray(payload.urls) ? payload.urls.map(u => ({ url: u })) : []);
+                let addedCount = 0;
+
+                for (const item of incoming) {
+                    const rawUrl = (item.url || '').trim();
+                    if (!rawUrl && !item.uploadedFilePath) continue;
+
+                    const itemId = `q_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+                    const queueItem = {
+                        id: itemId,
+                        sourceType: item.sourceType || (item.uploadedFilePath ? 'file' : 'url'),
+                        url: rawUrl,
+                        title: (item.title || rawUrl.split('/').pop() || 'Vídeo').substring(0, 150),
+                        cookieData: item.cookieData || payload.cookieData || '',
+                        sourceLanguage: item.sourceLanguage || queueState.sourceLanguage || 'pt-BR',
+                        targetLanguages: item.targetLanguages || queueState.targetLanguages || ['en', 'es'],
+                        audioMode: item.audioMode || 'dubbing',
+                        voiceProfile: item.voiceProfile || queueState.voiceProfile || 'female_studio',
+                        generateDubbedAudio: item.generateDubbedAudio !== undefined ? item.generateDubbedAudio : queueState.generateDubbedAudio,
+                        outputDir: item.outputDir || queueState.outputDir || DEFAULT_OUTPUT_DIR,
+                        uploadedFilePath: item.uploadedFilePath || '',
+                        uploadedFileName: item.uploadedFileName || 'video.mp4',
+                        status: 'queued',
+                        percent: 0,
+                        step: 0,
+                        statusText: 'Na fila',
+                        outputPath: '',
+                        zipUrl: '',
+                        error: null,
+                        addedAt: Date.now()
+                    };
+
+                    queueState.items.push(queueItem);
+                    addedCount++;
+                }
+
+                saveQueueState();
+
+                if (queueState.isProcessing) {
+                    processNextQueueItems();
+                }
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, addedCount, totalItems: queueState.items.length }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        });
+        return;
+    }
+
+    // 0.5 POST /api/queue/start - Inicia ou retoma a esteira de processamento
+    if (pathname === '/api/queue/start' && req.method === 'POST') {
+        queueState.isProcessing = true;
+        saveQueueState();
+        processNextQueueItems();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, isProcessing: true }));
+    }
+
+    // 0.6 POST /api/queue/pause - Pausa a esteira
+    if (pathname === '/api/queue/pause' && req.method === 'POST') {
+        queueState.isProcessing = false;
+        saveQueueState();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, isProcessing: false }));
+    }
+
+    // 0.7 POST /api/queue/clear-completed - Limpa itens concluídos
+    if (pathname === '/api/queue/clear-completed' && req.method === 'POST') {
+        queueState.items = queueState.items.filter(i => i.status !== 'completed');
+        saveQueueState();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, items: queueState.items }));
+    }
+
+    // 0.8 POST /api/queue/clear-all - Limpa tudo que não estiver processando
+    if (pathname === '/api/queue/clear-all' && req.method === 'POST') {
+        queueState.items = queueState.items.filter(i => i.status === 'processing');
+        saveQueueState();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, items: queueState.items }));
+    }
+
+    // 0.9 POST /api/queue/remove - Remove item específico
+    if (pathname === '/api/queue/remove' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const { id } = JSON.parse(body);
+                queueState.items = queueState.items.filter(i => i.id !== id || i.status === 'processing');
+                saveQueueState();
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        });
+        return;
+    }
+
+    // 0.10 POST /api/queue/retry - Reprocessar item que falhou ou terminou
+    if (pathname === '/api/queue/retry' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const { id } = JSON.parse(body);
+                const item = queueState.items.find(i => i.id === id);
+                if (item && item.status !== 'processing') {
+                    item.status = 'queued';
+                    item.percent = 0;
+                    item.statusText = 'Na fila para reprocessar';
+                    item.error = null;
+                    saveQueueState();
+                    if (queueState.isProcessing) {
+                        processNextQueueItems();
+                    }
+                }
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        });
+        return;
+    }
+
+    // 0.11 POST /api/extract-playlist - Extrai todos os vídeos de uma playlist/showcase (YouTube / Vimeo)
+    if (pathname === '/api/extract-playlist' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const { url: playlistUrl, cookieData } = JSON.parse(body);
+                if (!playlistUrl || !playlistUrl.trim()) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ success: false, error: 'URL da playlist ou showcase é obrigatória.' }));
+                }
+
+                const args = ['--flat-playlist', '--no-warnings', '--print', '%(id)s\t%(title)s\t%(url)s'];
+
+                let cookieFile = null;
+                if (cookieData && cookieData.trim()) {
+                    cookieFile = path.join(TEMP_DIR, `cookie_${Date.now()}.txt`);
+                    fs.writeFileSync(cookieFile, cookieData.trim(), 'utf8');
+                    args.push('--cookies', cookieFile);
+                }
+
+                args.push(playlistUrl.trim());
+
+                const { stdout } = await runCommand(YTDLP_BIN, args);
+                if (cookieFile && fs.existsSync(cookieFile)) {
+                    try { fs.unlinkSync(cookieFile); } catch (_) {}
+                }
+
+                const lines = stdout.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
+                const videos = lines.map(line => {
+                    const parts = line.split('\t');
+                    const id = parts[0] || '';
+                    const title = parts[1] || `Vídeo ${id}`;
+                    let videoUrl = parts[2] || '';
+                    if (videoUrl && !videoUrl.startsWith('http')) {
+                        if (playlistUrl.includes('vimeo.com')) {
+                            videoUrl = `https://vimeo.com/${videoUrl}`;
+                        } else {
+                            videoUrl = `https://www.youtube.com/watch?v=${videoUrl}`;
+                        }
+                    } else if (!videoUrl && id) {
+                        if (playlistUrl.includes('vimeo.com')) {
+                            videoUrl = `https://vimeo.com/${id}`;
+                        } else {
+                            videoUrl = `https://www.youtube.com/watch?v=${id}`;
+                        }
+                    }
+                    return { id, title, url: videoUrl };
+                });
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, count: videos.length, videos }));
+            } catch (e) {
+                console.error('[Playlist Extract Error]', e);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: e.message || 'Erro ao extrair playlist.' }));
+            }
+        });
+        return;
+    }
+
+    // 0.12 POST /api/open-folder - Abre a pasta no Windows Explorer
+    if (pathname === '/api/open-folder' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const { folderPath } = JSON.parse(body || '{}');
+                const targetPath = (folderPath && folderPath.trim()) ? folderPath.trim() : (queueState.outputDir || DEFAULT_OUTPUT_DIR);
+                if (!fs.existsSync(targetPath)) {
+                    fs.mkdirSync(targetPath, { recursive: true });
+                }
+                spawn('explorer.exe', [targetPath], { detached: true, stdio: 'ignore' }).unref();
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, folder: targetPath }));
+            } catch (e) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        });
+        return;
     }
 
     // 1. API: Process Job Request (JSON)

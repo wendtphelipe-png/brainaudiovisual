@@ -26,13 +26,7 @@ const server = http.createServer((req, res) => {
   }
 
   // 2. Proxy transparente para o motor audiovisual standalone (:3050)
-  if (req.url.startsWith('/api/process') || 
-      req.url.startsWith('/api/upload') || 
-      req.url.startsWith('/api/progress') || 
-      req.url.startsWith('/api/audio') || 
-      req.url.startsWith('/api/download') || 
-      req.url.startsWith('/api/system-stats') || 
-      req.url.startsWith('/api/status')) {
+  if (req.url.startsWith('/api/')) {
     
     // Suporte CORS total
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -71,6 +65,10 @@ const server = http.createServer((req, res) => {
 
   // 3. Roteamento de arquivos estáticos e rotas de SPA
   let cleanPath = req.url.split('?')[0];
+  if (cleanPath === '/audiovisual' || cleanPath.startsWith('/audiovisual')) {
+    res.writeHead(302, { 'Location': 'http://127.0.0.1:3050' });
+    return res.end();
+  }
   let fp;
   if (cleanPath === '/admin' || cleanPath.startsWith('/admin') || cleanPath === '/' || cleanPath.startsWith('/meeting') || cleanPath.startsWith('/portal') || cleanPath.startsWith('/listener') || cleanPath.startsWith('/audience') || cleanPath.startsWith('/telao')) {
     fp = BASE + '/index.html';
