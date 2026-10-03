@@ -269,13 +269,28 @@ async function processJob(job) {
 
             // If custom cookies provided
             if (job.cookieData && job.cookieData.trim()) {
-                const cookieFile = path.join(jobDir, 'cookies.txt');
-                fs.writeFileSync(cookieFile, job.cookieData, 'utf8');
-                ytdlpArgs.push('--cookies', `"${cookieFile}"`);
-                addJobLog(job, 'Cookies de autenticação aplicados para vídeo privado.');
+                const trimmed = job.cookieData.trim();
+                if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+                    addJobLog(job, 'Aviso: Foi inserida uma URL no campo de cookies em vez do conteúdo de cookies Netscape. A extração continuará sem cookies.', 'warn');
+                } else if (trimmed.includes('\t') || trimmed.includes('# Netscape') || trimmed.includes('.vimeo.com') || trimmed.includes('.youtube.com')) {
+                    const cookieFile = path.join(jobDir, 'cookies.txt');
+                    fs.writeFileSync(cookieFile, trimmed, 'utf8');
+                    ytdlpArgs.push('--cookies', `"${cookieFile}"`);
+                    addJobLog(job, 'Cookies de autenticação aplicados para vídeo privado.');
+                } else {
+                    addJobLog(job, 'Aviso: Formato de cookies não reconhecido (deve ser formato Netscape). Prosseguindo sem cookies.', 'warn');
+                }
             }
 
-            await runCommand(`"${YTDLP_BIN}"`, ytdlpArgs);
+            try {
+                await runCommand(`"${YTDLP_BIN}"`, ytdlpArgs);
+            } catch (dlErr) {
+                const msg = String(dlErr.message || dlErr);
+                if (msg.includes('The web client only works when logged-in') || msg.includes('HTTP Error 401') || msg.includes('Private video') || msg.includes('Unauthorized')) {
+                    throw new Error('Este vídeo do Vimeo é privado ou protegido por login da sua conta. Para processá-lo: baixe o vídeo pelo seu navegador e envie diretamente pela aba "Arquivo Local (Upload do Computador)", ou forneça cookies Netscape da sua sessão do Vimeo.');
+                }
+                throw dlErr;
+            }
 
             // Find the extracted mp3
             const files = fs.readdirSync(jobDir);
