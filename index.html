@@ -343,17 +343,12 @@
       const isAudiencePortal = params.get('portal') === 'audience' || params.get('view') === 'portal' || params.get('portal') === 'true' || params.has('pool') || window.location.pathname.startsWith('/portal');
       const isAudiencePage = params.get('view') === 'audience' || params.get('view') === 'listener' || params.get('listener') === 'true' || window.location.pathname.startsWith('/listener') || window.location.pathname.startsWith('/audience');
       const isOverlaySubtitles = params.get('overlay') === 'subtitles' || params.get('telao') === 'true' || window.location.pathname.startsWith('/overlay/subtitles') || window.location.pathname.startsWith('/telao');
-      const isAdmin = params.get('admin') === 'true' || params.has('admin') || params.has('module') || window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin');
       const meetingId = params.get('meeting') || (window.location.pathname.startsWith('/meeting/') ? window.location.pathname.split('/')[2] : null);
+      const isAdmin = !meetingId && (params.get('admin') === 'true' || params.has('admin') || params.has('module') || window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin'));
 
       try {
-        // 0. ROTA: ÁREA ADMINISTRATIVA / DASHBOARD CENTRAL DE EVENTOS (/admin ou ?admin=true ou ?module=...)
-        if (isAdmin) {
-          document.body.className = "font-sans antialiased m-0 min-h-screen";
-          routeAdminModule();
-        }
         // 1. ROTA DEDICADA: PORTAL POOL CENTRAL DE IDIOMAS (1 ÚNICO QR CODE PARA O AUDITÓRIO)
-        else if (isAudiencePortal && meetingId) {
+        if (isAudiencePortal && meetingId) {
           document.body.className = "bg-slate-50 text-slate-800 font-sans antialiased m-0 min-h-screen selection:bg-indigo-500/30 selection:text-indigo-600";
           setGlobalTheme(getStoredTheme());
           renderAudiencePortalPage(meetingId);
@@ -392,7 +387,12 @@
             `;
           }
         }
-        // 5. ROTA PADRÃO PÚBLICA: PÁGINA EM CONSTRUÇÃO CLEAN E CLARA (/)
+        // 5. ROTA: ÁREA ADMINISTRATIVA / DASHBOARD CENTRAL DE EVENTOS (/admin ou ?admin=true ou ?module=...)
+        else if (isAdmin) {
+          document.body.className = "font-sans antialiased m-0 min-h-screen";
+          routeAdminModule();
+        }
+        // 6. ROTA PADRÃO PÚBLICA: PÁGINA EM CONSTRUÇÃO CLEAN E CLARA (/)
         else {
           document.body.className = "bg-[#f8fafc] text-[#0f172a] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
           renderPublicConstructionPage();
@@ -898,9 +898,17 @@
       return false;
     }
 
+    window.getCleanBaseUrl = function() {
+      let p = window.location.pathname || '/';
+      if (p.endsWith('/admin')) p = p.substring(0, p.length - 6);
+      if (p.startsWith('/portal')) p = '/';
+      if (p.startsWith('/meeting')) p = '/';
+      if (!p.endsWith('/') && !p.endsWith('.html') && !p.endsWith('.php')) p += '/';
+      return window.location.origin + p;
+    };
+
     function getMeetingCockpitUrl(meetingId, isRemote = false) {
-      const currentPath = window.location.pathname || '/';
-      let url = currentPath + '?meeting=' + encodeURIComponent(meetingId);
+      let url = window.getCleanBaseUrl() + '?meeting=' + encodeURIComponent(meetingId);
       if (isRemote) {
         url += '&cohost=true';
       }
@@ -932,9 +940,7 @@
 
     window.copyMeetingCockpitUrl = function(meetingId) {
       if (!meetingId) return;
-      const origin = window.location.origin;
-      const path = (window.location.pathname && window.location.pathname !== '/') ? window.location.pathname : '';
-      const url = origin + path + '?meeting=' + encodeURIComponent(meetingId);
+      const url = window.getCleanBaseUrl() + '?meeting=' + encodeURIComponent(meetingId);
       
       const applyBtnFeedback = () => {
         const btn = document.getElementById('btn-copy-cockpit-' + meetingId);
@@ -1230,16 +1236,17 @@
                 </div>
 
                 <div class="space-y-2">
-                  <a 
-                    href="http://127.0.0.1:3050" 
-                    target="_blank" 
-                    class="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-md shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer no-underline text-center"
+                  <button 
+                    type="button"
+                    id="hubAvLaunchBtn"
+                    onclick="window.launchAudioVisualStudio(event)" 
+                    class="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-md shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer no-underline text-center border-0"
                   >
                     <span>Acessar AudioVisual Edition (Mesa de Fila & Produção) ↗</span>
-                  </a>
+                  </button>
                   <div class="flex items-center justify-between text-[11px] px-1 text-slate-400">
-                    <span>Link Direto: <a href="http://127.0.0.1:3050" target="_blank" class="font-mono text-purple-400 hover:underline">http://127.0.0.1:3050</a></span>
-                    <a href="http://127.0.0.1:3050" target="_blank" class="text-indigo-400 hover:text-indigo-300 font-medium">Abrir Standalone (:3050) ↗</a>
+                    <span>Motor Local: <span id="hubEngineStatusBadge" class="font-mono text-purple-400 font-bold">Verificando...</span></span>
+                    <button type="button" onclick="window.showEngineSetupModal()" class="text-indigo-400 hover:text-indigo-300 font-medium bg-transparent border-0 p-0 cursor-pointer">Assistente / Instalar ⚙️</button>
                   </div>
                 </div>
               </div>
@@ -1255,7 +1262,469 @@
 
         </div>
       `;
+      setTimeout(() => { if (window.updateHubEngineStatus) window.updateHubEngineStatus(); }, 150);
     }
+
+    // ========================================================
+    // CONTROLADOR & ASSISTENTE DE NOVO COMPUTADOR (ENGINE LOCAL)
+    // ========================================================
+    var enginePollingInterval = null;
+    var engineCountdownInterval = null;
+
+    window.pingAvEngine = async function() {
+      try {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 1200);
+        const res = await fetch('http://127.0.0.1:3050/api/status', { signal: ctrl.signal });
+        clearTimeout(tid);
+        if (res.ok) {
+          const d = await res.json();
+          return d && (d.status === 'online' || d.success === true);
+        }
+      } catch (_) {}
+      try {
+        const ctrl2 = new AbortController();
+        const tid2 = setTimeout(() => ctrl2.abort(), 1000);
+        const res2 = await fetch('http://127.0.0.1:8765/api/status', { signal: ctrl2.signal });
+        clearTimeout(tid2);
+        if (res2.ok) {
+          const d2 = await res2.json();
+          return d2 && (d2.status === 'online' || d2.success === true);
+        }
+      } catch (_) {}
+      return false;
+    };
+
+    window.updateHubEngineStatus = async function() {
+      const el = document.getElementById('hubEngineStatusBadge');
+      if (!el) return;
+      const isUp = await window.pingAvEngine();
+      if (isUp) {
+        el.innerHTML = '<span class="text-emerald-400">🟢 Online (:3050)</span>';
+      } else {
+        el.innerHTML = '<span class="text-amber-400">🟡 Desconectado (Configurar)</span>';
+      }
+    };
+
+    window.launchAudioVisualStudio = async function(event) {
+      if (event && event.preventDefault) event.preventDefault();
+      const btn = document.getElementById('hubAvLaunchBtn');
+      const originalText = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.innerHTML = '<span>Verificando motor local...</span>';
+        btn.style.opacity = '0.7';
+      }
+
+      let newTab = null;
+      try {
+        newTab = window.open('about:blank', '_blank');
+      } catch(_) {}
+
+      const isUp = await window.pingAvEngine();
+      if (btn) {
+        btn.innerHTML = originalText;
+        btn.style.opacity = '1';
+      }
+
+      if (isUp) {
+        if (newTab && !newTab.closed) {
+          newTab.location.href = 'http://127.0.0.1:3050';
+        } else {
+          window.open('http://127.0.0.1:3050', '_blank');
+        }
+      } else {
+        if (newTab && !newTab.closed) {
+          try { newTab.close(); } catch(_) {}
+        }
+        window.showEngineSetupModal();
+      }
+    };
+
+    window.openAudioVisualStudio = function() {
+      window.launchAudioVisualStudio();
+    };
+
+    window.openAudioVisualStudioDirect = function() {
+      window.closeEngineSetupModal();
+      window.open('http://127.0.0.1:3050', '_blank');
+    };
+
+    window.closeEngineSetupModal = function() {
+      const modal = document.getElementById('brain-engine-setup-modal');
+      if (modal) modal.style.display = 'none';
+      if (enginePollingInterval) {
+        clearInterval(enginePollingInterval);
+        enginePollingInterval = null;
+      }
+      if (engineCountdownInterval) {
+        clearInterval(engineCountdownInterval);
+        engineCountdownInterval = null;
+      }
+      if (window.updateHubEngineStatus) window.updateHubEngineStatus();
+    };
+
+    window.copyPsCommand = function() {
+      const input = document.getElementById('psCommandInput');
+      if (!input) return;
+      navigator.clipboard.writeText(input.value).then(() => {
+        const btn = document.getElementById('copyPsBtn');
+        if (btn) {
+          const old = btn.innerText;
+          btn.innerText = 'Copiado! ✓';
+          btn.style.backgroundColor = '#059669';
+          setTimeout(() => {
+            btn.innerText = old;
+            btn.style.backgroundColor = '';
+          }, 2000);
+        }
+      });
+    };
+
+    window.downloadSetupBatFile = function() {
+      const scriptContent = `@echo off\r
+chcp 65001 >nul\r
+title Brain Audiovisual - Instalador e Inicializador da Engine\r
+\r
+echo =====================================================================\r
+echo    🎬 BRAIN AUDIOVISUAL - ASSISTENTE DE NOVO COMPUTADOR\r
+echo    Instalador e Inicializador Automatico da Engine Local\r
+echo =====================================================================\r
+echo.\r
+echo  Detectando dependencias e configurando o ambiente nesta maquina...\r
+echo.\r
+\r
+cd /d "%~dp0"\r
+\r
+:: 1. VERIFICAR E INSTALAR NODE.JS\r
+echo [1/5] Verificando Node.js...\r
+where node >nul 2>nul\r
+if %errorlevel% neq 0 (\r
+    if not exist "%ProgramFiles%\\\\nodejs\\\\node.exe" (\r
+        echo      -^> Node.js nao encontrado. Instalando Node.js LTS via winget...\r
+        echo      -^> (Se o Windows solicitar permissao de Administrador, clique em SIM)\r
+        winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements --silent\r
+    )\r
+)\r
+set "PATH=%ProgramFiles%\\\\nodejs;%ProgramFiles(x86)%\\\\nodejs;%PATH%"\r
+where node >nul 2>nul\r
+if %errorlevel% neq 0 (\r
+    if exist "%ProgramFiles%\\\\nodejs\\\\node.exe" (\r
+        set "PATH=%ProgramFiles%\\\\nodejs;%PATH%"\r
+    )\r
+)\r
+echo      -^> [OK] Node.js detectado!\r
+\r
+:: 2. VERIFICAR E INSTALAR YT-DLP E FFMPEG\r
+echo.\r
+echo [2/5] Verificando Motor de Video (yt-dlp e FFmpeg)...\r
+set "PATH=%LOCALAPPDATA%\\\\Microsoft\\\\WinGet\\\\Packages\\\\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\\\ffmpeg-N-126374-g089a48eb36-win64-gpl\\\\bin;%LOCALAPPDATA%\\\\Microsoft\\\\WinGet\\\\Packages\\\\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;%LOCALAPPDATA%\\\\Microsoft\\\\WinGet\\\\Links;%PATH%"\r
+\r
+where ffmpeg >nul 2>nul\r
+set FFMPEG_EXISTS=%errorlevel%\r
+where yt-dlp >nul 2>nul\r
+set YTDLP_EXISTS=%errorlevel%\r
+\r
+if %FFMPEG_EXISTS% neq 0 (\r
+    echo      -^> FFmpeg nao encontrado. Instalando componentes de video via winget...\r
+    winget install yt-dlp.yt-dlp --accept-package-agreements --accept-source-agreements --silent\r
+    set "PATH=%LOCALAPPDATA%\\\\Microsoft\\\\WinGet\\\\Packages\\\\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\\\ffmpeg-N-126374-g089a48eb36-win64-gpl\\\\bin;%LOCALAPPDATA%\\\\Microsoft\\\\WinGet\\\\Packages\\\\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;%LOCALAPPDATA%\\\\Microsoft\\\\WinGet\\\\Links;%PATH%"\r
+) else if %YTDLP_EXISTS% neq 0 (\r
+    echo      -^> yt-dlp nao encontrado. Instalando yt-dlp via winget...\r
+    winget install yt-dlp.yt-dlp --accept-package-agreements --accept-source-agreements --silent\r
+)\r
+echo      -^> [OK] FFmpeg e yt-dlp prontos para aceleracao por hardware!\r
+\r
+:: 3. VERIFICAR E INSTALAR PYTHON + VOZES NEURAIS (IA)\r
+echo.\r
+echo [3/5] Verificando Modulos de IA e Sintese Neural (Python / edge-tts)...\r
+set "PATH=%LOCALAPPDATA%\\\\Programs\\\\Python\\\\Python312;%LOCALAPPDATA%\\\\Programs\\\\Python\\\\Python312\\\\Scripts;%LOCALAPPDATA%\\\\Programs\\\\Python\\\\Python314;%LOCALAPPDATA%\\\\Programs\\\\Python\\\\Python314\\\\Scripts;%PATH%"\r
+\r
+where python >nul 2>nul\r
+if %errorlevel% neq 0 (\r
+    echo      -^> Python nao encontrado. Instalando Python 3.12...\r
+    winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements --silent\r
+    set "PATH=%LOCALAPPDATA%\\\\Programs\\\\Python\\\\Python312;%LOCALAPPDATA%\\\\Programs\\\\Python\\\\Python312\\\\Scripts;%PATH%"\r
+)\r
+\r
+python -c "import edge_tts, speech_recognition" >nul 2>nul\r
+if %errorlevel% neq 0 (\r
+    echo      -^> Instalando modulos edge-tts e speech_recognition...\r
+    python -m pip install --quiet edge-tts SpeechRecognition\r
+)\r
+echo      -^> [OK] Modulos de voz neural e transcricao prontos!\r
+\r
+:: 4. INICIALIZAR OS SERVIDORES LOCAIS\r
+echo.\r
+echo [4/5] Iniciando os servidores locais do Brain Audiovisual...\r
+powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 3050, 8765 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>nul\r
+\r
+start "Brain Audiovisual - Engine 3050" /min cmd /c "node audiovisual-edition\\\\server.js"\r
+start "Brain Audiovisual - Hub 8765" /min cmd /c "node server.js"\r
+\r
+timeout /t 2 /nobreak >nul\r
+\r
+:: 5. TUDO PRONTO!\r
+echo.\r
+echo [5/5] Abrindo o Audiovisual Studio no navegador...\r
+start http://127.0.0.1:3050\r
+\r
+echo.\r
+echo =====================================================================\r
+echo  🎉 TUDO PRONTO! O Audiovisual Studio esta pronto para uso neste computador!\r
+echo =====================================================================\r
+echo.\r
+echo  - Audiovisual Edition:  http://127.0.0.1:3050\r
+echo  - Console Hub Admin:    http://127.0.0.1:8765/admin?module=audiovisual\r
+echo.\r
+echo  (Mantenha esta janela minimizada ou feche-a. Os servidores continuarao\r
+echo   rodando em segundo plano. Para parar, execute PARAR_AUDIOVISUAL.bat)\r
+echo =====================================================================\r
+echo.\r
+pause\r
+`;
+      const blob = new Blob([scriptContent], { type: 'application/x-bat;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'INSTALAR_E_INICIAR.bat';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    window.showEngineSetupModal = function() {
+      let modal = document.getElementById('brain-engine-setup-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'brain-engine-setup-modal';
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto';
+        modal.innerHTML = `
+          <div class="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-3xl shadow-2xl shadow-purple-500/10 p-6 sm:p-8 text-white flex flex-col gap-6 custom-scrollbar">
+            <!-- Brilho ambiental -->
+            <div class="absolute -top-24 -right-24 w-64 h-64 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <!-- Header -->
+            <div class="flex items-start justify-between relative z-10">
+              <div class="flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 via-pink-600 to-indigo-600 flex items-center justify-center text-white text-xl shadow-lg shadow-purple-600/30">
+                  ⚡
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-xl font-black text-white tracking-tight">Assistente de Novo Computador</h3>
+                    <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Motor Local</span>
+                  </div>
+                  <p class="text-xs text-slate-400 mt-0.5">Audiovisual Studio • Processamento Acelerado por Hardware</p>
+                </div>
+              </div>
+              <button onclick="window.closeEngineSetupModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-sm font-bold transition-all cursor-pointer border border-slate-700">✕</button>
+            </div>
+
+            <!-- Explicação clara -->
+            <div class="p-3.5 rounded-2xl bg-purple-950/30 border border-purple-800/40 text-xs text-purple-200 leading-relaxed relative z-10 flex items-center gap-3">
+              <span class="text-2xl">💡</span>
+              <span>Para renderizar vídeos em alta definição e sintetizar vozes sem limites de nuvem, o Audiovisual Studio roda diretamente no hardware deste computador. Execute o instalador abaixo para configurar e ligar o motor.</span>
+            </div>
+
+            <!-- Seção de Ações -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10">
+              <!-- Opção 1: Arquivo .bat -->
+              <div class="p-4 rounded-2xl bg-slate-800/70 border border-slate-700/60 flex flex-col justify-between gap-3 hover:border-purple-500/50 transition-all">
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-[11px] font-black uppercase tracking-wider text-purple-400">Opção 1 • Recomendada</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold">1 Clique</span>
+                  </div>
+                  <h4 class="text-sm font-bold text-white">Instalador Automático (.bat)</h4>
+                  <p class="text-[11px] text-slate-400 mt-1 leading-normal">Se o projeto já está nesta máquina, abra o arquivo <code class="text-purple-300 bg-purple-950/60 px-1 py-0.5 rounded font-mono">INSTALAR_E_INICIAR.bat</code> na pasta raiz. Ou baixe agora:</p>
+                </div>
+                <button onclick="window.downloadSetupBatFile()" class="w-full py-2.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-600/30 transition-all cursor-pointer">
+                  <span>📥 Baixar INSTALAR_E_INICIAR.bat</span>
+                </button>
+              </div>
+
+              <!-- Opção 2: Terminal -->
+              <div class="p-4 rounded-2xl bg-slate-800/70 border border-slate-700/60 flex flex-col justify-between gap-3 hover:border-indigo-500/50 transition-all">
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-[11px] font-black uppercase tracking-wider text-indigo-400">Opção 2 • Terminal</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-bold">PowerShell / CMD</span>
+                  </div>
+                  <h4 class="text-sm font-bold text-white">Comando de Inicialização</h4>
+                  <p class="text-[11px] text-slate-400 mt-1 leading-normal">Abra o terminal na pasta do projeto e execute:</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <input type="text" readonly value=".\\INSTALAR_E_INICIAR.bat" id="psCommandInput" class="w-full bg-slate-950 text-indigo-300 font-mono text-[11px] px-3 py-2 rounded-xl border border-slate-700 outline-none" />
+                  <button onclick="window.copyPsCommand()" id="copyPsBtn" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap">Copiar</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Monitor de Progresso em Tempo Real -->
+            <div class="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 relative z-10 flex flex-col gap-4">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div id="setupPulseDot" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></div>
+                  <span id="setupStatusBadge" class="text-xs font-bold text-amber-400">Aguardando execução do instalador no computador...</span>
+                </div>
+                <span id="setupPercentText" class="text-xs font-mono font-black text-slate-400">15%</span>
+              </div>
+
+              <!-- Barra de Progresso com Gradiente -->
+              <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden p-0.5">
+                <div id="setupProgressBar" class="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 rounded-full transition-all duration-700 ease-out" style="width: 15%;"></div>
+              </div>
+
+              <!-- Checklist de Dependências -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
+                <div id="step-node" class="flex items-center gap-2 text-slate-400 p-2 rounded-lg bg-slate-900/50">
+                  <span class="step-icon">⏳</span>
+                  <span>1. Ambiente Node.js LTS</span>
+                </div>
+                <div id="step-ffmpeg" class="flex items-center gap-2 text-slate-400 p-2 rounded-lg bg-slate-900/50">
+                  <span class="step-icon">⏳</span>
+                  <span>2. Motor FFmpeg 7.1 (Hardware)</span>
+                </div>
+                <div id="step-ytdlp" class="flex items-center gap-2 text-slate-400 p-2 rounded-lg bg-slate-900/50">
+                  <span class="step-icon">⏳</span>
+                  <span>3. Ingestão Rápida (yt-dlp)</span>
+                </div>
+                <div id="step-python" class="flex items-center gap-2 text-slate-400 p-2 rounded-lg bg-slate-900/50">
+                  <span class="step-icon">⏳</span>
+                  <span>4. Vozes Neurais AI (Edge-TTS)</span>
+                </div>
+                <div id="step-port" class="flex items-center gap-2 text-slate-400 p-2 rounded-lg bg-slate-900/50 sm:col-span-2">
+                  <span class="step-icon">⏳</span>
+                  <span>5. Conexão com Motor Local (:3050 & :8765)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card de Sucesso -->
+            <div id="setupSuccessCard" style="display: none;" class="p-5 rounded-2xl bg-gradient-to-br from-emerald-950/90 to-slate-900 border-2 border-emerald-500/70 shadow-2xl shadow-emerald-500/20 flex flex-col gap-3 relative z-10">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-xl shadow-lg">✓</div>
+                <div>
+                  <h4 class="text-sm font-black text-emerald-300">TUDO PRONTO! O Audiovisual Studio está pronto para usar!</h4>
+                  <p id="setupHardwareSummary" class="text-xs text-slate-300 mt-0.5">Motor operacional com aceleração ativa neste computador.</p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between pt-2 border-t border-emerald-800/40">
+                <span id="setupCountdownText" class="text-xs text-emerald-400 font-bold">Redirecionando em 3s...</span>
+                <button onclick="window.openAudioVisualStudioDirect()" class="py-2.5 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-emerald-500/30 transition-all cursor-pointer">
+                  Abrir Audiovisual Studio Agora ➔
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+
+      // Resetar visual
+      const pBar = document.getElementById('setupProgressBar');
+      const pText = document.getElementById('setupPercentText');
+      const sBadge = document.getElementById('setupStatusBadge');
+      const sCard = document.getElementById('setupSuccessCard');
+      const pDot = document.getElementById('setupPulseDot');
+      if (pBar) pBar.style.width = '15%';
+      if (pText) pText.innerText = '15%';
+      if (sBadge) {
+        sBadge.innerText = 'Aguardando execução do instalador no computador...';
+        sBadge.className = 'text-xs font-bold text-amber-400';
+      }
+      if (pDot) {
+        pDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping';
+      }
+      if (sCard) sCard.style.display = 'none';
+
+      // Mostrar modal
+      modal.style.display = 'flex';
+
+      // Iniciar monitoramento contínuo
+      if (enginePollingInterval) clearInterval(enginePollingInterval);
+      enginePollingInterval = setInterval(async () => {
+        try {
+          const ctrl = new AbortController();
+          const tid = setTimeout(() => ctrl.abort(), 1200);
+          const res = await fetch('http://127.0.0.1:3050/api/status', { signal: ctrl.signal });
+          clearTimeout(tid);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && (data.status === 'online' || data.success === true)) {
+              window.onEngineSetupComplete(data);
+            }
+          }
+        } catch (_) {}
+      }, 1500);
+    };
+
+    window.onEngineSetupComplete = function(data) {
+      if (enginePollingInterval) {
+        clearInterval(enginePollingInterval);
+        enginePollingInterval = null;
+      }
+
+      // Atualizar progresso para 100%
+      const pBar = document.getElementById('setupProgressBar');
+      const pText = document.getElementById('setupPercentText');
+      const sBadge = document.getElementById('setupStatusBadge');
+      const pDot = document.getElementById('setupPulseDot');
+      if (pBar) pBar.style.width = '100%';
+      if (pText) pText.innerText = '100%';
+      if (sBadge) {
+        sBadge.innerText = '🟢 Motor Local Online & Operacional!';
+        sBadge.className = 'text-xs font-bold text-emerald-400';
+      }
+      if (pDot) {
+        pDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+      }
+
+      // Atualizar steps do checklist
+      const updateStep = (id, label) => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.className = 'flex items-center gap-2 text-emerald-300 p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/40 font-semibold';
+          el.innerHTML = `<span class="step-icon">✅</span><span>${label}</span>`;
+        }
+      };
+
+      updateStep('step-node', '1. Ambiente Node.js LTS (Ativo)');
+      updateStep('step-ffmpeg', '2. Motor FFmpeg 7.1 (Hardware Ativo)');
+      updateStep('step-ytdlp', '3. Ingestão Rápida yt-dlp (Ativo)');
+      updateStep('step-python', '4. Vozes Neurais AI & Edge-TTS (Ativo)');
+      updateStep('step-port', '5. Conexão Local Estabilizada (:3050)');
+
+      // Card de Sucesso e Hardware
+      const sCard = document.getElementById('setupSuccessCard');
+      const hwSummary = document.getElementById('setupHardwareSummary');
+      if (hwSummary) {
+        const gpuName = (data.gpu && data.gpu.name) ? data.gpu.name : 'Aceleração Gráfica';
+        const cpuName = (data.cpu && data.cpu.model) ? data.cpu.model : 'Multi-Core';
+        hwSummary.innerText = `GPU: ${gpuName} • CPU: ${cpuName} • FFmpeg 7.1 Ativo`;
+      }
+      if (sCard) {
+        sCard.style.display = 'flex';
+      }
+
+      // Contagem regressiva de redirecionamento
+      let seconds = 3;
+      const cdText = document.getElementById('setupCountdownText');
+      if (engineCountdownInterval) clearInterval(engineCountdownInterval);
+      engineCountdownInterval = setInterval(() => {
+        seconds--;
+        if (cdText) cdText.innerText = `Redirecionando em ${seconds}s...`;
+        if (seconds <= 0) {
+          clearInterval(engineCountdownInterval);
+          engineCountdownInterval = null;
+          window.openAudioVisualStudioDirect();
+        }
+      }, 1000);
+
+      if (window.updateHubEngineStatus) window.updateHubEngineStatus();
+    };
 
     // ========================================================
     // TELA 2.2: AUDIOVISUAL EDITION (WORKSTATION DE ESTÚDIO)
@@ -1587,8 +2056,7 @@
       const startBtn = document.getElementById('avStartBtn');
 
       if (window.location.protocol === 'https:' && !apiBase) {
-        alert('ATENÇÃO: O motor de renderização pesada (FFmpeg 7.1, yt-dlp e IA Neural) roda localmente no seu computador para máximo desempenho.\n\nPara iniciar o processamento dos vídeos, acesse pelo console local da sua máquina:\nhttp://127.0.0.1:8765/admin?module=audiovisual');
-        window.open('http://127.0.0.1:8765/admin?module=audiovisual', '_blank');
+        window.showEngineSetupModal();
         return;
       }
 
@@ -1895,9 +2363,9 @@
                     <p style="font-size: 12px; color: #3b82f6; margin: 2px 0 0 0;">O processamento pesado dos vídeos roda diretamente no hardware da sua máquina. Para processar sem restrições HTTPS do navegador, use o console local:</p>
                   </div>
                 </div>
-                <a href="http://127.0.0.1:8765/admin?module=audiovisual" style="background: #2563eb; color: #ffffff; padding: 9px 18px; border-radius: 12px; font-weight: 800; font-size: 12px; text-decoration: none; white-space: nowrap; box-shadow: 0 2px 6px rgba(37,99,235,0.25);">
-                  Abrir Console Local (Porta 8765) ➔
-                </a>
+                <button type="button" onclick="window.launchAudioVisualStudio(event)" style="background: #2563eb; color: #ffffff; padding: 9px 18px; border-radius: 12px; font-weight: 800; font-size: 12px; text-decoration: none; white-space: nowrap; box-shadow: 0 2px 6px rgba(37,99,235,0.25); border: none; cursor: pointer;">
+                  Abrir Console / Configurar Engine ➔
+                </button>
               </div>
             ` : ''}
 
@@ -2780,7 +3248,14 @@
         const titleEl = document.getElementById('dashboard-share-modal-title');
         if (titleEl) titleEl.innerText = m.title;
 
-        const baseUrl = window.location.origin + window.location.pathname;
+        let curPath = window.location.pathname || '/';
+        if (curPath.endsWith('/admin')) {
+          curPath = curPath.substring(0, curPath.length - 6) || '/';
+        }
+        if (!curPath.endsWith('/') && !curPath.endsWith('.html') && !curPath.endsWith('.php')) {
+          curPath += '/';
+        }
+        const baseUrl = window.location.origin + curPath;
         const targets = m.targetLanguages || ['en-US', 'es-ES'];
 
         if (container) {
@@ -3920,7 +4395,7 @@
                 ${activeTargets.map(langCode => {
                   const info = LANG_META[langCode] || { name: langCode, native: langCode, tag: langCode.substring(0,2).toUpperCase(), desc: 'Tradução Simultânea' };
                   const langParam = langCode.split('-')[0].toLowerCase();
-                  const targetAudienceUrl = window.location.origin + window.location.pathname + '?meeting=' + encodeURIComponent(id) + '&view=audience&lang=' + langParam;
+                  const targetAudienceUrl = (window.getCleanBaseUrl ? window.getCleanBaseUrl() : (window.location.origin + '/')) + '?meeting=' + encodeURIComponent(id) + '&view=audience&lang=' + langParam;
                   
                   return `
                     <a href="${targetAudienceUrl}" class="group block p-4 bg-white dark:bg-slate-900 hover:bg-indigo-50/60 dark:hover:bg-slate-800/80 border-2 border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 rounded-2xl transition-all duration-200 shadow-xs hover:shadow-md cursor-pointer">
@@ -6113,7 +6588,7 @@
                   ======================================================== -->
               <div id="pt-standby-container" class="col-span-full">
                 ${(() => {
-                  const audienceUrlPt = window.location.origin + window.location.pathname + '?meeting=' + id + '&view=audience&lang=pt';
+                  const audienceUrlPt = (window.getCleanBaseUrl ? window.getCleanBaseUrl() : (window.location.origin + '/')) + '?meeting=' + id + '&view=audience&lang=pt';
                   const isSourceForeign = selectedSourceLanguage !== 'pt-BR';
                   const showFullPtCol = isSourceForeign || isPtColumnExpanded;
 
@@ -6228,7 +6703,7 @@
                 const langInfo = SUPPORTED_LANG_MAP[langCode] || { name: langCode, tag: langCode.substring(0,2).toUpperCase(), code: langCode };
                 const cfg = targetColumnConfigs[langCode] || { bgColor: '#000000', textColor: '#fde047', fontSize: '16px', fontFamily: 'font-sans' };
                 const langCodeParam = langCode.split('-')[0].toLowerCase();
-                const audienceUrl = window.location.origin + window.location.pathname + '?meeting=' + id + '&view=audience&lang=' + langCodeParam;
+                const audienceUrl = (window.getCleanBaseUrl ? window.getCleanBaseUrl() : (window.location.origin + '/')) + '?meeting=' + id + '&view=audience&lang=' + langCodeParam;
 
                 return `
                   <div class="bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-900/60 rounded-3xl p-4 shadow-sm flex flex-col justify-between space-y-3">
@@ -8151,7 +8626,7 @@
         currentActiveQrModalLang = langCode;
         const langInfo = SUPPORTED_LANG_MAP[langCode] || { name: langCode, tag: langCode.substring(0,2).toUpperCase() };
         const langCodeParam = langCode.split('-')[0].toLowerCase();
-        currentActiveQrModalUrl = window.location.origin + window.location.pathname + '?meeting=' + id + '&view=audience&lang=' + langCodeParam;
+        currentActiveQrModalUrl = (window.getCleanBaseUrl ? window.getCleanBaseUrl() : (window.location.origin + '/')) + '?meeting=' + id + '&view=audience&lang=' + langCodeParam;
 
         const modal = document.getElementById('channel-qrcode-modal');
         const flagEl = document.getElementById('qr-modal-flag');
@@ -8221,7 +8696,7 @@
       // ========================================================
       // MODAL DE QR CODE GERAL DO EVENTO (POOL DE IDIOMAS)
       // ========================================================
-      const portalUrl = window.location.origin + window.location.pathname + '?meeting=' + encodeURIComponent(id) + '&portal=audience';
+      const portalUrl = (window.getCleanBaseUrl ? window.getCleanBaseUrl() : (window.location.origin + '/')) + '?meeting=' + encodeURIComponent(id) + '&portal=audience';
 
       window.openAudiencePortalModal = function() {
         const modal = document.getElementById('audience-portal-qrcode-modal');
@@ -8642,14 +9117,12 @@
       };
 
       window.openDedicatedSubtitleOverlay = function() {
-        const url = (window.location.protocol === 'file:')
-          ? (window.location.pathname + '?meeting=' + encodeURIComponent(id) + '&overlay=subtitles')
-          : ('/?meeting=' + encodeURIComponent(id) + '&overlay=subtitles');
+        const url = (window.getCleanBaseUrl ? window.getCleanBaseUrl() : '/') + '?meeting=' + encodeURIComponent(id) + '&overlay=subtitles';
         window.open(url, '_blank');
       };
 
       window.copyTelaoShareLink = function() {
-        const url = window.location.origin + window.location.pathname + '?meeting=' + encodeURIComponent(id) + '&overlay=subtitles';
+        const url = (window.getCleanBaseUrl ? window.getCleanBaseUrl() : (window.location.origin + '/')) + '?meeting=' + encodeURIComponent(id) + '&overlay=subtitles';
         navigator.clipboard.writeText(url);
         alert('Link da Janela OBS copiado com sucesso!');
       };

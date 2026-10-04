@@ -78,14 +78,28 @@ const OUTPUT_DIR = path.join(BASE_DIR, 'output');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// Locate system binaries
-const FFMPEG_BIN = fs.existsSync('C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python314\\Scripts\\ffmpeg.exe')
-    ? 'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python314\\Scripts\\ffmpeg.exe'
-    : 'ffmpeg';
+// Locate system binaries dynamically
+function findBinary(name, candidates = []) {
+    for (const c of candidates) {
+        if (c && fs.existsSync(c)) return c;
+    }
+    return name;
+}
 
-const YTDLP_BIN = fs.existsSync('C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python314\\Scripts\\yt-dlp.exe')
-    ? 'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python314\\Scripts\\yt-dlp.exe'
-    : 'yt-dlp';
+const FFMPEG_BIN = findBinary('ffmpeg', [
+    'C:\\Users\\pires\\AppData\\Local\\Microsoft\\WinGet\\Packages\\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-N-126374-g089a48eb36-win64-gpl\\bin\\ffmpeg.exe',
+    'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python314\\Scripts\\ffmpeg.exe',
+    'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\ffmpeg.exe',
+    'C:\\Users\\pires\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffmpeg.exe',
+    'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe'
+]);
+
+const YTDLP_BIN = findBinary('yt-dlp', [
+    'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\yt-dlp.exe',
+    'C:\\Users\\pires\\AppData\\Local\\Microsoft\\WinGet\\Packages\\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe\\yt-dlp.exe',
+    'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python314\\Scripts\\yt-dlp.exe',
+    'C:\\Users\\pires\\AppData\\Local\\Microsoft\\WinGet\\Links\\yt-dlp.exe'
+]);
 
 // In-memory job state store
 const jobs = new Map();
@@ -134,11 +148,48 @@ function broadcastJobUpdate(job) {
 // PERSISTÊNCIA DA FILA & MULTIPROCESSAMENTO
 // ==========================================
 const QUEUE_STATE_FILE = path.join(TEMP_DIR, 'queue_state.json');
-const DEFAULT_OUTPUT_DIR = 'D:\\downloads\\BrainAudiovisual_Saida';
+
+function getSystemDefaultOutputDir() {
+    if (fs.existsSync('D:\\') && fs.existsSync('D:\\downloads')) {
+        return 'D:\\downloads\\BrainAudiovisual_Saida';
+    }
+    const homeDownloads = path.join(os.homedir(), 'Downloads', 'BrainAudiovisual_Saida');
+    return path.win32.normalize(homeDownloads);
+}
+
+function resolveSafeDestination(folderPath) {
+    let target = (folderPath && folderPath.trim()) ? folderPath.trim() : (queueState && queueState.outputDir ? queueState.outputDir : DEFAULT_OUTPUT_DIR);
+    // Verificar se unidade de disco existe no computador atual
+    const driveMatch = target.match(/^([a-zA-Z]):[\\/]/);
+    if (driveMatch) {
+        const driveRoot = driveMatch[1].toUpperCase() + ':\\';
+        if (!fs.existsSync(driveRoot)) {
+            const sub = target.replace(/^[a-zA-Z]:[\\/](?:downloads[\\/])?/i, '');
+            target = path.join(os.homedir(), 'Downloads', sub || 'BrainAudiovisual_Saida');
+        }
+    }
+    if (!target) {
+        target = path.join(os.homedir(), 'Downloads', 'BrainAudiovisual_Saida');
+    }
+    const norm = path.win32.normalize(target);
+    if (!fs.existsSync(norm)) {
+        try {
+            fs.mkdirSync(norm, { recursive: true });
+        } catch (err) {
+            const fallback = path.join(os.homedir(), 'Downloads', 'BrainAudiovisual_Saida');
+            if (!fs.existsSync(fallback)) try { fs.mkdirSync(fallback, { recursive: true }); } catch (_) {}
+            return path.win32.normalize(fallback);
+        }
+    }
+    return norm;
+}
+
+const DEFAULT_OUTPUT_DIR = getSystemDefaultOutputDir();
 
 // Garante existência da pasta de saída padrão
 try {
-    if (!fs.existsSync(DEFAULT_OUTPUT_DIR)) fs.mkdirSync(DEFAULT_OUTPUT_DIR, { recursive: true });
+    const safeInit = resolveSafeDestination(DEFAULT_OUTPUT_DIR);
+    if (!fs.existsSync(safeInit)) fs.mkdirSync(safeInit, { recursive: true });
 } catch (_) {}
 
 let queueState = {
@@ -172,7 +223,7 @@ function loadQueueState() {
             const data = JSON.parse(raw);
             if (data && Array.isArray(data.items)) {
                 queueState.concurrency = data.concurrency || 2;
-                queueState.outputDir = data.outputDir || DEFAULT_OUTPUT_DIR;
+                queueState.outputDir = resolveSafeDestination(data.outputDir);
                 queueState.generateDubbedAudio = !!data.generateDubbedAudio;
                 queueState.sourceLanguage = data.sourceLanguage || 'pt-BR';
                 queueState.voiceProfile = data.voiceProfile || 'female_studio';
@@ -549,8 +600,59 @@ async function processJob(job) {
         const rawAudioPath = path.join(jobDir, 'raw_audio.mp3');
 
         if (job.sourceType === 'url') {
+            const isVimeo = job.url && job.url.includes('vimeo.com');
+
+            // Preparação dos argumentos do yt-dlp
+            const ytdlpArgs = [
+                '-x',
+                '--audio-format', 'mp3',
+                '--audio-quality', '0',
+                '--no-playlist',
+                '--no-check-certificates',
+                '-o', path.join(jobDir, 'downloaded.%(ext)s')
+            ];
+
+            if (isVimeo) {
+                ytdlpArgs.push(
+                    '--impersonate', 'chrome',
+                    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+                );
+                if (job.refererUrl && job.refererUrl.trim()) {
+                    ytdlpArgs.push('--referer', job.refererUrl.trim());
+                } else {
+                    ytdlpArgs.push('--referer', 'https://vimeo.com/');
+                }
+            } else if (job.refererUrl && job.refererUrl.trim()) {
+                ytdlpArgs.push('--referer', job.refererUrl.trim());
+            }
+
+            if (job.videoPassword && job.videoPassword.trim()) {
+                ytdlpArgs.push('--video-password', job.videoPassword.trim());
+            }
+
+            // Cookies de autenticação
+            let cookieFile = null;
+            if (job.cookieData && job.cookieData.trim()) {
+                const trimmed = job.cookieData.trim();
+                if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+                    addJobLog(job, 'Aviso: Foi inserida uma URL no campo de cookies em vez do conteúdo de cookies Netscape. A extração continuará sem cookies.', 'warn');
+                } else if (trimmed.includes('\t') || trimmed.includes('# Netscape') || trimmed.includes('.vimeo.com') || trimmed.includes('.youtube.com')) {
+                    cookieFile = path.join(jobDir, 'cookies.txt');
+                    fs.writeFileSync(cookieFile, trimmed, 'utf8');
+                    ytdlpArgs.push('--cookies', cookieFile);
+                    addJobLog(job, 'Cookies de autenticação aplicados para vídeo privado.');
+                } else {
+                    addJobLog(job, 'Aviso: Formato de cookies não reconhecido (deve ser formato Netscape). Prosseguindo sem cookies.', 'warn');
+                }
+            }
+
+            // Tentativa de obter o título real com cookies / impersonate
             try {
-                const { stdout: titleOut } = await runCommand(YTDLP_BIN, ['--print', '%(title)s', '--no-warnings', job.url]);
+                const titleArgs = ['--print', '%(title)s', '--no-warnings'];
+                if (cookieFile) titleArgs.push('--cookies', cookieFile);
+                if (isVimeo) titleArgs.push('--impersonate', 'chrome');
+                titleArgs.push(job.url);
+                const { stdout: titleOut } = await runCommand(YTDLP_BIN, titleArgs);
                 if (titleOut && titleOut.trim()) {
                     job.title = titleOut.trim().split(/\r?\n/)[0];
                     addJobLog(job, `Título do vídeo detectado: "${job.title}"`);
@@ -558,36 +660,16 @@ async function processJob(job) {
             } catch (_) {}
 
             addJobLog(job, `Baixando fluxo de áudio via yt-dlp: ${job.url}`);
-            const ytdlpArgs = [
-                '-x',
-                '--audio-format', 'mp3',
-                '--audio-quality', '0',
-                '--no-playlist',
-                '-o', `"${path.join(jobDir, 'downloaded.%(ext)s')}"`,
-                `"${job.url}"`
-            ];
-
-            // If custom cookies provided
-            if (job.cookieData && job.cookieData.trim()) {
-                const trimmed = job.cookieData.trim();
-                if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-                    addJobLog(job, 'Aviso: Foi inserida uma URL no campo de cookies em vez do conteúdo de cookies Netscape. A extração continuará sem cookies.', 'warn');
-                } else if (trimmed.includes('\t') || trimmed.includes('# Netscape') || trimmed.includes('.vimeo.com') || trimmed.includes('.youtube.com')) {
-                    const cookieFile = path.join(jobDir, 'cookies.txt');
-                    fs.writeFileSync(cookieFile, trimmed, 'utf8');
-                    ytdlpArgs.push('--cookies', `"${cookieFile}"`);
-                    addJobLog(job, 'Cookies de autenticação aplicados para vídeo privado.');
-                } else {
-                    addJobLog(job, 'Aviso: Formato de cookies não reconhecido (deve ser formato Netscape). Prosseguindo sem cookies.', 'warn');
-                }
-            }
+            ytdlpArgs.push(job.url);
 
             try {
-                await runCommand(`"${YTDLP_BIN}"`, ytdlpArgs);
+                await runCommand(YTDLP_BIN, ytdlpArgs);
             } catch (dlErr) {
                 const msg = String(dlErr.message || dlErr);
                 if (msg.includes('The web client only works when logged-in') || msg.includes('HTTP Error 401') || msg.includes('Private video') || msg.includes('Unauthorized')) {
-                    throw new Error('Este vídeo do Vimeo é privado ou protegido por login da sua conta. Para processá-lo: baixe o vídeo pelo seu navegador e envie diretamente pela aba "Arquivo Local (Upload do Computador)", ou forneça cookies Netscape da sua sessão do Vimeo.');
+                    throw new Error('Este vídeo do Vimeo é privado ou protegido por login da sua conta. Para processá-lo: forneça cookies Netscape da sua sessão do Vimeo ou utilize a aba de Arquivo Local.');
+                } else if (msg.includes('404') || msg.includes('Not Found')) {
+                    throw new Error('Vídeo não encontrado (404). Se for um vídeo não-listado, inclua o código de privacidade/hash no link (ex: vimeo.com/123/hash) ou informe o Site de Origem (Referer) caso pertença a uma área de membros.');
                 }
                 throw dlErr;
             }
@@ -1272,6 +1354,8 @@ const server = http.createServer(async (req, res) => {
                         url: rawUrl,
                         title: (item.title || rawUrl.split('/').pop() || 'Vídeo').substring(0, 150),
                         cookieData: item.cookieData || payload.cookieData || '',
+                        refererUrl: item.refererUrl || payload.refererUrl || '',
+                        videoPassword: item.videoPassword || payload.videoPassword || '',
                         sourceLanguage: item.sourceLanguage || queueState.sourceLanguage || 'pt-BR',
                         targetLanguages: item.targetLanguages || queueState.targetLanguages || ['en', 'es'],
                         audioMode: item.audioMode || 'dubbing',
@@ -1395,16 +1479,44 @@ const server = http.createServer(async (req, res) => {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
+            let cookieFile = null;
             try {
-                const { url: playlistUrl, cookieData } = JSON.parse(body);
+                const { url: playlistUrl, cookieData, refererUrl, videoPassword } = JSON.parse(body || '{}');
                 if (!playlistUrl || !playlistUrl.trim()) {
                     res.writeHead(400, { 'Content-Type': 'application/json' });
                     return res.end(JSON.stringify({ success: false, error: 'URL da playlist ou showcase é obrigatória.' }));
                 }
 
-                const args = ['--flat-playlist', '--no-warnings', '--print', '%(id)s\t%(title)s\t%(url)s'];
+                console.log(`[Playlist Extract] Analisando: ${playlistUrl.trim()}`);
 
-                let cookieFile = null;
+                const isVimeo = playlistUrl.includes('vimeo.com');
+                const args = [
+                    '--flat-playlist',
+                    '--ignore-errors',
+                    '--no-abort-on-error',
+                    '--no-check-certificates',
+                    '--no-warnings',
+                    '--print', '%(id)s\t%(title)s\t%(url)s'
+                ];
+
+                if (isVimeo) {
+                    args.push(
+                        '--impersonate', 'chrome',
+                        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+                    );
+                    if (refererUrl && refererUrl.trim()) {
+                        args.push('--referer', refererUrl.trim());
+                    } else {
+                        args.push('--referer', 'https://vimeo.com/');
+                    }
+                } else if (refererUrl && refererUrl.trim()) {
+                    args.push('--referer', refererUrl.trim());
+                }
+
+                if (videoPassword && videoPassword.trim()) {
+                    args.push('--video-password', videoPassword.trim());
+                }
+
                 if (cookieData && cookieData.trim()) {
                     cookieFile = path.join(TEMP_DIR, `cookie_${Date.now()}.txt`);
                     fs.writeFileSync(cookieFile, cookieData.trim(), 'utf8');
@@ -1413,63 +1525,143 @@ const server = http.createServer(async (req, res) => {
 
                 args.push(playlistUrl.trim());
 
-                const { stdout } = await runCommand(YTDLP_BIN, args);
+                // Execução com captura completa de stdout e stderr sem abortar por código de saída não-zero
+                const { stdout, stderr, code } = await new Promise(resolve => {
+                    const cleanBin = YTDLP_BIN.replace(/^"|"$/g, '');
+                    const proc = spawn(cleanBin, args, { shell: false });
+                    let out = '';
+                    let err = '';
+                    proc.stdout.on('data', d => { out += d.toString(); });
+                    proc.stderr.on('data', d => { err += d.toString(); });
+                    proc.on('close', exitCode => {
+                        resolve({ stdout: out, stderr: err, code: exitCode });
+                    });
+                    proc.on('error', spawnErr => {
+                        resolve({ stdout: out, stderr: spawnErr.message || String(spawnErr), code: -1 });
+                    });
+                });
+
                 if (cookieFile && fs.existsSync(cookieFile)) {
                     try { fs.unlinkSync(cookieFile); } catch (_) {}
                 }
 
-                const lines = stdout.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
-                const videos = lines.map(line => {
+                // Filtrar linhas válidas
+                const lines = stdout.trim().split(/\r?\n/).filter(l => {
+                    const t = l.trim();
+                    return t.length > 0 && !t.startsWith('ERROR:') && !t.startsWith('WARNING:');
+                });
+
+                const videos = [];
+                for (const line of lines) {
                     const parts = line.split('\t');
-                    const id = parts[0] || '';
-                    const title = parts[1] || `Vídeo ${id}`;
-                    let videoUrl = parts[2] || '';
+                    const id = (parts[0] || '').trim();
+                    let title = (parts[1] || '').trim();
+                    let videoUrl = (parts[2] || '').trim();
+
+                    if (!id && !videoUrl) continue;
+                    if (id.startsWith('ERROR') || id.startsWith('WARNING')) continue;
+
+                    if (!title || title === 'NA') {
+                        title = `Vídeo ${id}`;
+                    }
+
                     if (videoUrl && !videoUrl.startsWith('http')) {
-                        if (playlistUrl.includes('vimeo.com')) {
+                        if (isVimeo) {
                             videoUrl = `https://vimeo.com/${videoUrl}`;
                         } else {
                             videoUrl = `https://www.youtube.com/watch?v=${videoUrl}`;
                         }
                     } else if (!videoUrl && id) {
-                        if (playlistUrl.includes('vimeo.com')) {
+                        if (isVimeo) {
                             videoUrl = `https://vimeo.com/${id}`;
                         } else {
                             videoUrl = `https://www.youtube.com/watch?v=${id}`;
                         }
                     }
-                    return { id, title, url: videoUrl };
-                });
 
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, count: videos.length, videos }));
+                    videos.push({ id, title, url: videoUrl });
+                }
+
+                // Se extraiu pelo menos 1 vídeo, consideramos sucesso (mesmo com avisos de vídeos excluídos ignorados)
+                if (videos.length > 0) {
+                    const hasSkipped = stderr.includes('ERROR:') || stderr.includes('404');
+                    console.log(`[Playlist Extract] Sucesso: ${videos.length} vídeos encontrados.${hasSkipped ? ' (Itens inexistentes ignorados).' : ''}`);
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({
+                        success: true,
+                        count: videos.length,
+                        videos,
+                        partialNotice: hasSkipped ? 'Alguns vídeos indisponíveis ou excluídos da pasta foram ignorados automaticamente.' : null
+                    }));
+                }
+
+                // Se NENHUM vídeo foi extraído, montamos mensagem clara e amigável
+                const combinedErr = (stderr + ' ' + stdout).toLowerCase();
+                let userFriendlyError = 'Não foi possível extrair vídeos deste endereço.';
+
+                if (combinedErr.includes('404') || combinedErr.includes('not found')) {
+                    userFriendlyError = 'O Vimeo retornou Erro 404 (Conteúdo Não Encontrado).\n\n' +
+                        'Possíveis causas e soluções:\n' +
+                        '1. Vídeo ou Pasta Não-Listada: No Vimeo, links não-listados requerem o código de privacidade/hash (ex: vimeo.com/123456789/hashsecreto). Certifique-se de copiar o link completo do navegador.\n' +
+                        '2. Vídeo de Área de Membros: Se o vídeo está incorporado em uma plataforma restrita (Hotmart, Kiwify, etc.), informe a URL da página no campo "Site de Origem / Referer".\n' +
+                        '3. Links Diretos: Se tiver os links diretos das aulas, você pode colá-los todos juntos na aba "Links Individuais" com seus Cookies Netscape.';
+                } else if (combinedErr.includes('password') || combinedErr.includes('senha')) {
+                    userFriendlyError = 'Este showcase ou vídeo do Vimeo é protegido por senha. Por favor, digite a senha no campo "Senha da Pasta / Vídeo".';
+                } else if (combinedErr.includes('403') || combinedErr.includes('forbidden') || combinedErr.includes('privacy settings')) {
+                    userFriendlyError = 'Acesso Negado (403 Forbidden). O conteúdo possui restrições de privacidade. Verifique se colou os Cookies Netscape da sua sessão e se informou o "Site de Origem / Referer" da área de membros.';
+                } else if (combinedErr.includes('login') || combinedErr.includes('authenticated') || combinedErr.includes('unauthorized')) {
+                    userFriendlyError = 'Este conteúdo exige login no Vimeo. Cole seus Cookies Netscape exportados do navegador na opção abaixo para autorizar o acesso.';
+                } else if (stderr.trim()) {
+                    userFriendlyError = `Erro na extração: ${stderr.trim().split(/\r?\n/)[0]}`;
+                }
+
+                console.error(`[Playlist Extract Failed] ${userFriendlyError}`);
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: userFriendlyError }));
+
             } catch (e) {
+                if (cookieFile && fs.existsSync(cookieFile)) {
+                    try { fs.unlinkSync(cookieFile); } catch (_) {}
+                }
                 console.error('[Playlist Extract Error]', e);
                 res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: e.message || 'Erro ao extrair playlist.' }));
+                res.end(JSON.stringify({ success: false, error: e.message || 'Erro interno ao extrair playlist.' }));
             }
         });
         return;
     }
 
-    // 0.12 POST /api/open-folder - Abre a pasta no Windows Explorer
+    // 0.12 POST /api/open-folder - Abre a pasta no Windows Explorer de forma robusta
     if (pathname === '/api/open-folder' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', () => {
             try {
                 const { folderPath } = JSON.parse(body || '{}');
-                const targetPath = (folderPath && folderPath.trim()) ? folderPath.trim() : (queueState.outputDir || DEFAULT_OUTPUT_DIR);
-                if (!fs.existsSync(targetPath)) {
-                    fs.mkdirSync(targetPath, { recursive: true });
-                }
+                const targetPath = resolveSafeDestination(folderPath);
                 const normPath = path.win32.normalize(targetPath);
-                // No Windows, Start-Process explorer.exe garante abertura sem erro de código 1
-                const psCmd = `powershell.exe -NoProfile -Command "Start-Process explorer.exe -ArgumentList '${normPath.replace(/'/g, "''")}'"`;
-                exec(psCmd, (err) => {
-                    if (err) console.warn('[OpenFolder] Fallback ao abrir explorer:', err.message);
+                
+                if (!fs.existsSync(normPath)) {
+                    try { fs.mkdirSync(normPath, { recursive: true }); } catch (_) {}
+                }
+
+                // Invoca open_folder.ps1 que usa o COM Shell.Application.Explore do Windows
+                const psOpenScript = path.join(__dirname, 'open_folder.ps1');
+                const cmd = `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& '${psOpenScript.replace(/'/g, "''")}' -FolderPath '${normPath.replace(/'/g, "''")}'"`;
+
+                exec(cmd, (err) => {
+                    if (err) {
+                        console.warn('[OpenFolder] Aviso powershell open script:', err.message);
+                        exec(`cmd.exe /c start "" "${normPath}"`, () => {});
+                    }
                 });
+
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, folder: normPath }));
+                res.end(JSON.stringify({ 
+                    success: true, 
+                    folder: normPath, 
+                    adjusted: (normPath !== folderPath) 
+                }));
             } catch (e) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: false, error: e.message }));
@@ -1478,27 +1670,142 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // 0.13 POST /api/browse-folder - Abre diálogo nativo do Windows para selecionar pasta
+    // 0.13 POST /api/browse-folder - Abre diálogo nativo do Windows com comando seguro e caminhos com espaço
     if (pathname === '/api/browse-folder' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', () => {
             try {
                 const { currentPath } = JSON.parse(body || '{}');
-                const initialDir = (currentPath && fs.existsSync(currentPath)) ? currentPath : (fs.existsSync('D:\\') ? 'D:\\' : 'C:\\');
-                const psCmd = `powershell.exe -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = 'Selecione a pasta de destino para salvar os arquivos do Brain Audiovisual'; $dialog.SelectedPath = '${initialDir.replace(/'/g, "''")}'; $dialog.ShowNewFolderButton = $true; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath } else { Write-Output '' }"`;
-                exec(psCmd, { windowsHide: false }, (err, stdout) => {
+                const safeCurrent = resolveSafeDestination(currentPath);
+                const psScript = path.join(__dirname, 'browse_folder.ps1');
+
+                // Execução via -Command com aspas seguras para suportar diretórios com espaços
+                const cmd = `powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -Command "& '${psScript.replace(/'/g, "''")}' -InitialPath '${safeCurrent.replace(/'/g, "''")}'"`;
+
+                exec(cmd, { timeout: 120000, windowsHide: false }, (err, stdout) => {
                     const picked = (stdout || '').trim();
-                    if (picked) {
-                        queueState.outputDir = picked;
+                    if (picked && fs.existsSync(picked)) {
+                        const finalPath = resolveSafeDestination(picked);
+                        queueState.outputDir = finalPath;
                         saveQueueState();
                         res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ success: true, folderPath: picked }));
+                        res.end(JSON.stringify({ success: true, folderPath: finalPath }));
                     } else {
                         res.writeHead(200, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ success: false, cancelled: true }));
                     }
                 });
+            } catch (e) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        });
+        return;
+    }
+
+    // 0.14 GET /api/common-folders - Pastas padrão do Windows para seleção instantânea
+    if (pathname === '/api/common-folders' && req.method === 'GET') {
+        const home = os.homedir();
+        const common = [
+            { id: 'downloads', label: 'Pasta Downloads', path: path.join(home, 'Downloads', 'BrainAudiovisual_Saida') },
+            { id: 'documents', label: 'Pasta Documentos', path: path.join(home, 'Documents', 'BrainAudiovisual_Saida') },
+            { id: 'videos', label: 'Pasta Vídeos', path: path.join(home, 'Videos', 'BrainAudiovisual_Saida') },
+            { id: 'desktop', label: 'Área de Trabalho (Desktop)', path: path.join(home, 'Desktop', 'BrainAudiovisual_Saida') }
+        ];
+        if (fs.existsSync('D:\\')) {
+            common.unshift({ id: 'drive_d', label: 'Disco D:\\ (BrainAudiovisual_Saida)', path: 'D:\\downloads\\BrainAudiovisual_Saida' });
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, folders: common }));
+    }
+
+    // 0.15 GET /api/browse-directory - Navegação instantânea em pastas pelo navegador
+    if (pathname === '/api/browse-directory' && req.method === 'GET') {
+        try {
+            const reqUrl = new URL(req.url, 'http://127.0.0.1:3050');
+            let targetPath = (reqUrl.searchParams.get('path') || '').trim();
+            const home = os.homedir();
+            
+            if (!targetPath) {
+                targetPath = path.join(home, 'Downloads');
+            }
+
+            targetPath = path.win32.normalize(targetPath);
+            if (!fs.existsSync(targetPath)) {
+                targetPath = path.join(home, 'Downloads');
+            }
+
+            let subfolders = [];
+            try {
+                const entries = fs.readdirSync(targetPath, { withFileTypes: true });
+                for (const entry of entries) {
+                    if (entry.isDirectory()) {
+                        if (entry.name.startsWith('$') || entry.name.startsWith('.') || entry.name.toLowerCase() === 'system volume information') continue;
+                        subfolders.push({
+                            name: entry.name,
+                            path: path.join(targetPath, entry.name)
+                        });
+                    }
+                }
+            } catch (readErr) {
+                console.warn('[BrowseDirectory] Aviso ao ler diretório:', readErr.message);
+            }
+
+            subfolders.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+            const parentPath = path.dirname(targetPath);
+            const hasParent = parentPath && parentPath !== targetPath;
+
+            const availableDrives = [];
+            for (const driveLetter of ['C', 'D', 'E', 'F', 'G']) {
+                const root = `${driveLetter}:\\`;
+                if (fs.existsSync(root)) {
+                    availableDrives.push(root);
+                }
+            }
+
+            const quickShortcuts = [
+                { id: 'downloads', label: '📥 Downloads', path: path.join(home, 'Downloads') },
+                { id: 'documents', label: '📄 Documentos', path: path.join(home, 'Documents') },
+                { id: 'videos', label: '🎬 Vídeos', path: path.join(home, 'Videos') },
+                { id: 'desktop', label: '🖥️ Desktop', path: path.join(home, 'Desktop') }
+            ];
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: true,
+                currentPath: targetPath,
+                parentPath: hasParent ? parentPath : null,
+                subfolders,
+                drives: availableDrives,
+                shortcuts: quickShortcuts
+            }));
+        } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: e.message }));
+        }
+        return;
+    }
+
+    // 0.16 POST /api/create-directory - Cria nova pasta no destino
+    if (pathname === '/api/create-directory' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const { parentPath, folderName } = JSON.parse(body || '{}');
+                if (!folderName || !folderName.trim()) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ success: false, error: 'Nome de pasta inválido' }));
+                }
+                const safeName = folderName.replace(/[\\/:*?"<>|]/g, '').trim();
+                const newPath = path.join(parentPath, safeName);
+                if (!fs.existsSync(newPath)) {
+                    fs.mkdirSync(newPath, { recursive: true });
+                }
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, createdPath: newPath }));
             } catch (e) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: false, error: e.message }));

@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const PORT = 8765;
-const BASE = 'G:/Outros computadores/Meu laptop/Web Projects/BrainLingo';
+const BASE = __dirname;
 
 const server = http.createServer((req, res) => {
   // 1. Endpoint de API para alternância de dispositivo de áudio no Windows

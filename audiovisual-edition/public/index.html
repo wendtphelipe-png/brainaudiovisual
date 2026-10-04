@@ -100,10 +100,11 @@
           PASTA DE DESTINO AUTOMÁTICO (SALVAMENTO DOS VÍDEOS):
         </label>
         <div class="dest-input-wrap">
-          <input type="text" id="destinationFolderInput" value="D:\downloads\BrainAudiovisual_Saida" placeholder="Caminho da pasta local de destino...">
-          <button type="button" class="btn-dest-choose" onclick="browseDestinationFolder()" title="Abrir janela para escolher a pasta no computador">Escolher Pasta</button>
-          <button type="button" class="btn-dest-save" onclick="saveQueueSettings()" title="Salvar pasta selecionada">Salvar Pasta</button>
-          <button type="button" class="btn-dest-open" onclick="openRootDestinationFolder()" title="Abrir esta pasta no Windows Explorer">Abrir Pasta no Explorer</button>
+          <input type="text" id="destinationFolderInput" value="" placeholder="Caminho da pasta local de destino...">
+          <button type="button" class="btn-dest-choose" onclick="browseDestinationFolder()" title="Abrir janela nativa do Windows Explorer para escolher pasta">📁 Escolher Pasta</button>
+          <button type="button" class="btn-dest-presets" onclick="openFolderPickerModal()" title="Abrir atalhos rápidos e pastas do sistema">⚡ Atalhos</button>
+          <button type="button" class="btn-dest-save" onclick="saveQueueSettings()" title="Salvar pasta selecionada">Salvar</button>
+          <button type="button" class="btn-dest-open" onclick="openRootDestinationFolder()" title="Abrir esta pasta no Windows Explorer">Abrir Pasta no Explorer ↗</button>
         </div>
         <span class="dest-hint">Cada vídeo concluído é salvo automaticamente na sua pasta com legendas <code>.VTT</code>, áudios e pacote <code>.ZIP</code>.</span>
       </div>
@@ -151,17 +152,17 @@
 
         <!-- TABS: LINKS EM LOTE / PLAYLIST & SHOWCASE / ARQUIVO LOCAL -->
         <div class="tab-container">
-          <button class="tab-btn active" id="tabBatchLinksBtn" onclick="switchIngestTab('links')">
+          <button class="tab-btn active" id="tabBatchLinksBtn" onclick="switchIngestTab('links')" title="Adicionar um ou vários links de vídeos">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-            Links Individuais / Lote
+            <span>Links Individuais<br>/ Lote</span>
           </button>
-          <button class="tab-btn" id="tabPlaylistBtn" onclick="switchIngestTab('playlist')">
+          <button class="tab-btn" id="tabPlaylistBtn" onclick="switchIngestTab('playlist')" title="Importar pasta ou playlist completa">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-            Importar Pasta / Playlist
+            <span>Importar Pasta<br>/ Playlist</span>
           </button>
-          <button class="tab-btn" id="tabFilesBtn" onclick="switchIngestTab('files')">
+          <button class="tab-btn" id="tabFilesBtn" onclick="switchIngestTab('files')" title="Upload de arquivos direto do computador">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-            Upload Local
+            <span>Upload<br>Local</span>
           </button>
         </div>
 
@@ -179,10 +180,21 @@
           <details class="advanced-accordion">
             <summary>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-              Cookies Netscape (Para vídeos privados ou Vimeo protegido)
+              Autenticação Avançada (Cookies Netscape / Referer / Senha)
             </summary>
             <div class="accordion-content">
+              <label class="input-sub-label">Cookies Netscape (Para vídeos privados ou sob login):</label>
               <textarea id="batchCookieInput" rows="3" placeholder="# Netscape HTTP Cookie File..."></textarea>
+              <div class="input-grid-2 mt-2">
+                <div>
+                  <label class="input-sub-label">Site de Origem / Referer (Opcional - ex: Área de membros):</label>
+                  <input type="text" id="batchRefererInput" class="input-sm" placeholder="https://plataforma.com/curso/aula-1">
+                </div>
+                <div>
+                  <label class="input-sub-label">Senha do Vídeo (Opcional):</label>
+                  <input type="password" id="batchPasswordInput" class="input-sm" placeholder="Caso o vídeo exija senha">
+                </div>
+              </div>
             </div>
           </details>
 
@@ -202,14 +214,25 @@
             <details class="advanced-accordion">
               <summary>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                Cookies Netscape (Opcional - para pastas ou vídeos sob login)
+                Autenticação Avançada (Cookies Netscape / Referer / Senha)
               </summary>
               <div class="accordion-content">
+                <label class="input-sub-label">Cookies Netscape (Opcional - para pastas ou vídeos sob login):</label>
                 <textarea id="playlistCookieInput" rows="3" placeholder="# Netscape HTTP Cookie File..."></textarea>
+                <div class="input-grid-2 mt-2">
+                  <div>
+                    <label class="input-sub-label">Site de Origem / Referer (Opcional - ex: Área de membros):</label>
+                    <input type="text" id="playlistRefererInput" class="input-sm" placeholder="https://plataforma.com/curso">
+                  </div>
+                  <div>
+                    <label class="input-sub-label">Senha da Pasta / Vídeo (Opcional):</label>
+                    <input type="password" id="playlistPasswordInput" class="input-sm" placeholder="Caso a pasta exija senha">
+                  </div>
+                </div>
               </div>
             </details>
 
-            <span class="input-hint mt-2">O sistema irá analisar a pasta e puxar a lista de todos os vídeos instantaneamente.</span>
+            <span class="input-hint mt-2">💡 Dica: Para vídeos não-listados, cole o link com o hash ou use a aba 'Links Individuais'. Para cursos restritos, informe a URL no Site de Origem (Referer).</span>
           </div>
 
           <button type="button" id="extractPlaylistBtn" class="btn-extract" onclick="extractPlaylistVideos()">
@@ -320,6 +343,55 @@
 
     </main>
 
+  <!-- MODAL SELETOR DE PASTA LOCAL -->
+  <div class="folder-modal-overlay" id="folderPickerModal" style="display: none;" onclick="closeFolderPickerModal(event)">
+    <div class="folder-modal-card" onclick="event.stopPropagation()">
+      <div class="folder-modal-header">
+        <div class="folder-modal-title">
+          <span class="folder-modal-icon">📁</span>
+          <div>
+            <h3>Selecionar Pasta de Destino</h3>
+            <p>Escolha onde salvar automaticamente os vídeos, áudios e legendas</p>
+          </div>
+        </div>
+        <button type="button" class="folder-modal-close" onclick="closeFolderPickerModal()" title="Fechar janela">&times;</button>
+      </div>
+
+      <div class="folder-modal-body">
+        <!-- 1. ATALHOS RÁPIDOS DO SISTEMA -->
+        <div class="folder-section-title">⚡ ATALHOS RÁPIDOS DO WINDOWS:</div>
+        <div class="folder-shortcuts-grid" id="folderShortcutsGrid">
+          <!-- Preenchido dinamicamente com Downloads, Documentos, Vídeos, Desktop e Discos -->
+        </div>
+
+        <!-- 2. CAMINHO ATUAL & NAVEGAÇÃO -->
+        <div class="folder-section-title mt-3">📂 NAVEGADOR DE PASTAS:</div>
+        <div class="folder-nav-bar">
+          <button type="button" class="btn-folder-nav" id="btnFolderUp" onclick="navigateFolderUp()" title="Subir um nível (Pasta anterior)">⬆ Subir</button>
+          <input type="text" class="folder-path-input" id="modalPathInput" placeholder="Caminho da pasta...">
+          <button type="button" class="btn-folder-nav" onclick="refreshDirectoryView()" title="Atualizar">🔄</button>
+          <button type="button" class="btn-folder-nav success" onclick="promptNewFolder()" title="Criar nova pasta nesta pasta">➕ Nova Pasta</button>
+        </div>
+
+        <!-- 3. LISTA DE SUBPASTAS -->
+        <div class="folder-tree-box" id="folderTreeBox">
+          <div class="folder-loading-msg">Carregando pastas do sistema...</div>
+        </div>
+
+        <!-- 4. STATUS / SELETOR NATIVO DO WINDOWS -->
+        <div class="folder-native-row">
+          <button type="button" class="btn-native-dialog" id="btnNativeDialog" onclick="triggerNativeExplorerPicker()">
+            🖥️ Abrir Janela Nativa do Windows Explorer...
+          </button>
+          <span class="folder-native-hint" id="nativeDialogHint">Se preferir navegar pela janela clássica do Windows.</span>
+        </div>
+      </div>
+
+      <div class="folder-modal-footer">
+        <button type="button" class="btn-modal-cancel" onclick="closeFolderPickerModal()">Cancelar</button>
+        <button type="button" class="btn-modal-confirm" onclick="confirmCurrentModalFolder()">✔ Selecionar Esta Pasta</button>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>

@@ -5,9 +5,12 @@
 
 let currentIngestTab = 'links';
 let queueEventSource = null;
+let isPageUnloading = false;
+window.addEventListener('beforeunload', () => { isPageUnloading = true; });
+
 let currentQueue = {
     concurrency: 2,
-    outputDir: 'D:\\downloads\\BrainAudiovisual_Saida',
+    outputDir: '',
     generateDubbedAudio: false,
     isProcessing: false,
     items: []
@@ -402,15 +405,31 @@ async function saveQueueSettings() {
     }
 }
 
+// ==========================================
+// FOLDER DESTINATION CONTROLS & IN-APP DIRECTORY SELECTOR
+// ==========================================
+let currentNavPath = '';
+
 async function browseDestinationFolder() {
+    const chooseBtn = document.querySelector('.btn-dest-choose');
+    const origText = chooseBtn ? chooseBtn.innerHTML : '📁 Escolher Pasta';
+    if (chooseBtn) {
+        chooseBtn.innerHTML = 'Abrindo no Windows...';
+        chooseBtn.disabled = true;
+    }
     const currentVal = document.getElementById('destinationFolderInput').value.trim();
-    appendLog('Abrindo janela do Windows para escolher a pasta de destino...');
+    appendLog('Abrindo janela nativa do Windows Explorer para selecionar pasta...');
+
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
         const res = await fetch('/api/browse-folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ currentPath: currentVal })
+            body: JSON.stringify({ currentPath: currentVal }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         const data = await res.json();
         if (data.success && data.folderPath) {
             document.getElementById('destinationFolderInput').value = data.folderPath;
@@ -419,29 +438,262 @@ async function browseDestinationFolder() {
         } else if (data.cancelled) {
             appendLog('Seleção de pasta cancelada no Windows Explorer.');
         } else if (data.error) {
-            alert('Erro ao selecionar pasta: ' + data.error);
+            alert('Aviso: ' + data.error);
         }
     } catch (e) {
-        alert('Erro ao comunicar com o seletor de pasta: ' + e.message);
+        if (isPageUnloading || e.name === 'AbortError') return;
+        console.warn('Aviso ao comunicar com seletor nativo, abrindo seletor visual alternativo:', e);
+        openFolderPickerModal();
+    } finally {
+        if (chooseBtn) {
+            chooseBtn.innerHTML = origText;
+            chooseBtn.disabled = false;
+        }
+    }
+}
+
+function showFolderPresets() {
+    openFolderPickerModal();
+}
+
+async function openFolderPickerModal(initialPath) {
+    const modal = document.getElementById('folderPickerModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+
+    const inputVal = (initialPath || document.getElementById('destinationFolderInput').value || '').trim();
+    currentNavPath = inputVal;
+    const modalInput = document.getElementById('modalPathInput');
+    if (modalInput) modalInput.value = currentNavPath;
+
+    await loadDirectory(currentNavPath);
+}
+
+function closeFolderPickerModal(e) {
+    const modal = document.getElementById('folderPickerModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function loadDirectory(targetPath) {
+    const treeBox = document.getElementById('folderTreeBox');
+    const shortcutsGrid = document.getElementById('folderShortcutsGrid');
+    if (treeBox) treeBox.innerHTML = '<div class="folder-loading-msg">Carregando pastas do computador...</div>';
+
+    try {
+        const controller = new AbortController();
+        const tId = setTimeout(() => controller.abort(), 10000);
+        const res = await fetch(`/api/browse-directory?path=${encodeURIComponent(targetPath || '')}`, { signal: controller.signal });
+        clearTimeout(tId);
+        const data = await res.json();
+
+        if (data.success) {
+            currentNavPath = data.currentPath;
+            const modalInput = document.getElementById('modalPathInput');
+            if (modalInput) modalInput.value = currentNavPath;
+
+            // Renderiza atalhos rápidos do Windows
+            if (shortcutsGrid) {
+                let html = '';
+                (data.shortcuts || []).forEach(sc => {
+                    const safePath = escapeHtml(sc.path).replace(/\\/g, '\\\\');
+                    html += `<button type="button" class="shortcut-btn" onclick="selectShortcutPath('${safePath}')" title="${escapeHtml(sc.path)}">${sc.label}</button>`;
+                });
+                (data.drives || []).forEach(drv => {
+                    const safeDrv = escapeHtml(drv).replace(/\\/g, '\\\\');
+                    html += `<button type="button" class="shortcut-btn drive" onclick="selectShortcutPath('${safeDrv}')" title="Disco ${drv}">💽 Disco ${drv}</button>`;
+                });
+                shortcutsGrid.innerHTML = html;
+            }
+
+            // Renderiza subpastas da pasta navegada
+            if (treeBox) {
+                if (!data.subfolders || data.subfolders.length === 0) {
+                    treeBox.innerHTML = `
+                        <div class="folder-empty-state">
+                            <span style="font-size: 1.6rem;">📂</span>
+                            <div>Nenhuma subpasta aqui. Você pode salvar diretamente nesta pasta clicando em <strong>"✔ Selecionar Esta Pasta"</strong> abaixo, ou criar uma subpasta clicando em <strong>"➕ Nova Pasta"</strong>.</div>
+                        </div>
+                    `;
+                } else {
+                    let itemsHtml = '';
+                    data.subfolders.forEach(sub => {
+                        const escapedPath = escapeHtml(sub.path).replace(/\\/g, '\\\\');
+                        itemsHtml += `
+                            <div class="folder-item" onclick="navigateIntoFolder('${escapedPath}')" title="Entrar em: ${escapeHtml(sub.name)}">
+                                <span class="folder-icon">📁</span>
+                                <span class="folder-name">${escapeHtml(sub.name)}</span>
+                            </div>
+                        `;
+                    });
+                    treeBox.innerHTML = itemsHtml;
+                }
+            }
+
+            // Habilita ou desabilita botão de subir nível
+            const btnUp = document.getElementById('btnFolderUp');
+            if (btnUp) {
+                btnUp.disabled = !data.parentPath;
+                btnUp.setAttribute('data-parent', data.parentPath || '');
+            }
+        } else {
+            if (treeBox) treeBox.innerHTML = `<div class="folder-error-msg">Não foi possível carregar a pasta: ${data.error || 'Erro desconhecido'}</div>`;
+        }
+    } catch (err) {
+        if (isPageUnloading || err.name === 'AbortError') return;
+        if (treeBox) treeBox.innerHTML = `<div class="folder-error-msg">Erro de comunicação com o servidor: ${err.message}</div>`;
+    }
+}
+
+function selectShortcutPath(scPath) {
+    currentNavPath = scPath;
+    const modalInput = document.getElementById('modalPathInput');
+    if (modalInput) modalInput.value = scPath;
+    loadDirectory(scPath);
+}
+
+function navigateIntoFolder(subPath) {
+    currentNavPath = subPath;
+    const modalInput = document.getElementById('modalPathInput');
+    if (modalInput) modalInput.value = subPath;
+    loadDirectory(subPath);
+}
+
+function navigateFolderUp() {
+    const btnUp = document.getElementById('btnFolderUp');
+    const parent = btnUp ? btnUp.getAttribute('data-parent') : '';
+    if (parent) {
+        currentNavPath = parent;
+        const modalInput = document.getElementById('modalPathInput');
+        if (modalInput) modalInput.value = parent;
+        loadDirectory(parent);
+    }
+}
+
+function refreshDirectoryView() {
+    const manualVal = document.getElementById('modalPathInput').value.trim();
+    if (manualVal) {
+        currentNavPath = manualVal;
+    }
+    loadDirectory(currentNavPath);
+}
+
+async function promptNewFolder() {
+    const name = prompt('Digite o nome da nova pasta a ser criada:', 'Novos_Videos');
+    if (!name || !name.trim()) return;
+
+    try {
+        const res = await fetch('/api/create-directory', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parentPath: currentNavPath, folderName: name.trim() })
+        });
+        const data = await res.json();
+        if (data.success && data.createdPath) {
+            currentNavPath = data.createdPath;
+            const modalInput = document.getElementById('modalPathInput');
+            if (modalInput) modalInput.value = currentNavPath;
+            loadDirectory(currentNavPath);
+            appendLog(`Nova subpasta criada com sucesso: ${data.createdPath}`);
+        } else {
+            alert('Não foi possível criar a pasta: ' + (data.error || 'Erro'));
+        }
+    } catch (err) {
+        if (isPageUnloading || err.name === 'AbortError') return;
+        alert('Erro ao criar pasta: ' + err.message);
+    }
+}
+
+async function confirmCurrentModalFolder() {
+    const modalInput = document.getElementById('modalPathInput');
+    const chosen = (modalInput ? modalInput.value.trim() : '') || currentNavPath;
+    if (!chosen) {
+        alert('Por favor, informe ou selecione uma pasta válida.');
+        return;
+    }
+    document.getElementById('destinationFolderInput').value = chosen;
+    closeFolderPickerModal();
+    await saveQueueSettings();
+    appendLog(`Pasta de destino definida e salva com sucesso: ${chosen}`);
+}
+
+async function triggerNativeExplorerPicker() {
+    const btn = document.getElementById('btnNativeDialog');
+    const hint = document.getElementById('nativeDialogHint');
+    const origText = btn ? btn.innerHTML : '🖥️ Abrir Janela Nativa...';
+    if (btn) {
+        btn.innerHTML = '⏳ Aguardando seleção no Windows...';
+        btn.disabled = true;
+    }
+    if (hint) hint.innerText = 'A janela do Windows foi solicitada. Verifique se apareceu em segundo plano ou na barra de tarefas.';
+
+    try {
+        const currentVal = document.getElementById('modalPathInput').value.trim() || currentNavPath;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 26000);
+
+        const res = await fetch('/api/browse-folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentPath: currentVal }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        const data = await res.json();
+        if (data.success && data.folderPath) {
+            document.getElementById('modalPathInput').value = data.folderPath;
+            confirmCurrentModalFolder();
+        } else if (data.cancelled) {
+            if (hint) hint.innerText = 'Seleção na janela do Windows foi cancelada ou fechada.';
+        }
+    } catch (err) {
+        if (isPageUnloading || err.name === 'AbortError') return;
+        if (hint) hint.innerText = 'O seletor nativo não respondeu a tempo. Você pode selecionar qualquer pasta na lista acima!';
+    } finally {
+        if (btn) {
+            btn.innerHTML = origText;
+            btn.disabled = false;
+        }
     }
 }
 
 async function openRootDestinationFolder() {
     const destInput = document.getElementById('destinationFolderInput').value.trim();
+    const openBtn = document.querySelector('.btn-dest-open');
+    const origText = openBtn ? openBtn.innerHTML : 'Abrir Pasta no Explorer ↗';
+    if (openBtn) {
+        openBtn.innerHTML = 'Abrindo no Explorer...';
+        openBtn.disabled = true;
+    }
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
         const res = await fetch('/api/open-folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folderPath: destInput })
+            body: JSON.stringify({ folderPath: destInput }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         const data = await res.json();
         if (data.success) {
-            appendLog(`Pasta aberta no Windows Explorer: ${data.folder}`);
+            if (data.adjusted) {
+                document.getElementById('destinationFolderInput').value = data.folder;
+                await saveQueueSettings();
+                appendLog(`Pasta ajustada para este computador e aberta no Explorer: ${data.folder}`);
+            } else {
+                appendLog(`Pasta aberta no Windows Explorer: ${data.folder}`);
+            }
         } else {
             alert('Não foi possível abrir a pasta: ' + (data.error || 'Erro desconhecido'));
         }
     } catch (e) {
+        if (isPageUnloading || e.name === 'AbortError') return;
         alert('Erro ao abrir pasta: ' + e.message);
+    } finally {
+        if (openBtn) {
+            openBtn.innerHTML = origText;
+            openBtn.disabled = false;
+        }
     }
 }
 
@@ -449,11 +701,15 @@ async function openItemDestination(itemId) {
     const item = (currentQueue.items || []).find(i => i.id === itemId);
     const folder = (item && item.outputPath) ? item.outputPath : currentQueue.outputDir;
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
         const res = await fetch('/api/open-folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folderPath: folder })
+            body: JSON.stringify({ folderPath: folder }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         const data = await res.json();
         if (data.success) {
             appendLog(`Pasta do item aberta no Explorer: ${data.folder}`);
@@ -461,6 +717,7 @@ async function openItemDestination(itemId) {
             alert('Não foi possível abrir a pasta do item: ' + (data.error || 'Erro desconhecido'));
         }
     } catch (e) {
+        if (isPageUnloading || e.name === 'AbortError') return;
         alert('Erro ao abrir pasta do item: ' + e.message);
     }
 }
@@ -475,6 +732,7 @@ async function startQueueExecution() {
             fetchQueueState();
         }
     } catch (e) {
+        if (isPageUnloading || e.name === 'AbortError') return;
         alert('Erro ao iniciar fila: ' + e.message);
     }
 }
@@ -488,6 +746,7 @@ async function pauseQueueExecution() {
             fetchQueueState();
         }
     } catch (e) {
+        if (isPageUnloading || e.name === 'AbortError') return;
         alert('Erro ao pausar fila: ' + e.message);
     }
 }
@@ -579,7 +838,9 @@ async function addBatchLinksToQueue() {
         return;
     }
 
-    const cookieData = document.getElementById('batchCookieInput').value.trim();
+    const cookieData = document.getElementById('batchCookieInput') ? document.getElementById('batchCookieInput').value.trim() : '';
+    const refererUrl = document.getElementById('batchRefererInput') ? document.getElementById('batchRefererInput').value.trim() : '';
+    const videoPassword = document.getElementById('batchPasswordInput') ? document.getElementById('batchPasswordInput').value.trim() : '';
 
     try {
         const res = await fetch('/api/queue/add', {
@@ -587,7 +848,9 @@ async function addBatchLinksToQueue() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 urls: lines,
-                cookieData
+                cookieData,
+                refererUrl,
+                videoPassword
             })
         });
         const data = await res.json();
@@ -624,6 +887,11 @@ async function extractPlaylistVideos() {
         return;
     }
 
+    const refererUrl = (document.getElementById('playlistRefererInput') ? document.getElementById('playlistRefererInput').value.trim() : '') ||
+                       (document.getElementById('batchRefererInput') ? document.getElementById('batchRefererInput').value.trim() : '');
+    const videoPassword = (document.getElementById('playlistPasswordInput') ? document.getElementById('playlistPasswordInput').value.trim() : '') ||
+                          (document.getElementById('batchPasswordInput') ? document.getElementById('batchPasswordInput').value.trim() : '');
+
     const btn = document.getElementById('extractPlaylistBtn');
     btn.disabled = true;
     btn.innerHTML = `<span class="btn-spinner"></span> <span>Analisando pasta e extraindo vídeos...</span>`;
@@ -634,7 +902,7 @@ async function extractPlaylistVideos() {
         const res = await fetch('/api/extract-playlist', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, cookieData })
+            body: JSON.stringify({ url, cookieData, refererUrl, videoPassword })
         });
         const data = await res.json();
 
@@ -642,15 +910,18 @@ async function extractPlaylistVideos() {
 
         extractedVideosCache = data.videos || [];
         appendLog(`Sucesso! ${extractedVideosCache.length} vídeos identificados na pasta.`);
+        if (data.partialNotice) {
+            appendLog(`⚠️ ${data.partialNotice}`, 'warn');
+        }
 
         renderExtractedVideosList(extractedVideosCache);
 
     } catch (e) {
-        alert('Erro ao extrair playlist: ' + e.message);
+        alert('Erro ao extrair playlist:\n\n' + e.message);
         appendLog(`Erro na extração da playlist: ${e.message}`, 'error');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><span>PUXAR TODOS OS VÍDEOS DA PASTA</span>`;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><span>BUSCAR VÍDEOS NA PASTA</span>`;
     }
 }
 
@@ -693,6 +964,9 @@ async function addSelectedExtractedToQueue() {
     }
 
     const cookieData = (document.getElementById('playlistCookieInput') ? document.getElementById('playlistCookieInput').value.trim() : '') || (document.getElementById('batchCookieInput') ? document.getElementById('batchCookieInput').value.trim() : '');
+    const refererUrl = (document.getElementById('playlistRefererInput') ? document.getElementById('playlistRefererInput').value.trim() : '') || (document.getElementById('batchRefererInput') ? document.getElementById('batchRefererInput').value.trim() : '');
+    const videoPassword = (document.getElementById('playlistPasswordInput') ? document.getElementById('playlistPasswordInput').value.trim() : '') || (document.getElementById('batchPasswordInput') ? document.getElementById('batchPasswordInput').value.trim() : '');
+
     const itemsToAdd = [];
     cbs.forEach(cb => {
         const idx = parseInt(cb.getAttribute('data-index'), 10);
@@ -701,7 +975,9 @@ async function addSelectedExtractedToQueue() {
             itemsToAdd.push({
                 url: video.url,
                 title: video.title,
-                cookieData: cookieData
+                cookieData: cookieData,
+                refererUrl: refererUrl,
+                videoPassword: videoPassword
             });
         }
     });
