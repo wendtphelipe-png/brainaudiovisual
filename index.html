@@ -5311,6 +5311,16 @@ pause\r
           return;
         }
 
+        // Concatena blocos subsequentes curtos na fila para leitura fluida e ininterrupta
+        while (speechQueue.length > 0 && nextText.split(/\s+/).length < 22) {
+          const peek = speechQueue[0];
+          if (peek && (nextText.split(/\s+/).length + peek.split(/\s+/).length <= 30)) {
+            nextText += ' ' + speechQueue.shift();
+          } else {
+            break;
+          }
+        }
+
         lastSpokenAudienceText = nextText.trim();
 
         // Garante pontuação final suave para cadência natural humana
@@ -5350,8 +5360,8 @@ pause\r
           isSpeakingNow = false;
           startDiscreetVuMeter(false);
 
-          // Pausa natural de 350ms entre pensamentos completos
-          setTimeout(processSpeechQueue, 350);
+          // Pausa suave de respiração (220ms) entre trechos falados
+          setTimeout(processSpeechQueue, 220);
         };
 
         utterance.onstart = () => {
@@ -5386,7 +5396,7 @@ pause\r
         const clean = text.trim();
         if (!clean) return;
 
-        // Trecho de áudio maior e contínuo para locução humana
+        // Trecho de áudio contínuo para locução humana
         speechQueue.push(clean);
         processSpeechQueue();
       }
@@ -5406,6 +5416,38 @@ pause\r
       let audienceLastSubtitleTime = 0;
       let audienceLastConfirmedTimestamp = 0;
 
+      function createAudienceParagraph(feed, initialText = '') {
+        if (feed.lastElementChild) {
+          feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-4 whitespace-normal break-words opacity-80 text-slate-700 dark:text-slate-300';
+        }
+
+        const p = document.createElement('p');
+        p.className = 'speech-paragraph leading-relaxed transition-all duration-300 mb-4 font-normal text-base sm:text-lg whitespace-normal break-words opacity-100 text-slate-900 dark:text-white';
+
+        const tConfirmed = document.createElement('span');
+        tConfirmed.className = 'audience-para-confirmed';
+        tConfirmed.textContent = initialText || '';
+
+        const tLive = document.createElement('span');
+        tLive.className = 'audience-para-live font-normal opacity-90 text-indigo-600 dark:text-indigo-400';
+
+        const tCursor = document.createElement('span');
+        tCursor.className = 'streaming-cursor inline-block w-1.5 h-4 ml-1 bg-indigo-500 animate-pulse align-middle rounded-xs';
+        tCursor.style.display = initialText ? 'none' : 'inline-block';
+
+        p.appendChild(tConfirmed);
+        p.appendChild(tLive);
+        p.appendChild(tCursor);
+        feed.appendChild(p);
+
+        return {
+          p,
+          confirmedSpan: tConfirmed,
+          liveSpan: tLive,
+          cursorEl: tCursor
+        };
+      }
+
       async function handleAudienceIncomingSubtitle(data) {
         if (!data) return;
 
@@ -5413,7 +5455,7 @@ pause\r
         const pktId = data.pktId || (data.type + '_' + data.channel + '_' + (data.timestamp || '') + '_' + (data.text || ''));
         if (audienceSeenPacketIds.has(pktId)) return;
         audienceSeenPacketIds.add(pktId);
-        if (audienceSeenPacketIds.size > 350) {
+        if (audienceSeenPacketIds.size > 500) {
           audienceSeenPacketIds.delete(audienceSeenPacketIds.keys().next().value);
         }
 
@@ -5421,8 +5463,9 @@ pause\r
         const isNewSubtitle = data.type === 'NEW_SUBTITLE';
         const isLiveInterim = data.type === 'LIVE_INTERIM';
         const isCloseParagraph = data.type === 'CLOSE_PARAGRAPH';
+        const isSyncSnapshot = data.type === 'SYNC_SNAPSHOT';
 
-        if (!isStreamTTS && !isNewSubtitle && !isLiveInterim && !isCloseParagraph) return;
+        if (!isStreamTTS && !isNewSubtitle && !isLiveInterim && !isCloseParagraph && !isSyncSnapshot) return;
 
         const currentLangPrefix = (currentAudienceLang || 'en').split('-')[0].toLowerCase();
         const dataChan = (data.channel || '').toLowerCase();
@@ -5451,7 +5494,7 @@ pause\r
           const normTTS = cleanNorm(text);
           if (audienceSeenTTS.has(normTTS)) {
             const lastTTSSeen = audienceSeenTTS.get(normTTS);
-            if (now - lastTTSSeen < 3000) return;
+            if (now - lastTTSSeen < 3500) return;
           }
           audienceSeenTTS.set(normTTS, now);
           if (audienceSeenTTS.size > 200) {
@@ -5462,9 +5505,28 @@ pause\r
           return;
         }
 
-        // 2. CLOSE_PARAGRAPH: fecha o parágrafo ativo e desativa cursor (exatamente idêntico ao Cockpit)
+        const feed = document.getElementById('audience-subtitles-feed');
+        if (!feed) return;
+
+        const emptyP = feed.querySelector('.placeholder-empty');
+        if (emptyP) emptyP.remove();
+
+        // 2. CLOSE_PARAGRAPH: fecha o parágrafo ativo e desativa cursor
         if (isCloseParagraph) {
           if (audienceActiveParagraphObj) {
+            // SALVAGUARDA TOTAL DE INTERIM AO FECHAR PARÁGRAFO:
+            // Se existia texto no liveSpan que ainda não foi commitado por NEW_SUBTITLE,
+            // NUNCA descarta esse texto! Salva-o no confirmedSpan antes de fechar!
+            if (audienceActiveParagraphObj.liveSpan && audienceActiveParagraphObj.liveSpan.textContent.trim()) {
+              const remaining = audienceActiveParagraphObj.liveSpan.textContent.trim();
+              const prev = audienceActiveParagraphObj.confirmedSpan.textContent.trim();
+              const normPrev = cleanNorm(prev);
+              const normRem = cleanNorm(remaining);
+              if (normRem && !normPrev.endsWith(normRem) && normPrev !== normRem) {
+                audienceActiveParagraphObj.confirmedSpan.textContent = prev ? (prev + ' ' + remaining) : remaining;
+              }
+              audienceActiveParagraphObj.liveSpan.textContent = '';
+            }
             if (audienceActiveParagraphObj.cursorEl) audienceActiveParagraphObj.cursorEl.style.display = 'none';
             if (audienceActiveParagraphObj.liveSpan) audienceActiveParagraphObj.liveSpan.textContent = '';
             if (audienceActiveParagraphObj.p) {
@@ -5475,52 +5537,56 @@ pause\r
           return;
         }
 
-        const feed = document.getElementById('audience-subtitles-feed');
-        if (!feed) return;
+        // 3. SYNC_SNAPSHOT: reconciliação automática de estado para garantir 100% de paridade com o Cockpit
+        if (isSyncSnapshot) {
+          const snapshotText = (data.fullParagraph || '').trim();
+          if (!snapshotText) return;
 
-        const emptyP = feed.querySelector('.placeholder-empty');
-        if (emptyP) emptyP.remove();
+          if (audienceActiveParagraphObj && audienceActiveParagraphObj.confirmedSpan) {
+            const currentConfirmed = audienceActiveParagraphObj.confirmedSpan.textContent.trim();
+            // Se o snapshot do Cockpit for mais completo que o texto local do espectador, reconcilia imediatamente
+            if (snapshotText.length > currentConfirmed.length) {
+              audienceActiveParagraphObj.confirmedSpan.textContent = snapshotText;
+              feed.scrollTop = feed.scrollHeight;
+            }
+          } else if (snapshotText) {
+            audienceActiveParagraphObj = createAudienceParagraph(feed, snapshotText);
+            feed.scrollTop = feed.scrollHeight;
+          }
+          return;
+        }
 
-        // 3. LIVE_INTERIM: transcrição/tradução instantânea palavra a palavra com cursor
+        // 4. LIVE_INTERIM: transcrição/tradução instantânea palavra a palavra com cursor
         if (isLiveInterim) {
           const interimText = (data.text || '').trim();
           if (!interimText) {
-            if (audienceActiveParagraphObj && audienceActiveParagraphObj.liveSpan) {
-              audienceActiveParagraphObj.liveSpan.textContent = '';
-            }
+            // Não apaga cegamente o liveSpan se ele tiver texto substantivo,
+            // aguarda o NEW_SUBTITLE chegar para fazer a transição limpa.
             return;
           }
 
           if (!audienceActiveParagraphObj || !audienceActiveParagraphObj.p || !audienceActiveParagraphObj.p.isConnected) {
-            if (feed.lastElementChild) {
-              feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-4 whitespace-normal break-words opacity-80 text-slate-700 dark:text-slate-300';
-            }
-
-            const p = document.createElement('p');
-            p.className = 'speech-paragraph leading-relaxed transition-all duration-300 mb-4 font-normal text-base sm:text-lg whitespace-normal break-words opacity-100 text-slate-900 dark:text-white';
-
-            const tConfirmed = document.createElement('span');
-            tConfirmed.className = 'audience-para-confirmed';
-
-            const tLive = document.createElement('span');
-            tLive.className = 'audience-para-live font-normal opacity-90 text-indigo-600 dark:text-indigo-400';
-            tLive.textContent = ' ' + interimText;
-
-            const tCursor = document.createElement('span');
-            tCursor.className = 'streaming-cursor inline-block w-1.5 h-4 ml-1 bg-indigo-500 animate-pulse align-middle rounded-xs';
-
-            p.appendChild(tConfirmed);
-            p.appendChild(tLive);
-            p.appendChild(tCursor);
-            feed.appendChild(p);
-
-            audienceActiveParagraphObj = {
-              p,
-              confirmedSpan: tConfirmed,
-              liveSpan: tLive,
-              cursorEl: tCursor
-            };
+            audienceActiveParagraphObj = createAudienceParagraph(feed);
+            audienceActiveParagraphObj.liveSpan.textContent = ' ' + interimText;
+            if (audienceActiveParagraphObj.cursorEl) audienceActiveParagraphObj.cursorEl.style.display = 'inline-block';
           } else {
+            // SALVAGUARDA DE TRANSIÇÃO ENTRE FRASES:
+            // Se o liveSpan atual já tinha texto longo (>= 4 palavras) e o novo interim
+            // claramente pertence a outra sentença (não é extensão do atual):
+            const currentLive = audienceActiveParagraphObj.liveSpan.textContent.trim();
+            if (currentLive && currentLive.split(/\s+/).length >= 4) {
+              const normLive = cleanNorm(currentLive);
+              const normNew = cleanNorm(interimText);
+              const prefixCheck = normLive.substring(0, Math.min(25, normLive.length));
+              if (!normNew.startsWith(prefixCheck)) {
+                // Comita o texto anterior de salvaguarda para NUNCA perder o que a plateia viu!
+                const prev = audienceActiveParagraphObj.confirmedSpan.textContent.trim();
+                const normPrev = cleanNorm(prev);
+                if (!normPrev.endsWith(normLive) && normPrev !== normLive) {
+                  audienceActiveParagraphObj.confirmedSpan.textContent = prev ? (prev + ' ' + currentLive) : currentLive;
+                }
+              }
+            }
             audienceActiveParagraphObj.liveSpan.textContent = ' ' + interimText;
             if (audienceActiveParagraphObj.cursorEl) audienceActiveParagraphObj.cursorEl.style.display = 'inline-block';
           }
@@ -5530,7 +5596,7 @@ pause\r
           return;
         }
 
-        // 4. NEW_SUBTITLE: frase traduzida finalizada
+        // 5. NEW_SUBTITLE: frase traduzida finalizada
         const text = (data.text || '').trim();
         if (!text) return;
 
@@ -5539,40 +5605,42 @@ pause\r
 
         audienceLastConfirmedTimestamp = data.timestamp || now;
 
-        if (!audienceActiveParagraphObj || !audienceActiveParagraphObj.p || !audienceActiveParagraphObj.p.isConnected) {
-          if (feed.lastElementChild) {
-            feed.lastElementChild.className = 'leading-relaxed transition-all duration-200 mb-4 whitespace-normal break-words opacity-80 text-slate-700 dark:text-slate-300';
+        // Se o Cockpit enviou o texto completo consolidado do parágrafo ativo (cockpitFullText),
+        // usamos para garantir que NENHUMA palavra dita no Cockpit seja perdida aqui!
+        if (data.cockpitFullText && typeof data.cockpitFullText === 'string') {
+          const cockpitFull = data.cockpitFullText.trim();
+          if (cockpitFull) {
+            if (!audienceActiveParagraphObj || !audienceActiveParagraphObj.p || !audienceActiveParagraphObj.p.isConnected) {
+              audienceActiveParagraphObj = createAudienceParagraph(feed, cockpitFull);
+            } else {
+              const currentConfirmed = audienceActiveParagraphObj.confirmedSpan.textContent.trim();
+              if (cockpitFull.length >= currentConfirmed.length || !currentConfirmed) {
+                audienceActiveParagraphObj.confirmedSpan.textContent = cockpitFull;
+              } else {
+                const normCur = cleanNorm(currentConfirmed);
+                if (!normCur.endsWith(normText) && normCur !== normText) {
+                  audienceActiveParagraphObj.confirmedSpan.textContent = currentConfirmed + ' ' + text;
+                }
+              }
+              audienceActiveParagraphObj.liveSpan.textContent = '';
+              if (audienceActiveParagraphObj.cursorEl) audienceActiveParagraphObj.cursorEl.style.display = 'none';
+            }
+            audienceLastSubtitleTime = now;
+            while (feed.children.length > 50) feed.removeChild(feed.firstChild);
+            feed.scrollTop = feed.scrollHeight;
+            return;
           }
+        }
 
-          const p = document.createElement('p');
-          p.className = 'speech-paragraph leading-relaxed transition-all duration-300 mb-4 font-normal text-base sm:text-lg whitespace-normal break-words opacity-100 text-slate-900 dark:text-white';
-
-          const tConfirmed = document.createElement('span');
-          tConfirmed.className = 'audience-para-confirmed';
-          tConfirmed.textContent = text;
-
-          const tLive = document.createElement('span');
-          tLive.className = 'audience-para-live font-normal opacity-90 text-indigo-600 dark:text-indigo-400';
-
-          const tCursor = document.createElement('span');
-          tCursor.className = 'streaming-cursor inline-block w-1.5 h-4 ml-1 bg-indigo-500 animate-pulse align-middle rounded-xs';
-          tCursor.style.display = 'none';
-
-          p.appendChild(tConfirmed);
-          p.appendChild(tLive);
-          p.appendChild(tCursor);
-          feed.appendChild(p);
-
-          audienceActiveParagraphObj = {
-            p,
-            confirmedSpan: tConfirmed,
-            liveSpan: tLive,
-            cursorEl: tCursor
-          };
+        // Fallback padrão se não houver cockpitFullText
+        if (!audienceActiveParagraphObj || !audienceActiveParagraphObj.p || !audienceActiveParagraphObj.p.isConnected) {
+          audienceActiveParagraphObj = createAudienceParagraph(feed, text);
         } else {
-          // Acrescenta a frase ao parágrafo ativo exatamente como o Cockpit original (1:1 sem perdas de palavras)
           const prev = audienceActiveParagraphObj.confirmedSpan.textContent.trim();
-          audienceActiveParagraphObj.confirmedSpan.textContent = prev ? (prev + ' ' + text) : text;
+          const normPrev = cleanNorm(prev);
+          if (!normPrev.endsWith(normText) && normPrev !== normText) {
+            audienceActiveParagraphObj.confirmedSpan.textContent = prev ? (prev + ' ' + text) : text;
+          }
           audienceActiveParagraphObj.liveSpan.textContent = '';
           if (audienceActiveParagraphObj.cursorEl) audienceActiveParagraphObj.cursorEl.style.display = 'none';
         }
@@ -6071,14 +6139,59 @@ pause\r
         }
       }
 
+      const _pendingMqttQueue = [];
+      const _cockpitSubtitleSeq = {};
+      let _cockpitSyncSnapshotTimer = null;
+
+      function getCockpitParagraphText(channel) {
+        const norm = (channel || '').toLowerCase();
+        if (norm === 'transmitter' || norm === 'pt' || norm === 'pt-br') {
+          if (currentTransmitterParagraph && currentTransmitterParagraph.confirmedSpan) {
+            return currentTransmitterParagraph.confirmedSpan.textContent.trim();
+          }
+        }
+        for (const lang of Object.keys(currentTargetParagraphs)) {
+          const code = lang.split('-')[0].toLowerCase();
+          if (code === norm || lang.toLowerCase() === norm) {
+            const tp = currentTargetParagraphs[lang];
+            if (tp && tp.confirmedSpan) {
+              return tp.confirmedSpan.textContent.trim();
+            }
+          }
+        }
+        return '';
+      }
+
+      function broadcastSyncSnapshotGlobally() {
+        if (!mqttPublisherClient || !mqttPublisherClient.connected) return;
+        // Para cada idioma com parágrafo ativo no Cockpit, emite um snapshot leve de reconciliação
+        const channels = ['transmitter', 'en', 'es', 'fr', 'de', 'it', 'ar'];
+        channels.forEach(ch => {
+          const txt = getCockpitParagraphText(ch);
+          if (txt) {
+            const payload = {
+              type: 'SYNC_SNAPSHOT',
+              meetingId: id,
+              channel: ch,
+              fullParagraph: txt,
+              timestamp: Date.now()
+            };
+            try {
+              mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 0 });
+            } catch(e) {}
+          }
+        });
+      }
+
       function connectCockpitMqtt() {
         if (typeof mqtt === 'undefined') return;
         try {
           mqttPublisherClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
             clientId: 'brain_cockpit_' + Math.random().toString(16).substring(2, 8),
             clean: true,
-            connectTimeout: 5000,
-            reconnectPeriod: 3000
+            connectTimeout: 7000,
+            reconnectPeriod: 2500,
+            keepalive: 15
           });
 
           mqttPublisherClient.on('connect', () => {
@@ -6089,12 +6202,24 @@ pause\r
             }
             mqttPublisherClient.subscribe(mqttPresenceTopic, { qos: 0 });
             mqttPublisherClient.subscribe('brainaudiovisual/global/active_sessions/ping', { qos: 0 });
-            mqttPublisherClient.subscribe(mqttMeetingTopic, { qos: 0 });
+            mqttPublisherClient.subscribe(mqttMeetingTopic, { qos: 1 });
             mqttPublisherClient.subscribe(mqttVuTopic, { qos: 0 });
+
+            // Descarrega fila pendente de mensagens perdidas durante eventuais desconexões
+            while (_pendingMqttQueue.length > 0) {
+              const item = _pendingMqttQueue.shift();
+              try {
+                mqttPublisherClient.publish(item.topic, JSON.stringify(item.payload), { qos: item.qos || 1 });
+              } catch(e) {}
+            }
 
             if (!isCoHostMode) {
               pulseRoomActiveHeartbeat();
             }
+
+            // Inicia timer de sincronização de snapshot de parágrafo a cada 3.5 segundos
+            if (_cockpitSyncSnapshotTimer) clearInterval(_cockpitSyncSnapshotTimer);
+            _cockpitSyncSnapshotTimer = setInterval(broadcastSyncSnapshotGlobally, 3500);
           });
 
           mqttPublisherClient.on('message', (topic, payload) => {
@@ -6161,12 +6286,17 @@ pause\r
       }
 
       function broadcastSubtitleGlobally(channel, text, startSec, endSec) {
+        _cockpitSubtitleSeq[channel] = (_cockpitSubtitleSeq[channel] || 0) + 1;
+        const currentParaFull = getCockpitParagraphText(channel);
+
         const payload = {
           type: 'NEW_SUBTITLE',
           pktId: 'sub_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
+          seq: _cockpitSubtitleSeq[channel],
           meetingId: id,
           channel: channel,
           text: text,
+          cockpitFullText: currentParaFull,
           startSec: startSec,
           endSec: endSec,
           timestamp: Date.now()
@@ -6176,7 +6306,9 @@ pause\r
           try { subtitleBroadcast.postMessage(payload); } catch(e) {}
         }
         if (mqttPublisherClient && mqttPublisherClient.connected) {
-          try { mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 0 }); } catch(e) {}
+          try { mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 1 }); } catch(e) {}
+        } else {
+          _pendingMqttQueue.push({ topic: mqttMeetingTopic, payload: payload, qos: 1 });
         }
       }
 
@@ -6211,7 +6343,9 @@ pause\r
           try { subtitleBroadcast.postMessage(payload); } catch(e) {}
         }
         if (mqttPublisherClient && mqttPublisherClient.connected) {
-          try { mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 0 }); } catch(e) {}
+          try { mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 1 }); } catch(e) {}
+        } else {
+          _pendingMqttQueue.push({ topic: mqttMeetingTopic, payload: payload, qos: 1 });
         }
       }
 
@@ -6230,7 +6364,9 @@ pause\r
           try { subtitleBroadcast.postMessage(payload); } catch(e) {}
         }
         if (mqttPublisherClient && mqttPublisherClient.connected) {
-          try { mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 0 }); } catch(e) {}
+          try { mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 1 }); } catch(e) {}
+        } else {
+          _pendingMqttQueue.push({ topic: mqttMeetingTopic, payload: payload, qos: 1 });
         }
       }
 
@@ -7434,7 +7570,7 @@ pause\r
 
           if (isRealMicActive && mqttPublisherClient && mqttPublisherClient.connected) {
             const nowTime = Date.now();
-            if (nowTime - lastVuBroadcastTime > 150) {
+            if (nowTime - lastVuBroadcastTime > 350) {
               lastVuBroadcastTime = nowTime;
               try {
                 mqttPublisherClient.publish(mqttVuTopic, JSON.stringify({ pct: pct }), { qos: 0 });
@@ -7824,19 +7960,22 @@ pause\r
         const combined = buf.chunks.join(' ').trim();
         const words = combined.split(/\s+/).filter(Boolean);
 
-        // Trechos de áudio maiores e humanos (18 a 28 palavras) para locução fluida, contínua e natural
-        if (words.length >= 18) {
+        // Bloco ideal de locução: 20 a 30 palavras para formar um pensamento completo, coeso e fluido
+        if (words.length >= 20) {
           if (buf.timer) clearTimeout(buf.timer);
           buf.timer = null;
           flushTTSLocutionBuffer(targetLang);
           return;
         }
 
-        // Aguarda pausa natural do palestrante (1.8s de silêncio) para despachar o trecho completo
+        // DELAY MAIOR DE ESPERA:
+        // Dá tempo de acumular frases e pensamentos para que a locução não seja picotada.
+        // Se há menos de 8 palavras, aguarda até 4.5s; se já há mais conteúdo, aguarda 3.6s de silêncio.
+        const holdDelayMs = words.length < 8 ? 4500 : 3600;
         if (buf.timer) clearTimeout(buf.timer);
         buf.timer = setTimeout(() => {
           flushTTSLocutionBuffer(targetLang);
-        }, 1800);
+        }, holdDelayMs);
       }
 
       function flushTTSLocutionBuffer(targetLang) {
@@ -7874,9 +8013,6 @@ pause\r
           paragraphPauseTimer = null;
         }
 
-        // Flusha qualquer pensamento acumulado na fila de locução premium de todos os idiomas
-        flushAllTTSLocutionBuffers();
-
         if (currentTransmitterParagraph) {
           if (currentTransmitterParagraph.liveSpan && currentTransmitterParagraph.liveSpan.textContent.trim()) {
             const remaining = currentTransmitterParagraph.liveSpan.textContent.trim();
@@ -7885,6 +8021,7 @@ pause\r
             const normRem = cleanNorm(remaining);
             if (normRem && !normPrev.endsWith(normRem) && normPrev !== normRem) {
               currentTransmitterParagraph.confirmedSpan.textContent = prev ? (prev + ' ' + remaining) : remaining;
+              broadcastSubtitleGlobally('transmitter', remaining);
             }
             currentTransmitterParagraph.liveSpan.textContent = '';
           }
@@ -7905,6 +8042,10 @@ pause\r
               const normRem = cleanNorm(remaining);
               if (normRem && !normPrev.endsWith(normRem) && normPrev !== normRem) {
                 tp.confirmedSpan.textContent = prev ? (prev + ' ' + remaining) : remaining;
+                // SALVAGUARDA TOTAL: Transmite qualquer texto remanescente para o espectador antes de fechar!
+                const targetCode = targetLang.split('-')[0].toLowerCase();
+                broadcastSubtitleGlobally(targetCode, remaining);
+                accumulateTTSLocution(targetLang, remaining);
               }
               tp.liveSpan.textContent = '';
             }
@@ -7915,6 +8056,10 @@ pause\r
           }
         });
         currentTargetParagraphs = {};
+
+        // Flusha qualquer pensamento acumulado na fila de locução premium de todos os idiomas
+        flushAllTTSLocutionBuffers();
+
         // Reseta tracker de interim para a próxima frase
         Object.keys(_interimTracker).forEach(lang => {
           _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
@@ -8158,7 +8303,12 @@ pause\r
       }
 
       function _applyFinalTranslation(targetLang, cleanTranslated, startSec, endSec) {
-        const tp = currentTargetParagraphs[targetLang];
+        let tp = currentTargetParagraphs[targetLang];
+        if (!tp || !tp.el || !tp.el.isConnected) {
+          getOrCreateActiveParagraph();
+          tp = currentTargetParagraphs[targetLang];
+        }
+
         if (tp) {
           const prev = tp.confirmedSpan.textContent.trim();
           const normPrev = cleanNorm(prev);
