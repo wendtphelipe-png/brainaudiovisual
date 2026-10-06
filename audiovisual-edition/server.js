@@ -95,11 +95,38 @@ const FFMPEG_BIN = findBinary('ffmpeg', [
 ]);
 
 const YTDLP_BIN = findBinary('yt-dlp', [
+    'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python314\\Scripts\\yt-dlp.exe',
     'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\yt-dlp.exe',
     'C:\\Users\\pires\\AppData\\Local\\Microsoft\\WinGet\\Packages\\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe\\yt-dlp.exe',
-    'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python314\\Scripts\\yt-dlp.exe',
     'C:\\Users\\pires\\AppData\\Local\\Microsoft\\WinGet\\Links\\yt-dlp.exe'
 ]);
+
+const PYTHON_BIN = findBinary('python', [
+    'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python314\\python.exe',
+    'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python312\\python.exe',
+    'C:\\Users\\pires\\AppData\\Local\\Programs\\Python\\Python313\\python.exe',
+    'C:\\Program Files\\Python312\\python.exe',
+    'C:\\Program Files\\Python314\\python.exe'
+]);
+
+let cachedPyCheck = { python: true, edgeTts: true, lastCheck: 0 };
+async function getPythonStatus() {
+    if (Date.now() - cachedPyCheck.lastCheck < 60000) {
+        return cachedPyCheck;
+    }
+    let pyOk = false;
+    let ttsOk = false;
+    try {
+        await runCommand(`"${PYTHON_BIN}"`, ['--version']);
+        pyOk = true;
+    } catch (_) {}
+    try {
+        await runCommand(`"${PYTHON_BIN}"`, ['-c', 'import edge_tts']);
+        ttsOk = true;
+    } catch (_) {}
+    cachedPyCheck = { python: pyOk, edgeTts: ttsOk, lastCheck: Date.now() };
+    return cachedPyCheck;
+}
 
 // In-memory job state store
 const jobs = new Map();
@@ -533,7 +560,7 @@ async function synthesizeTtsAudio(text, lang, voiceProfile = 'female_studio', de
     const textTmpPath = destPath + '.txt';
     try {
         fs.writeFileSync(textTmpPath, text, 'utf8');
-        await runCommand('python', [
+        await runCommand(`"${PYTHON_BIN}"`, [
             '-m', 'edge_tts',
             '--voice', chosenVoice,
             '-f', textTmpPath,
@@ -1269,12 +1296,20 @@ const server = http.createServer(async (req, res) => {
             usagePercent: cpuPercent
         };
         const gpuInfo = await getGpuStats();
+        const pyStats = await getPythonStatus();
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({
             success: true,
+            status: 'online',
+            node: true,
             ffmpeg: fs.existsSync(FFMPEG_BIN),
             ytdlp: fs.existsSync(YTDLP_BIN),
+            python: pyStats.python,
+            edgeTts: pyStats.edgeTts,
+            ffmpegPath: FFMPEG_BIN,
+            ytdlpPath: YTDLP_BIN,
+            pythonPath: PYTHON_BIN,
             cpu: cpuInfo,
             ram: ramStats,
             gpu: gpuInfo
