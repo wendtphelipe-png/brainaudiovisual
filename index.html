@@ -5483,33 +5483,30 @@ pause\r
         }, 2000);
       }
 
-      // Desmembra frases longas em orações naturais de 5 a 10 palavras (impede travamento de TTS)
+      // Lê blocos inteiros (frases longas e fluidas). Só divide blocos acima de ~180 caracteres,
+      // preferindo fim de frase e depois vírgula, para ficar abaixo do limite de ~15s do Chrome por fala.
+      const SPEECH_MAX_CHARS = 180;
       function splitTextIntoSpeechClauses(text) {
         if (!text || !text.trim()) return [];
-        const raw = text.trim();
-        const parts = raw.match(/[^.!?;\n]+[.!?;\n]?/g) || [raw];
-        const clauses = [];
-        parts.forEach(part => {
-          const trimmed = part.trim();
-          if (!trimmed) return;
-          const words = trimmed.split(/\s+/).filter(Boolean);
-          if (words.length <= 11) {
-            clauses.push(trimmed);
-          } else {
-            let current = [];
-            for (let w = 0; w < words.length; w++) {
-              current.push(words[w]);
-              if (current.length >= 7 && (words[w].endsWith(',') || words[w].endsWith(';') || current.length >= 10)) {
-                clauses.push(current.join(' '));
-                current = [];
-              }
-            }
-            if (current.length > 0) {
-              clauses.push(current.join(' '));
-            }
+        let rest = text.trim().replace(/\s+/g, ' ');
+        const pieces = [];
+        while (rest.length > SPEECH_MAX_CHARS) {
+          const windowText = rest.slice(0, SPEECH_MAX_CHARS);
+          let cut = -1;
+          const sentenceRe = /[.!?…;](?=\s)/g;
+          let m;
+          while ((m = sentenceRe.exec(windowText))) { if (m.index >= 60) cut = m.index + 1; }
+          if (cut === -1) {
+            const commaRe = /[,:](?=\s)/g;
+            while ((m = commaRe.exec(windowText))) { if (m.index >= 60) cut = m.index + 1; }
           }
-        });
-        return clauses.length > 0 ? clauses : [raw];
+          if (cut === -1) cut = windowText.lastIndexOf(' ');
+          if (cut <= 0) cut = SPEECH_MAX_CHARS;
+          pieces.push(rest.slice(0, cut).trim());
+          rest = rest.slice(cut).trim();
+        }
+        if (rest) pieces.push(rest);
+        return pieces;
       }
 
       let speechUtteranceToken = 0;
@@ -5532,11 +5529,6 @@ pause\r
 
         lastSpokenAudienceText = nextText.trim();
 
-        // Garante pontuação final suave para cadência natural humana
-        if (!/[.!?]$/.test(nextText)) {
-          nextText += '.';
-        }
-
         isSpeakingNow = true;
         const myToken = ++speechUtteranceToken;
         const persona = getAudienceVoicePersona(selectedVoicePersonaId);
@@ -5548,13 +5540,14 @@ pause\r
         utterance.volume = Math.max(0.1, currentVolume);
 
         // Taxa adaptativa para manter sincronia ao vivo com a reunião sem perder conteúdo
+        // (blocos agora têm 14–32 palavras, então poucos itens na fila já representam atraso real)
         const backlog = speechQueue.length;
-        if (backlog >= 6) {
-          utterance.rate = 1.18;
-        } else if (backlog >= 3) {
-          utterance.rate = 1.10;
+        if (backlog >= 3) {
+          utterance.rate = 1.15;
+        } else if (backlog >= 2) {
+          utterance.rate = 1.08;
         } else if (backlog >= 1) {
-          utterance.rate = 1.04;
+          utterance.rate = 1.03;
         } else {
           utterance.rate = 1.00;
         }
@@ -6264,12 +6257,50 @@ pause\r
       let activeSpeechParagraphSeq = 0;
       let currentTransmitterParagraph = null; // { id, el, confirmedSpan, liveSpan, cursorEl, startTime }
       let currentTargetParagraphs = {};       // { [langCode]: { id, el, confirmedSpan, liveSpan, cursorEl } }
+      let _lastClosedTargetParagraphs = {};   // parágrafos recém-fechados (recebem traduções atrasadas)
       let paragraphPauseTimer = null;         // Silêncio significante (2.5s) que fecha o parágrafo
       let liveTranslationDebounceTimer = null;
       let liveTranslationSeq = 0;
       let finalizedUtteranceIndices = new Set();
-      let _recognizedCommittedWords = new Map(); // resultIndex -> número de palavras já commitadas
+      let _recognizedCommittedWords = new Map(); // resultIndex -> palavras já commitadas (array)
+      let _latestInterimWords = new Map();       // resultIndex -> palavras do último interim recebido
+      let _pendingInterimText = '';              // interim ainda não commitado (salvo se o reconhecedor reiniciar)
       let _interimSliceTimer = null;
+
+      // Retorna as palavras do resultado atual que vêm DEPOIS do trecho já commitado.
+      // O Chrome revisa o interim (troca/junta palavras), então alinhamos pelo conteúdo
+      // das últimas palavras commitadas em vez de confiar só na contagem.
+      function wordsAfterCommittedPrefix(allWords, committedWords) {
+        const n = committedWords.length;
+        if (!n) return allWords;
+        const norm = allWords.map(cleanNormWord);
+        const cNorm = committedWords.map(cleanNormWord);
+        if (n <= norm.length && cNorm.every((w, k) => w === norm[k])) return allWords.slice(n);
+        for (let tail = Math.min(3, n); tail >= 1; tail--) {
+          const anchor = cNorm.slice(n - tail);
+          const expected = n - tail;
+          let best = -1;
+          const lo = Math.max(0, expected - 5);
+          const hi = Math.min(norm.length - tail, expected + 5);
+          for (let pos = lo; pos <= hi; pos++) {
+            let ok = true;
+            for (let k = 0; k < tail; k++) {
+              if (!anchor[k] || anchor[k] !== norm[pos + k]) { ok = false; break; }
+            }
+            if (ok && (best === -1 || Math.abs(pos - expected) < Math.abs(best - expected))) best = pos;
+          }
+          if (best !== -1) return allWords.slice(best + tail);
+        }
+        return allWords.slice(Math.min(n, allWords.length));
+      }
+
+      function commitPendingInterimBeforeRestart() {
+        const pending = (_pendingInterimText || '').trim();
+        _pendingInterimText = '';
+        if (pending && pending.split(/\s+/).length >= 1) {
+          commitFinalSentence(pending);
+        }
+      }
       let lastConfirmedCleanTranscript = '';
       let lastConfirmedTimestamp = 0;
 
@@ -8140,6 +8171,16 @@ pause\r
       // ========================================================
       // Cache de traduções para evitar chamadas repetidas
       const _translationCache = new Map();
+      // Quando o Google responde 429 (excesso de requisições), as traduções parciais param por alguns
+      // segundos para liberar a cota às traduções finais, que são as que não podem se perder.
+      let _translateBackoffUntil = 0;
+      const _finalTranslationsInFlight = {}; // targetLang -> quantidade em andamento
+
+      function noteTranslationHttpStatus(status) {
+        if (status === 429 || status === 503) {
+          _translateBackoffUntil = Date.now() + 4000;
+        }
+      }
 
       async function fetchFastTranslation(text, sourceLang, targetLang) {
         if (!text || !text.trim()) return '';
@@ -8160,6 +8201,7 @@ pause\r
             const googleUrl = `https://translate.googleapis.com/translate_a/single?client=${client}&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`;
             const res = await fetch(googleUrl, { signal: controller.signal });
             clearTimeout(timeoutId);
+            noteTranslationHttpStatus(res.status);
             if (res.ok) {
               const data = await res.json();
               if (Array.isArray(data) && Array.isArray(data[0])) {
@@ -8306,34 +8348,40 @@ pause\r
       // ========================================================
       const _ttsLocutionBuffers = {}; // targetLang -> { chunks: [], timer: null, lastActivity: number }
 
+      // Locução fluida: junta as frases traduzidas em blocos de leitura maiores (≈14–32 palavras),
+      // despachando no fim de uma frase completa, numa pausa do orador ou se o bloco ficar retido demais.
+      const TTS_MIN_WORDS = 14;
+      const TTS_MAX_WORDS = 32;
+      const TTS_IDLE_FLUSH_MS = 1300;
+      const TTS_MAX_HOLD_MS = 4500;
+
       function accumulateTTSLocution(targetLang, cleanSentence) {
         if (!cleanSentence || !cleanSentence.trim()) return;
         const sentence = cleanSentence.trim();
 
         if (!_ttsLocutionBuffers[targetLang]) {
-          _ttsLocutionBuffers[targetLang] = { chunks: [], timer: null, lastActivity: Date.now() };
+          _ttsLocutionBuffers[targetLang] = { chunks: [], timer: null, lastActivity: Date.now(), firstAt: 0 };
         }
         const buf = _ttsLocutionBuffers[targetLang];
-        buf.lastActivity = Date.now();
+        const now = Date.now();
+        buf.lastActivity = now;
+        if (buf.chunks.length === 0) buf.firstAt = now;
 
         buf.chunks.push(sentence);
 
-        const combined = buf.chunks.join(' ').trim();
-        const words = combined.split(/\s+/).filter(Boolean);
+        const words = buf.chunks.join(' ').split(/\s+/).filter(Boolean).length;
+        const endsSentence = /[.!?…]["»”']?$/.test(sentence);
 
-        // Locução fluida e sem atrasos: despacha frases de 5+ palavras ou pontuação final imediatamente
-        if (words.length >= 5 || /[.!?]$/.test(sentence)) {
-          if (buf.timer) clearTimeout(buf.timer);
-          buf.timer = null;
+        if (words >= TTS_MAX_WORDS || (words >= TTS_MIN_WORDS && endsSentence) || (now - buf.firstAt) >= TTS_MAX_HOLD_MS) {
           flushTTSLocutionBuffer(targetLang);
           return;
         }
 
-        // Aguarda no máximo 350ms para pequenas partículas antes de despachar
+        // Pausa do orador: despacha o que acumulou
         if (buf.timer) clearTimeout(buf.timer);
         buf.timer = setTimeout(() => {
           flushTTSLocutionBuffer(targetLang);
-        }, 350);
+        }, TTS_IDLE_FLUSH_MS);
       }
 
       function flushTTSLocutionBuffer(targetLang) {
@@ -8344,19 +8392,16 @@ pause\r
           buf.timer = null;
         }
 
-        let fullText = buf.chunks.join(' ').trim().replace(/\s+/g, ' ');
+        // Sem pontuação artificial entre os pedaços: a leitura segue contínua como a fala original
+        const fullText = buf.chunks.join(' ').trim().replace(/\s+/g, ' ');
         buf.chunks = [];
+        buf.firstAt = 0;
 
-        if (!fullText || fullText.length < 2) return;
-
-        // Higieniza pontuação final para entonação conclusiva agradável e humana
-        if (!/[.!?]$/.test(fullText)) {
-          fullText += '.';
-        }
+        if (!fullText) return;
 
         const targetCode = (targetLang || 'en').split('-')[0].toLowerCase();
         broadcastStreamTTS(targetCode, fullText);
-        triggerTargetAudioMeter(targetLang, Math.max(1800, Math.min(6000, fullText.length * 80)));
+        triggerTargetAudioMeter(targetLang, Math.max(1800, Math.min(12000, fullText.length * 70)));
       }
 
       function flushAllTTSLocutionBuffers() {
@@ -8411,6 +8456,7 @@ pause\r
             }
           }
         });
+        _lastClosedTargetParagraphs = currentTargetParagraphs;
         currentTargetParagraphs = {};
         // Reseta tracker de interim para a próxima frase
         Object.keys(_interimTracker).forEach(lang => {
@@ -8435,7 +8481,12 @@ pause\r
         const cacheKey = `${sourceCode}|${targetCode}|${clean}`;
         if (_translationCache.has(cacheKey)) return _translationCache.get(cacheKey);
 
-        const clients = ['dict-chrome-ex', 'tw-ob', 'gtx'];
+        // Parciais cedem a vez: durante backoff de cota ou com tradução final do idioma em andamento
+        if (Date.now() < _translateBackoffUntil) return null;
+        if (_finalTranslationsInFlight[targetLang] > 0) return null;
+
+        // Parcial usa um único cliente (sem cascata) para não multiplicar requisições
+        const clients = ['gtx'];
         for (const client of clients) {
           try {
             const ctrl = new AbortController();
@@ -8445,6 +8496,7 @@ pause\r
               { signal: ctrl.signal }
             );
             clearTimeout(tid);
+            noteTranslationHttpStatus(res.status);
             if (res.ok) {
               const data = await res.json();
               if (Array.isArray(data) && Array.isArray(data[0])) {
@@ -8494,7 +8546,7 @@ pause\r
         const targets = getUniversalStreamTargets();
 
         targets.forEach(async (targetLang, idx) => {
-          if (idx > 0) await new Promise(r => setTimeout(r, idx * 60));
+          if (idx > 0) await new Promise(r => setTimeout(r, idx * 80));
           if (!_interimTracker[targetLang]) {
             _interimTracker[targetLang] = { lastShownLen: 0, inFlight: false };
           }
@@ -8503,11 +8555,15 @@ pause\r
           // Se já está traduzindo um texto igual ou mais longo, aguarda
           if (tracker.inFlight && textNow.length <= tracker.lastShownLen) return;
 
+          // No máximo 1 tradução parcial a cada 600ms por idioma (antes: 100ms × 7 idiomas → erro 429
+          // do Google, que derrubava também as traduções finais e fazia frases sumirem)
           const now = Date.now();
-          if (tracker.inFlight || (now - (tracker.lastReqTime || 0) < 100)) return;
+          if (tracker.inFlight || (now - (tracker.lastReqTime || 0) < 600)) return;
+          if (tracker.lastReqText === textNow) return;
 
           tracker.inFlight = true;
           tracker.lastReqTime = now;
+          tracker.lastReqText = textNow;
           const translated = await fetchInterimTranslation(textNow, selectedSourceLanguage, targetLang);
           tracker.inFlight = false;
 
@@ -8630,42 +8686,73 @@ pause\r
         paragraphPauseTimer = setTimeout(closeActiveParagraphs, 2500);
       }
 
-      function dispatchTargetTranslations(originalText, startSec, endSec) {
-        const targets = getUniversalStreamTargets();
+      // ========================================================
+      // TRADUÇÃO FINAL GARANTIDA E EM ORDEM
+      // - Todas as frases de um idioma são traduzidas em paralelo, mas emitidas na ordem em que foram faladas.
+      // - Cada frase tem várias tentativas com espera crescente.
+      // - Se ainda assim falhar, o texto original é carregado e traduzido junto com a próxima frase
+      //   (ou sozinho após 2.5s), de modo que nenhum trecho é descartado.
+      // ========================================================
+      const _finalTranslationChains = {};  // targetLang -> Promise da última emissão
+      const _untranslatedCarry = {};       // targetLang -> texto original ainda não traduzido
+      const _carryFlushTimers = {};
+      const FINAL_TRANSLATION_RETRY_DELAYS = [0, 350, 800, 1500, 2500, 3500];
 
-        targets.forEach(async (targetLang, idx) => {
-          if (idx > 0) await new Promise(r => setTimeout(r, idx * 60));
-          const translated = await fetchFastTranslation(originalText, selectedSourceLanguage, targetLang);
-
-          // CRÍTICO: Nunca usar o texto original como tradução — só age se houver tradução real
-          if (!translated || !translated.trim()) {
-            console.warn('[BrainLingo] Tradução final falhou para', targetLang, '— ignorando broadcast/TTS.');
-            // Tenta novamente em 2 segundos (retry automático)
-            setTimeout(async () => {
-              const retryTranslated = await fetchFastTranslation(originalText, selectedSourceLanguage, targetLang);
-              if (retryTranslated && retryTranslated.trim()) {
-                _applyFinalTranslation(targetLang, retryTranslated.trim(), startSec, endSec);
-              }
-            }, 2000);
-            return;
+      async function translateFinalWithRetry(text, targetLang) {
+        _finalTranslationsInFlight[targetLang] = (_finalTranslationsInFlight[targetLang] || 0) + 1;
+        try {
+          for (let attempt = 0; attempt < FINAL_TRANSLATION_RETRY_DELAYS.length; attempt++) {
+            const delay = FINAL_TRANSLATION_RETRY_DELAYS[attempt];
+            if (delay) await new Promise(r => setTimeout(r, delay));
+            const translated = await fetchFastTranslation(text, selectedSourceLanguage, targetLang);
+            if (translated && translated.trim()) return translated.trim();
           }
+          return null;
+        } finally {
+          _finalTranslationsInFlight[targetLang] = Math.max(0, (_finalTranslationsInFlight[targetLang] || 1) - 1);
+        }
+      }
 
-          _applyFinalTranslation(targetLang, translated.trim(), startSec, endSec);
+      function enqueueFinalTranslation(targetLang, originalText, startSec, endSec) {
+        if (_carryFlushTimers[targetLang]) {
+          clearTimeout(_carryFlushTimers[targetLang]);
+          _carryFlushTimers[targetLang] = null;
+        }
+        const carry = (_untranslatedCarry[targetLang] || '').trim();
+        _untranslatedCarry[targetLang] = '';
+        const source = [carry, (originalText || '').trim()].filter(Boolean).join(' ');
+        if (!source) return;
+
+        const job = translateFinalWithRetry(source, targetLang); // começa já, em paralelo
+        const prev = _finalTranslationChains[targetLang] || Promise.resolve();
+        _finalTranslationChains[targetLang] = prev.then(() => job).then(translated => {
+          if (translated) {
+            _applyFinalTranslation(targetLang, translated, startSec, endSec);
+          } else {
+            // CRÍTICO: nunca exibir o original como tradução, mas também nunca descartar
+            console.warn('[BrainLingo] Tradução final ainda indisponível para', targetLang, '— será reenviada junto com a próxima frase.');
+            _untranslatedCarry[targetLang] = [(_untranslatedCarry[targetLang] || '').trim(), source].filter(Boolean).join(' ');
+            _carryFlushTimers[targetLang] = setTimeout(() => {
+              _carryFlushTimers[targetLang] = null;
+              if (_untranslatedCarry[targetLang]) enqueueFinalTranslation(targetLang, '', startSec, endSec);
+            }, 2500);
+          }
+        }).catch(e => console.warn('[BrainLingo] Erro na fila de tradução:', e));
+      }
+
+      function dispatchTargetTranslations(originalText, startSec, endSec) {
+        getUniversalStreamTargets().forEach(targetLang => {
+          enqueueFinalTranslation(targetLang, originalText, startSec, endSec);
         });
       }
 
       function _applyFinalTranslation(targetLang, cleanTranslated, startSec, endSec) {
-        const tp = currentTargetParagraphs[targetLang];
+        // Tradução que chega logo após o fechamento do parágrafo vai para o parágrafo recém-fechado
+        const tp = currentTargetParagraphs[targetLang] || _lastClosedTargetParagraphs[targetLang];
         if (tp) {
           const prev = tp.confirmedSpan.textContent.trim();
-          const normPrev = cleanNorm(prev);
-          const normClean = cleanNorm(cleanTranslated);
-          if (normClean && (normPrev.endsWith(normClean) || normPrev === normClean)) {
-            tp.liveSpan.textContent = '';
-          } else {
-            tp.confirmedSpan.textContent = prev ? (prev + ' ' + cleanTranslated) : cleanTranslated;
-            tp.liveSpan.textContent = '';
-          }
+          tp.confirmedSpan.textContent = prev ? (prev + ' ' + cleanTranslated) : cleanTranslated;
+          tp.liveSpan.textContent = '';
           tp.liveSpan.style.opacity = '1';
           const els = getTargetColumnElements(targetLang);
           if (els.box) els.box.scrollTop = els.box.scrollHeight;
@@ -8712,7 +8799,10 @@ pause\r
           clearTimeout(_interimSliceTimer);
           _interimSliceTimer = null;
         }
+        // Texto que estava sendo falado no momento do reinício não pode ser descartado
+        commitPendingInterimBeforeRestart();
         _recognizedCommittedWords.clear();
+        _latestInterimWords.clear();
         // Reseta rastreamento interim (sem debounce ativo para cancelar)
         Object.keys(_interimTracker).forEach(lang => {
           _interimTracker[lang] = { lastShownLen: 0, inFlight: false };
@@ -8805,6 +8895,7 @@ pause\r
               lastSpeechActivityTimestamp = Date.now();
               finalizedUtteranceIndices.clear();
               _recognizedCommittedWords.clear();
+              _latestInterimWords.clear();
               if (_interimSliceTimer) {
                 clearTimeout(_interimSliceTimer);
                 _interimSliceTimer = null;
@@ -8825,7 +8916,7 @@ pause\r
                 if (!transcript) continue;
 
                 const allWords = transcript.split(/\s+/).filter(Boolean);
-                const committedCount = _recognizedCommittedWords.get(i) || 0;
+                const committedWords = _recognizedCommittedWords.get(i) || [];
 
                 if (res.isFinal) {
                   if (!finalizedUtteranceIndices.has(i)) {
@@ -8834,19 +8925,25 @@ pause\r
                       clearTimeout(_interimSliceTimer);
                       _interimSliceTimer = null;
                     }
-                    const remainingWords = allWords.slice(committedCount);
+                    // Alinha pelo conteúdo (não pela contagem): o Chrome revisa palavras do interim
+                    const remainingWords = wordsAfterCommittedPrefix(allWords, committedWords);
                     _recognizedCommittedWords.delete(i);
+                    _latestInterimWords.delete(i);
                     if (remainingWords.length > 0) {
                       commitFinalSentence(remainingWords.join(' '));
                     }
                   }
                 } else {
+                  _latestInterimWords.set(i, allWords);
                   // Fala contínua interim: processamento progressivo em tempo real
-                  const pendingWords = allWords.slice(committedCount);
-                  
+                  const pendingWords = wordsAfterCommittedPrefix(allWords, committedWords);
+                  // As últimas palavras do interim ainda são revisadas pelo Chrome: nunca commitá-las
+                  const STABLE_MARGIN = 3;
+                  const stableLimit = pendingWords.length - STABLE_MARGIN;
+
                   // 1. Verificação de pontuação ou quebra natural de oração
                   let sliceIdx = -1;
-                  for (let w = 0; w < pendingWords.length; w++) {
+                  for (let w = 0; w < stableLimit; w++) {
                     const word = pendingWords[w];
                     if (/[.?!;]$/.test(word)) {
                       sliceIdx = w + 1;
@@ -8857,10 +8954,10 @@ pause\r
                     }
                   }
 
-                  // 2. Se acumulou 7 a 10 palavras sem pontuação, busca conectivo natural de transição
-                  if (sliceIdx === -1 && pendingWords.length >= 7) {
+                  // 2. Se acumulou palavras sem pontuação, busca conectivo natural de transição
+                  if (sliceIdx === -1 && stableLimit >= 7) {
                     const naturalConnectors = new Set(['e', 'mas', 'porque', 'entao', 'então', 'que', 'para', 'como', 'quando', 'se', 'ou', 'onde', 'and', 'but', 'so', 'because', 'that', 'which', 'when', 'if', 'or', 'where']);
-                    for (let w = 5; w < Math.min(9, pendingWords.length); w++) {
+                    for (let w = 5; w < Math.min(12, stableLimit); w++) {
                       const cleanWord = (pendingWords[w] || '').toLowerCase().replace(/[^a-zà-ú]/g, '');
                       if (naturalConnectors.has(cleanWord)) {
                         sliceIdx = w;
@@ -8869,38 +8966,42 @@ pause\r
                     }
                   }
 
-                  // 3. Limite máximo de frase (10 palavras) para evitar parágrafos gigantes
-                  if (sliceIdx === -1 && pendingWords.length >= 10) {
-                    sliceIdx = 7;
+                  // 3. Limite máximo de frase para evitar parágrafos gigantes
+                  if (sliceIdx === -1 && stableLimit >= 12) {
+                    sliceIdx = 12;
                   }
 
                   // Se detectou corte natural completo:
-                  if (sliceIdx > 0 && sliceIdx <= pendingWords.length) {
+                  if (sliceIdx > 0 && sliceIdx <= stableLimit) {
                     if (_interimSliceTimer) {
                       clearTimeout(_interimSliceTimer);
                       _interimSliceTimer = null;
                     }
-                    const chunkToCommit = pendingWords.slice(0, sliceIdx).join(' ');
-                    _recognizedCommittedWords.set(i, committedCount + sliceIdx);
-                    commitFinalSentence(chunkToCommit);
-                    
-                    const nextPending = allWords.slice(committedCount + sliceIdx);
+                    const chunkWords = pendingWords.slice(0, sliceIdx);
+                    _recognizedCommittedWords.set(i, committedWords.concat(chunkWords));
+                    commitFinalSentence(chunkWords.join(' '));
+
+                    const nextPending = pendingWords.slice(sliceIdx);
                     if (nextPending.length > 0) {
                       currentInterim += (currentInterim ? ' ' : '') + nextPending.join(' ');
                     }
                   } else {
-                    // Temporizador de mini-pausa na fala do orador (600ms de silêncio com ao menos 4 palavras)
-                    if (pendingWords.length >= 4) {
+                    // Mini-pausa do orador (700ms sem novos resultados): o texto está estável, commita o pendente
+                    if (pendingWords.length >= 3) {
                       if (_interimSliceTimer) clearTimeout(_interimSliceTimer);
                       _interimSliceTimer = setTimeout(() => {
-                        const curCount = _recognizedCommittedWords.get(i) || 0;
-                        const curPending = allWords.slice(curCount);
+                        _interimSliceTimer = null;
+                        if (finalizedUtteranceIndices.has(i)) return;
+                        const latestWords = _latestInterimWords.get(i) || allWords;
+                        const curCommitted = _recognizedCommittedWords.get(i) || [];
+                        const curPending = wordsAfterCommittedPrefix(latestWords, curCommitted);
                         if (curPending.length >= 3) {
-                          _recognizedCommittedWords.set(i, allWords.length);
+                          _recognizedCommittedWords.set(i, curCommitted.concat(curPending));
+                          _pendingInterimText = '';
                           commitFinalSentence(curPending.join(' '));
                           updateLiveSpeechDisplay('');
                         }
-                      }, 600);
+                      }, 700);
                     }
                     if (pendingWords.length > 0) {
                       currentInterim += (currentInterim ? ' ' : '') + pendingWords.join(' ');
@@ -8908,6 +9009,9 @@ pause\r
                   }
                 }
               }
+
+              // Guarda o interim pendente: se o reconhecedor reiniciar, ele é commitado em vez de perdido
+              _pendingInterimText = currentInterim;
 
               // Atualização instantânea em tempo real (Padrão Barra de Pesquisa do Google)
               updateLiveSpeechDisplay(currentInterim);
@@ -8932,6 +9036,8 @@ pause\r
                 clearTimeout(_interimSliceTimer);
                 _interimSliceTimer = null;
               }
+              // O Chrome às vezes encerra sem finalizar o último interim: commita para não perder
+              commitPendingInterimBeforeRestart();
 
               if (isRealMicActive && !isTimerPaused) {
                 scheduleSpeechRestart(40);
