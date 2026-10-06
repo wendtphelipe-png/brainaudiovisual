@@ -5234,6 +5234,14 @@ pause\r
         isSpeakingNow = false;
         startDiscreetVuMeter(false);
 
+        // Cada idioma tem a sua própria numeração de frases
+        resetAudienceSequenceState();
+
+        // Troca a assinatura da nuvem para o novo idioma
+        if (window._mqttAudienceListenerClient && window._mqttAudienceListenerClient.connected && window._subscribeAudienceLangTopics) {
+          window._subscribeAudienceLangTopics();
+        }
+
         // Dispara imediatamente o batimento de presença para sincronizar o cockpit
         sendAudiencePresenceHeartbeat();
 
@@ -5463,16 +5471,16 @@ pause\r
           speechKeepAliveInterval = null;
         }
         if (!active) return;
-        // Pulso anti-congelamento (Chrome/Safari 15s freeze fix)
+        // Apenas retoma se o navegador pausou sozinho. NÃO usar pause()+resume() em falas ativas:
+        // no Android pause() equivale a cancel() (corta a frase e às vezes não dispara onend → silêncio)
+        // e no desktop gera um soluço audível. As orações têm no máximo ~11 palavras, então o bug
+        // dos 15s do Chrome não se aplica.
         speechKeepAliveInterval = setInterval(() => {
           if (!('speechSynthesis' in window)) return;
-          if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
-            try {
-              window.speechSynthesis.pause();
-              window.speechSynthesis.resume();
-            } catch(e) {}
+          if (window.speechSynthesis.paused) {
+            try { window.speechSynthesis.resume(); } catch(e) {}
           }
-        }, 4000);
+        }, 2000);
       }
 
       // Desmembra frases longas em orações naturais de 5 a 10 palavras (impede travamento de TTS)
@@ -5504,6 +5512,8 @@ pause\r
         return clauses.length > 0 ? clauses : [raw];
       }
 
+      let speechUtteranceToken = 0;
+
       function processSpeechQueue() {
         if (!isAudioPlaybackActive || isSpeakingNow || speechQueue.length === 0) return;
         if (!('speechSynthesis' in window)) return;
@@ -5512,12 +5522,9 @@ pause\r
           if (window.speechSynthesis.paused) window.speechSynthesis.resume();
         } catch(e) {}
 
-        // Se a fila acumulou excessivamente, preserva os 4 itens mais recentes para manter sincronia ao vivo
-        if (speechQueue.length > 5) {
-          speechQueue = speechQueue.slice(-4);
-        }
-
-        let nextText = speechQueue.shift();
+        // Nenhuma oração é descartada: se a fila acumular, a velocidade sobe levemente para recuperar o atraso
+        const item = speechQueue.shift();
+        let nextText = item && item.text;
         if (!nextText || !nextText.trim()) {
           setTimeout(processSpeechQueue, 30);
           return;
@@ -5531,6 +5538,7 @@ pause\r
         }
 
         isSpeakingNow = true;
+        const myToken = ++speechUtteranceToken;
         const persona = getAudienceVoicePersona(selectedVoicePersonaId);
         const utterance = new SpeechSynthesisUtterance(nextText);
         // CRÍTICO PARA MOBILE/DESKTOP: impede garbage collection prematuro
@@ -5539,11 +5547,14 @@ pause\r
         utterance.lang = currentAudienceLang || 'en-US';
         utterance.volume = Math.max(0.1, currentVolume);
 
-        // Taxa adaptativa para manter sincronia ao vivo com a reunião sem acumular atraso
-        if (speechQueue.length >= 3) {
-          utterance.rate = 1.12;
-        } else if (speechQueue.length >= 1) {
-          utterance.rate = 1.05;
+        // Taxa adaptativa para manter sincronia ao vivo com a reunião sem perder conteúdo
+        const backlog = speechQueue.length;
+        if (backlog >= 6) {
+          utterance.rate = 1.18;
+        } else if (backlog >= 3) {
+          utterance.rate = 1.10;
+        } else if (backlog >= 1) {
+          utterance.rate = 1.04;
         } else {
           utterance.rate = 1.00;
         }
@@ -5562,46 +5573,83 @@ pause\r
           utterance.pitch = (persona.id === 'elena_vibrante') ? 1.04 : 1.00;
         }
 
-        const finalizeSpeech = () => {
+        const clearWatchdog = () => {
           if (speechQueueWatchdog) clearTimeout(speechQueueWatchdog);
           speechQueueWatchdog = null;
+        };
+
+        // Finaliza apenas a fala corrente (eventos atrasados de falas antigas são ignorados)
+        const finalizeSpeech = () => {
+          if (myToken !== speechUtteranceToken || !isSpeakingNow) return;
+          clearWatchdog();
           window._activeAudienceUtterance = null;
           isSpeakingNow = false;
           startDiscreetVuMeter(false);
 
-          // Intervalo adaptativo: menor se tem fala aguardando, eliminando silêncios
-          const nextDelay = speechQueue.length > 1 ? 50 : (speechQueue.length > 0 ? 100 : 200);
+          const nextDelay = speechQueue.length > 0 ? 40 : 150;
           setTimeout(processSpeechQueue, nextDelay);
         };
 
+        // Fala que nunca começou (motor de voz travado): devolve à frente da fila para nova tentativa
+        const retryNotStarted = () => {
+          if (myToken !== speechUtteranceToken || !isSpeakingNow) return;
+          console.warn('[Audience] Voz não iniciou; reiniciando o sintetizador e tentando de novo.');
+          speechUtteranceToken++;
+          clearWatchdog();
+          window._activeAudienceUtterance = null;
+          isSpeakingNow = false;
+          try { window.speechSynthesis.cancel(); } catch(e) {}
+          if ((item.attempts || 0) < 2) {
+            item.attempts = (item.attempts || 0) + 1;
+            speechQueue.unshift(item);
+          }
+          setTimeout(processSpeechQueue, 120);
+        };
+
         utterance.onstart = () => {
+          if (myToken !== speechUtteranceToken) return;
           startDiscreetVuMeter(true);
+          // Vigia de duração só começa quando a voz realmente começou, com folga generosa
+          // (antes ele cancelava frases ainda em andamento → áudio picotado)
+          clearWatchdog();
+          const expectedMs = (nextText.length * 95) / (utterance.rate || 1);
+          speechQueueWatchdog = setTimeout(() => {
+            if (myToken !== speechUtteranceToken || !isSpeakingNow) return;
+            if (window.speechSynthesis.speaking) {
+              // Ainda falando: provavelmente apenas lento, aguarda mais um pouco
+              speechQueueWatchdog = setTimeout(() => {
+                if (myToken !== speechUtteranceToken || !isSpeakingNow) return;
+                console.warn('[Audience] Watchdog destravando fala congelada.');
+                speechUtteranceToken++;
+                isSpeakingNow = false;
+                window._activeAudienceUtterance = null;
+                try { window.speechSynthesis.cancel(); } catch(e) {}
+                startDiscreetVuMeter(false);
+                setTimeout(processSpeechQueue, 80);
+              }, 6000);
+            } else {
+              finalizeSpeech();
+            }
+          }, Math.max(4000, expectedMs + 3000));
         };
         utterance.onend = finalizeSpeech;
         utterance.onerror = (err) => {
-          console.warn('SpeechSynthesis aviso:', err);
-          try { window.speechSynthesis.cancel(); } catch(e) {}
+          const code = err && err.error;
+          if (code !== 'interrupted' && code !== 'canceled') {
+            console.warn('SpeechSynthesis aviso:', code || err);
+          }
           finalizeSpeech();
         };
 
-        // Watchdog inteligente rápido: no máximo 7.5s (nunca 40s de silêncio)
-        const maxExpectedMs = Math.min(7500, Math.max(3000, nextText.length * 80));
+        // Se em 5s a voz não começar, o motor travou: reinicia e tenta a mesma oração novamente
         if (speechQueueWatchdog) clearTimeout(speechQueueWatchdog);
-        speechQueueWatchdog = setTimeout(() => {
-          if (isSpeakingNow) {
-            console.warn('[Audience] Watchdog destravando fala congelada.');
-            try { window.speechSynthesis.cancel(); } catch(e) {}
-            try { window.speechSynthesis.resume(); } catch(e) {}
-            finalizeSpeech();
-          }
-        }, maxExpectedMs);
+        speechQueueWatchdog = setTimeout(retryNotStarted, 5000);
 
         try {
           if (window.speechSynthesis.paused) window.speechSynthesis.resume();
           window.speechSynthesis.speak(utterance);
         } catch(e) {
-          try { window.speechSynthesis.cancel(); } catch(err) {}
-          finalizeSpeech();
+          retryNotStarted();
         }
       }
 
@@ -5611,7 +5659,7 @@ pause\r
         if (!clean) return;
 
         const clauses = splitTextIntoSpeechClauses(clean);
-        clauses.forEach(c => speechQueue.push(c));
+        clauses.forEach(c => speechQueue.push({ text: c, attempts: 0 }));
         processSpeechQueue();
       }
 
@@ -5676,6 +5724,95 @@ pause\r
 
         if (!isForThisAudience) return;
 
+        // Frases finais e locução numeradas passam pelo reordenador, que detecta e recupera lacunas
+        if ((isNewSubtitle || isStreamTTS) && typeof data.seq === 'number' && data.sid) {
+          enqueueSequencedAudiencePacket(data);
+          return;
+        }
+        // Parcial que chegou depois da frase final já confirmada é descartado (evita texto velho piscando)
+        if (isLiveInterim && data.timestamp && data.timestamp < audienceLastConfirmedTimestamp) return;
+
+        applyAudiencePacket(data);
+      }
+
+      // REORDENADOR DE SEQUÊNCIA: entrega frases em ordem, pede reenvio de lacunas ao cockpit
+      // e só pula uma lacuna se ela não for recuperada em 3s (nunca trava o fluxo).
+      const audienceSeqState = { sid: null, next: 0, pending: new Map(), gapTimer: null, lastResendAt: 0 };
+      const AUDIENCE_GAP_WAIT_MS = 3000;
+
+      function resetAudienceSequenceState() {
+        if (audienceSeqState.gapTimer) clearTimeout(audienceSeqState.gapTimer);
+        audienceSeqState.sid = null;
+        audienceSeqState.next = 0;
+        audienceSeqState.pending.clear();
+        audienceSeqState.gapTimer = null;
+      }
+
+      function enqueueSequencedAudiencePacket(data) {
+        const st = audienceSeqState;
+        if (st.sid !== data.sid) {
+          // Primeira frase recebida ou cockpit reiniciado: começa a partir desta
+          resetAudienceSequenceState();
+          st.sid = data.sid;
+          st.next = data.seq;
+        }
+        if (data.seq < st.next) return; // já entregue
+        st.pending.set(data.seq, data);
+        drainAudienceSequence();
+      }
+
+      function drainAudienceSequence() {
+        const st = audienceSeqState;
+        while (st.pending.has(st.next)) {
+          const pkt = st.pending.get(st.next);
+          st.pending.delete(st.next);
+          st.next++;
+          applyAudiencePacket(pkt);
+        }
+        if (st.pending.size === 0) {
+          if (st.gapTimer) clearTimeout(st.gapTimer);
+          st.gapTimer = null;
+          return;
+        }
+        const firstPending = Math.min(...st.pending.keys());
+        requestAudienceResend(st.next, firstPending - 1);
+        if (!st.gapTimer) {
+          st.gapTimer = setTimeout(() => {
+            st.gapTimer = null;
+            if (st.pending.size === 0) return;
+            const minSeq = Math.min(...st.pending.keys());
+            if (minSeq > st.next) {
+              console.warn('[Audience] Lacuna ' + st.next + '-' + (minSeq - 1) + ' não recuperada; seguindo.');
+              st.next = minSeq;
+            }
+            drainAudienceSequence();
+          }, AUDIENCE_GAP_WAIT_MS);
+        }
+      }
+
+      function requestAudienceResend(fromSeq, toSeq) {
+        const st = audienceSeqState;
+        const nowTs = Date.now();
+        if (nowTs - st.lastResendAt < 700) return;
+        st.lastResendAt = nowTs;
+        const client = window._mqttAudienceListenerClient;
+        if (!client || !client.connected) return;
+        try {
+          client.publish(mqttResendTopic, JSON.stringify({
+            sid: st.sid,
+            code: (currentAudienceLang || 'en').split('-')[0].toLowerCase(),
+            from: fromSeq,
+            to: toSeq
+          }), { qos: 1 });
+        } catch(e) {}
+      }
+
+      function applyAudiencePacket(data) {
+        const isStreamTTS = data.type === 'STREAM_TTS';
+        const isNewSubtitle = data.type === 'NEW_SUBTITLE';
+        const isLiveInterim = data.type === 'LIVE_INTERIM';
+        const isCloseParagraph = data.type === 'CLOSE_PARAGRAPH';
+
         const now = Date.now();
 
         // 1. STREAM_TTS: locução sintetizada da frase traduzida completa
@@ -5685,7 +5822,8 @@ pause\r
 
           // Chave de desduplicação fonética/textual normalizada (janela de 1.2s para permitir orações consecutivas)
           const normTTS = cleanNorm(text);
-          if (audienceSeenTTS.has(normTTS)) {
+          // Pacotes numerados já foram desduplicados pela sequência; não descarta repetições legítimas
+          if (typeof data.seq !== 'number' && audienceSeenTTS.has(normTTS)) {
             const lastTTSSeen = audienceSeenTTS.get(normTTS);
             if (now - lastTTSSeen < 1200) return;
           }
@@ -5773,7 +5911,7 @@ pause\r
         const normText = cleanNorm(text);
         if (!normText) return;
 
-        audienceLastConfirmedTimestamp = data.timestamp || now;
+        audienceLastConfirmedTimestamp = Math.max(audienceLastConfirmedTimestamp, data.timestamp || now);
 
         if (!audienceActiveParagraphObj || !audienceActiveParagraphObj.p || !audienceActiveParagraphObj.p.isConnected) {
           if (feed.lastElementChild) {
@@ -5828,7 +5966,8 @@ pause\r
 
       // 2. SINCRONIZAÇÃO GLOBAL EM NUVEM (MQTT) E PRESENÇA DE AUDIÊNCIA
       const safeMeetingMqttId = encodeURIComponent((id || '').toLowerCase().trim()).replace(/[^a-z0-9_-]/g, '_');
-      const mqttTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/subtitles';
+      const mqttLangTopicPrefix = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/lang/';
+      const mqttResendTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/resend';
       const mqttPresenceTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/presence';
 
       const audienceSessionId = 'aud_' + Math.random().toString(36).substring(2, 9);
@@ -5860,16 +5999,46 @@ pause\r
 
       try {
         if (typeof mqtt !== 'undefined') {
+          // Sessão persistente (clean: false + clientId fixo por aba): enquanto o celular perde a conexão
+          // (troca de rede, tela apagada), o broker guarda as frases QoS 1 e entrega tudo ao reconectar.
+          let audienceMqttClientId = null;
+          try { audienceMqttClientId = sessionStorage.getItem('brain_aud_cid_' + safeMeetingMqttId); } catch(e) {}
+          if (!audienceMqttClientId) {
+            audienceMqttClientId = 'brain_aud_' + Math.random().toString(16).substring(2, 12);
+            try { sessionStorage.setItem('brain_aud_cid_' + safeMeetingMqttId, audienceMqttClientId); } catch(e) {}
+          }
           const mqttAudienceClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-            clientId: 'brain_aud_' + Math.random().toString(16).substring(2, 8),
-            clean: true,
+            clientId: audienceMqttClientId,
+            clean: false,
             connectTimeout: 7000,
-            reconnectPeriod: 2500,
-            keepalive: 15
+            reconnectPeriod: 2000,
+            keepalive: 20
           });
           window._mqttAudienceListenerClient = mqttAudienceClient;
+
+          // Assina apenas o idioma escolhido (+ comandos gerais), em vez do fluxo de todos os idiomas
+          let subscribedAudienceCode = null;
+          window._subscribeAudienceLangTopics = function() {
+            const code = (currentAudienceLang || 'en').split('-')[0].toLowerCase();
+            if (subscribedAudienceCode && subscribedAudienceCode !== code) {
+              try {
+                mqttAudienceClient.unsubscribe([
+                  mqttLangTopicPrefix + subscribedAudienceCode + '/final',
+                  mqttLangTopicPrefix + subscribedAudienceCode + '/live'
+                ]);
+              } catch(e) {}
+              resetAudienceSequenceState();
+            }
+            subscribedAudienceCode = code;
+            const subs = {};
+            subs[mqttLangTopicPrefix + code + '/final'] = { qos: 1 };
+            subs[mqttLangTopicPrefix + code + '/live'] = { qos: 0 };
+            subs[mqttLangTopicPrefix + 'all/final'] = { qos: 1 };
+            try { mqttAudienceClient.subscribe(subs); } catch(e) {}
+          };
+
           mqttAudienceClient.on('connect', () => {
-            mqttAudienceClient.subscribe(mqttTopic, { qos: 0 });
+            window._subscribeAudienceLangTopics();
             sendAudiencePresenceHeartbeat();
             const badge = document.getElementById('audience-cloud-status-badge');
             if (badge) {
@@ -6327,8 +6496,12 @@ pause\r
             }
             mqttPublisherClient.subscribe(mqttPresenceTopic, { qos: 0 });
             mqttPublisherClient.subscribe('brainaudiovisual/global/active_sessions/ping', { qos: 0 });
-            mqttPublisherClient.subscribe(mqttMeetingTopic, { qos: 0 });
-            mqttPublisherClient.subscribe(mqttVuTopic, { qos: 0 });
+            mqttPublisherClient.subscribe(mqttResendTopic, { qos: 1 });
+            // Só o Co-Host precisa receber de volta as legendas (o cockpit principal não baixa o próprio fluxo)
+            if (isCoHostMode) {
+              mqttPublisherClient.subscribe(mqttLangTopicPrefix + '#', { qos: 1 });
+              mqttPublisherClient.subscribe(mqttVuTopic, { qos: 0 });
+            }
 
             if (!isCoHostMode) {
               pulseRoomActiveHeartbeat();
@@ -6340,6 +6513,8 @@ pause\r
               if (topic.endsWith('/presence')) {
                 const data = JSON.parse(payload.toString());
                 handleAudiencePresencePing(data);
+              } else if (topic === mqttResendTopic) {
+                if (!isCoHostMode) handleViewerResendRequest(JSON.parse(payload.toString()));
               } else if (topic === 'brainaudiovisual/global/active_sessions/ping') {
                 if (!isCoHostMode) pulseRoomActiveHeartbeat();
               } else if (topic === mqttVuTopic) {
@@ -6367,10 +6542,11 @@ pause\r
                     }
                   }
                 }
-              } else if (topic === mqttMeetingTopic) {
+              } else if (topic.startsWith(mqttLangTopicPrefix)) {
                 if (isCoHostMode) {
                   const data = JSON.parse(payload.toString());
-                  if (data) {
+                  // Reenvios pedidos por espectadores não devem duplicar o espelho do Co-Host
+                  if (data && !data.replay) {
                     if (data.type === 'NEW_SUBTITLE' && data.text) {
                       if (data.channel === 'transmitter' || data.channel === 'pt') {
                         mirrorRemoteTransmitterSubtitle(data.text, data.startSec, data.endSec);
@@ -6398,8 +6574,99 @@ pause\r
         } catch(e) {}
       }
 
+      // ========================================================
+      // TRANSPORTE CONFIÁVEL PARA A NUVEM (ESPECTADORES REMOTOS)
+      // - Cada idioma tem o seu tópico: o celular do espectador só recebe o próprio idioma.
+      // - Frases finais e locução vão com QoS 1 (com confirmação do broker) e ficam
+      //   enfileiradas pelo mqtt.js enquanto a conexão cai, sendo entregues ao reconectar.
+      // - Cada frase final recebe um número de sequência por idioma; o espectador detecta
+      //   lacunas e pede reenvio ao cockpit, que guarda as últimas frases em memória.
+      // - Textos parciais (interim) são efêmeros: QoS 0 e no máximo 1 envio a cada 200ms por idioma.
+      // ========================================================
+      const mqttLangTopicPrefix = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/lang/';
+      const mqttResendTopic = 'brainaudiovisual/meeting/' + safeMeetingMqttId + '/resend';
+      const broadcastSessionId = 'ses_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+      const channelSeqCounters = {};
+      const channelReplayLog = {};
+      const pendingInterimSends = {};
+      const INTERIM_MIN_INTERVAL_MS = 200;
+      const REPLAY_LOG_SIZE = 400;
+
+      function canonicalChannelCode(channel) {
+        const c = String(channel || '').toLowerCase();
+        if (c === 'transmitter' || c === 'all') return c;
+        if (c === 'receiver') return 'en';
+        if (c === 'spanish') return 'es';
+        if (c === 'french') return 'fr';
+        if (c === 'german') return 'de';
+        if (c === 'italian') return 'it';
+        if (c === 'arabic') return 'ar';
+        return c.split('-')[0];
+      }
+
+      function publishToCloud(payload, kind) {
+        if (!mqttPublisherClient || isCoHostMode) return;
+        const topic = mqttLangTopicPrefix + canonicalChannelCode(payload.channel) + '/' + kind;
+        try {
+          if (kind === 'final') {
+            // Sem checar "connected": o mqtt.js guarda QoS 1 na fila e entrega ao reconectar
+            mqttPublisherClient.publish(topic, JSON.stringify(payload), { qos: 1 });
+          } else if (mqttPublisherClient.connected) {
+            mqttPublisherClient.publish(topic, JSON.stringify(payload), { qos: 0 });
+          }
+        } catch(e) {}
+      }
+
+      // Numera e registra frases finais/locução para permitir reenvio de lacunas
+      function stampSequencedPayload(payload) {
+        const code = canonicalChannelCode(payload.channel);
+        channelSeqCounters[code] = (channelSeqCounters[code] || 0) + 1;
+        payload.sid = broadcastSessionId;
+        payload.seq = channelSeqCounters[code];
+        const log = channelReplayLog[code] || (channelReplayLog[code] = []);
+        log.push(payload);
+        if (log.length > REPLAY_LOG_SIZE) log.shift();
+        return payload;
+      }
+
+      function handleViewerResendRequest(req) {
+        if (!req || req.sid !== broadcastSessionId) return;
+        const code = canonicalChannelCode(req.code);
+        const log = channelReplayLog[code];
+        if (!log || !log.length) return;
+        const from = Math.max(1, parseInt(req.from, 10) || 1);
+        const to = Math.min(parseInt(req.to, 10) || from, from + 60);
+        log.forEach(pkt => {
+          if (pkt.seq >= from && pkt.seq <= to) {
+            publishToCloud(Object.assign({}, pkt, { replay: true }), 'final');
+          }
+        });
+      }
+
+      function cancelPendingInterim(code) {
+        const slot = pendingInterimSends[code];
+        if (slot && slot.timer) {
+          clearTimeout(slot.timer);
+          slot.timer = null;
+        }
+      }
+
+      function publishInterimThrottled(payload) {
+        const code = canonicalChannelCode(payload.channel);
+        const slot = pendingInterimSends[code] || (pendingInterimSends[code] = { last: 0, timer: null });
+        cancelPendingInterim(code);
+        const send = () => {
+          slot.timer = null;
+          slot.last = Date.now();
+          publishToCloud(payload, 'live');
+        };
+        const wait = INTERIM_MIN_INTERVAL_MS - (Date.now() - slot.last);
+        if (!payload.text || wait <= 0) send();
+        else slot.timer = setTimeout(send, wait);
+      }
+
       function broadcastSubtitleGlobally(channel, text, startSec, endSec) {
-        const payload = {
+        const payload = stampSequencedPayload({
           type: 'NEW_SUBTITLE',
           pktId: 'sub_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
           meetingId: id,
@@ -6408,14 +6675,14 @@ pause\r
           startSec: startSec,
           endSec: endSec,
           timestamp: Date.now()
-        };
+        });
 
         if (subtitleBroadcast) {
           try { subtitleBroadcast.postMessage(payload); } catch(e) {}
         }
-        if (mqttPublisherClient && mqttPublisherClient.connected) {
-          try { mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 0 }); } catch(e) {}
-        }
+        // Interim pendente desta língua ficaria "velho" depois da frase final
+        cancelPendingInterim(canonicalChannelCode(channel));
+        publishToCloud(payload, 'final');
       }
 
       // Transmissão instantânea de interim (palavra a palavra) para Espectador e OBS
@@ -6431,9 +6698,7 @@ pause\r
         if (subtitleBroadcast) {
           try { subtitleBroadcast.postMessage(payload); } catch(e) {}
         }
-        if (mqttPublisherClient && mqttPublisherClient.connected) {
-          try { mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 0 }); } catch(e) {}
-        }
+        publishInterimThrottled(payload);
       }
 
       // Notifica fechamento de parágrafo em todas as telas
@@ -6448,28 +6713,24 @@ pause\r
         if (subtitleBroadcast) {
           try { subtitleBroadcast.postMessage(payload); } catch(e) {}
         }
-        if (mqttPublisherClient && mqttPublisherClient.connected) {
-          try { mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 0 }); } catch(e) {}
-        }
+        publishToCloud(payload, 'final');
       }
 
       // Broadcast exclusivo para voz em streaming (não exibe legenda, apenas faz TTS)
       function broadcastStreamTTS(channel, ttsText) {
         if (!ttsText || !ttsText.trim()) return;
-        const payload = {
+        const payload = stampSequencedPayload({
           type: 'STREAM_TTS',
           pktId: 'tts_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
           meetingId: id,
           channel: channel,
           text: ttsText.trim(),
           timestamp: Date.now()
-        };
+        });
         if (subtitleBroadcast) {
           try { subtitleBroadcast.postMessage(payload); } catch(e) {}
         }
-        if (mqttPublisherClient && mqttPublisherClient.connected) {
-          try { mqttPublisherClient.publish(mqttMeetingTopic, JSON.stringify(payload), { qos: 0 }); } catch(e) {}
-        }
+        publishToCloud(payload, 'final');
       }
 
       function formatDuration(sec) {
@@ -8798,9 +9059,8 @@ pause\r
         }
 
         const targetCode = targetLang.split('-')[0].toLowerCase();
+        // Canal canônico apenas: aliases (receiver/spanish) duplicariam a frase no espectador
         broadcastSubtitleGlobally(targetCode, clean, startSec, endSec);
-        if (targetCode === 'en') broadcastSubtitleGlobally('receiver', clean, startSec, endSec);
-        if (targetCode === 'es') broadcastSubtitleGlobally('spanish', clean, startSec, endSec);
 
         triggerTargetAudioMeter(targetLang, Math.max(3000, clean.length * 90));
         fetchAudioChunkForExport(targetLang, clean, 'female');
