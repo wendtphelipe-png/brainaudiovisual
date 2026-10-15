@@ -1,57 +1,45 @@
-name: Deploy to Hostinger VPS
+name: Deploy
+
+# A cada envio para a main, atualiza a Cabine v2 na VPS
+# (https://cabine.brainaudiovisual.com.br). A chave usada aqui só consegue
+# rodar o script de atualização na VPS, nada além disso.
 
 on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
 jobs:
-  deploy:
-    name: Deploy to Hostinger VPS
+  cabine:
+    name: Cabine na VPS
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - name: Verificar se Secrets da VPS estão configuradas
-        id: check-secrets
+      - name: Atualizar a VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_DEPLOY_KEY: ${{ secrets.VPS_DEPLOY_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
-          if [ -z "$VPS_HOST" ]; then
-            echo "has_host=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Deploy Ignorado::As credenciais de VPS (VPS_HOST, VPS_USERNAME, VPS_PASSWORD) ainda não foram cadastradas em Settings > Secrets deste repositório. O deploy automático via SSH foi ignorado com sucesso."
-          else
-            echo "has_host=true" >> "$GITHUB_OUTPUT"
-            echo "Credenciais de VPS encontradas. Prosseguindo com deploy SSH..."
+          if [ -z "$VPS_HOST" ] || [ -z "$VPS_DEPLOY_KEY" ]; then
+            echo "::warning::Segredos da VPS não configurados; deploy ignorado."
+            exit 0
           fi
+          mkdir -p ~/.ssh
+          echo "$VPS_DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "root@$VPS_HOST" atualizar
 
-      - name: Deploy application via SSH
-        if: steps.check-secrets.outputs.has_host == 'true'
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          password: ${{ secrets.VPS_PASSWORD }} # Ou use key: ${{ secrets.VPS_SSH_KEY }}
-          port: 22
-          script: |
-            # Navega até a pasta do projeto (ajuste o caminho de acordo com sua VPS)
-            cd /var/www/brainaudiovisual || cd /var/www/brainlingo || exit
-            
-            # Puxa o código mais recente do GitHub
-            git pull origin main
-            
-            # --- BUILD FRONTEND ---
-            cd frontend
-            echo "VITE_LIVEKIT_URL=${{ secrets.LIVEKIT_URL }}" > .env
-            npm install
-            npm run build
-            
-            # --- BUILD BACKEND ---
-            cd ../backend
-            echo "LIVEKIT_URL=${{ secrets.LIVEKIT_URL }}" > .env
-            echo "LIVEKIT_API_KEY=${{ secrets.LIVEKIT_API_KEY }}" >> .env
-            echo "LIVEKIT_API_SECRET=${{ secrets.LIVEKIT_API_SECRET }}" >> .env
-            
-            npm install
-            npm run build
-            
-            # --- RESTART BOT (PM2) ---
-            pm2 restart brainaudiovisual-bot || pm2 restart brainlingo-bot || pm2 start dist/index.js --name "brainaudiovisual-bot"
+      - name: Conferir pela internet
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS https://cabine.brainaudiovisual.com.br/saude; then exit 0; fi
+            sleep 3
+          done
+          echo "::error::A cabine não respondeu pela internet depois do deploy"
+          exit 1

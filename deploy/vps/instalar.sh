@@ -51,7 +51,8 @@ git -C "$APP_DIR" log --oneline -1
 
 echo "==> Configuração"
 if [[ ! -f "$ENV_FILE" ]]; then
-  KEY="$(tr -dc 'A-HJ-NP-Za-km-z2-9' </dev/urandom | head -c 10)"
+  # 10 caracteres fáceis de ditar (sem 0/O, 1/l/I)
+  KEY="$(node -e "const a='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';let s='';for(const b of require('crypto').randomBytes(10))s+=a[b%a.length];console.log(s)")"
   cat > "$ENV_FILE" <<EOF
 CABINE_PORT=$PORT
 CABINE_HOST=127.0.0.1

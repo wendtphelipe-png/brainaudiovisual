@@ -5,9 +5,11 @@
 // Uso: node cabine/test/simular.js [porta] [repetições] [chave da equipe]
 const WebSocket = require('ws');
 
-const PORT = Number(process.argv[2] || 8790);
+// Primeiro argumento: porta local (8790) ou endereço completo (https://cabine...)
+const TARGET = process.argv[2] || '8790';
+const HTTP_BASE = /^https?:/.test(TARGET) ? TARGET.replace(/\/+$/, '') : `http://localhost:${TARGET}`;
 const REPEAT = Number(process.argv[3] || 2);
-const URL = `ws://localhost:${PORT}/ws`;
+const URL = HTTP_BASE.replace(/^http/, 'ws') + '/ws';
 const KEY = process.argv[4] || '';
 const TEXT = ('agora nós vamos abrir o retroperitônio e identificar o ureter esquerdo ao longo de todo o seu trajeto ' +
   'o nervo hipogástrico passa medial a este plano então mantemos a dissecção bem próxima ao reto para preservar a inervação ' +
@@ -19,7 +21,7 @@ const open = url => new Promise((res, rej) => { const ws = new WebSocket(url); w
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function runRoom(label, text) {
-  const res = await fetch(`http://localhost:${PORT}/api/salas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: label, key: KEY }) });
+  const res = await fetch(`${HTTP_BASE}/api/salas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: label, key: KEY }) });
   if (!res.ok) throw new Error('não criou a sala: ' + res.status);
   const { code, token } = await res.json();
   const cockpit = await open(URL);
