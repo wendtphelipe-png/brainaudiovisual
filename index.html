@@ -8,34 +8,37 @@
   <!-- Tailwind CSS & Lucide Icons via CDN -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Atkinson+Hyperlegible+Next:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     // ========================================================
-    // SISTEMA VISUAL "CABINE" (out/2026)
-    // Uma paleta só para a interface inteira: índigo de cabine de
-    // intérprete, grafite frio e esmeralda reservada ao sinal "ao vivo".
-    // Azul, roxo, violeta, rosa e céu apontam para o mesmo índigo para
-    // acabar com o arco-íris de gradientes sem tocar no markup.
+    // SISTEMA VISUAL "SINAL" (out/2026)
+    // Cabine de transmissão: azul-noite para ação, grafite frio para
+    // texto e superfícies, âmbar só para o que está "no ar" e a ação
+    // principal. Azul, roxo, violeta, rosa e céu apontam para o mesmo
+    // azul-noite para acabar com o arco-íris sem tocar no markup.
+    // Verde continua sendo "deu certo / conectado".
     // ========================================================
     (function () {
-      const indigo = { 50: '#F1F3FB', 100: '#E3E7F6', 200: '#C8CFEC', 300: '#A1ABDA', 400: '#7381C4', 500: '#4E5DB0', 600: '#2F3C8F', 700: '#28337A', 800: '#212A63', 900: '#1B2250', 950: '#11163A' };
-      const graphite = { 50: '#F5F7F9', 100: '#ECEFF3', 200: '#DDE2EA', 300: '#C3CAD5', 400: '#8F99A8', 500: '#667080', 600: '#4B5463', 700: '#363E4C', 800: '#232A36', 900: '#161B26', 950: '#0E121A' };
-      const signal = { 50: '#ECFAF4', 100: '#D1F2E3', 200: '#A5E4C9', 300: '#6DD0A8', 400: '#34B886', 500: '#0E9F6E', 600: '#0B855C', 700: '#0A6B4B', 800: '#0A553D', 900: '#094633', 950: '#05281D' };
+      const night = { 50: '#F2F4F8', 100: '#E4E8F0', 200: '#C9D0DD', 300: '#A3AEC2', 400: '#6F7D96', 500: '#475571', 600: '#1F2A40', 700: '#172033', 800: '#121A2A', 900: '#0E1522', 950: '#0A0F18' };
+      const graphite = { 50: '#F4F6F9', 100: '#EAEEF3', 200: '#D9DEE6', 300: '#BFC7D3', 400: '#8592A8', 500: '#5F6B80', 600: '#465166', 700: '#333C4E', 800: '#1E2636', 900: '#131A27', 950: '#0C111B' };
+      const ok = { 50: '#ECFAF4', 100: '#D1F2E3', 200: '#A5E4C9', 300: '#6DD0A8', 400: '#34B886', 500: '#0E9F6E', 600: '#0B855C', 700: '#0A6B4B', 800: '#0A553D', 900: '#094633', 950: '#05281D' };
+      const onair = { 50: '#FFF8EB', 100: '#FFEDC7', 200: '#FFDB8F', 300: '#FFC757', 400: '#FFB224', 500: '#F29A00', 600: '#C77C00', 700: '#9A5F00', 800: '#6E4400', 900: '#3D2600', 950: '#1A1200' };
       tailwind.config = {
         darkMode: 'class',
         theme: {
           extend: {
             colors: {
-              indigo, blue: indigo, purple: indigo, violet: indigo, sky: indigo, fuchsia: indigo, pink: indigo,
+              indigo: night, blue: night, purple: night, violet: night, sky: night, fuchsia: night, pink: night,
               slate: graphite, gray: graphite, zinc: graphite,
-              emerald: signal, green: signal, teal: signal, cyan: signal
+              emerald: ok, green: ok, teal: ok, cyan: ok,
+              onair
             },
             fontFamily: {
-              sans: ['"Schibsted Grotesk"', 'system-ui', 'sans-serif'],
-              caption: ['"Atkinson Hyperlegible Next"', '"Atkinson Hyperlegible"', 'system-ui', 'sans-serif']
+              sans: ['Archivo', 'system-ui', 'sans-serif'],
+              caption: ['Archivo', 'system-ui', 'sans-serif']
             },
-            borderRadius: { lg: '0.5rem', xl: '0.625rem', '2xl': '0.875rem', '3xl': '1.125rem' }
+            borderRadius: { md: '0.3rem', lg: '0.4rem', xl: '0.5rem', '2xl': '0.65rem', '3xl': '0.85rem' }
           }
         }
       };
@@ -75,8 +78,8 @@
        TEMA CLARO CONFORTÁVEL (Fundo suave anti-reflexo, sem excesso de branco)
        ======================================================== */
     body.light-mode {
-      background-color: #ECEFF3 !important;
-      color: #161B26 !important;
+      background-color: #EAEEF3 !important;
+      color: #131A27 !important;
     }
 
     /* ========================================================
@@ -86,8 +89,8 @@
     html.dark body,
     body.dark,
     body.dark-mode {
-      background-color: #0E121A !important;
-      color: #ECEFF3 !important;
+      background-color: #0C111B !important;
+      color: #EAEEF3 !important;
     }
 
     /* Headers, Topos Congelados e Barras */
@@ -95,8 +98,8 @@
     html.dark .sticky,
     html.dark [class*="backdrop-blur"] {
       background-color: rgba(15, 23, 42, 0.96) !important;
-      border-color: #363E4C !important;
-      color: #F5F7F9 !important;
+      border-color: #333C4E !important;
+      color: #F4F6F9 !important;
     }
 
     /* Cards, Seções e Gradients no Dashboard e Cockpit */
@@ -109,9 +112,9 @@
     html.dark [class*="from-blue-50"]:not(button),
     html.dark [class*="from-indigo-50"]:not(button),
     html.dark [class*="from-emerald-50"]:not(button) {
-      background-color: #161C27 !important;
-      border-color: #283142 !important;
-      color: #F5F7F9 !important;
+      background-color: #131A27 !important;
+      border-color: #232D40 !important;
+      color: #F4F6F9 !important;
     }
 
     /* Cabeçalhos de Seções e Sub-blocos */
@@ -119,9 +122,9 @@
     html.dark [class*="bg-blue-100"]:not(button):not(span),
     html.dark [class*="bg-indigo-100"]:not(button):not(span),
     html.dark [class*="bg-emerald-100"]:not(button):not(span) {
-      background-color: #232A36 !important;
-      border-color: #283142 !important;
-      color: #F5F7F9 !important;
+      background-color: #1E2636 !important;
+      border-color: #232D40 !important;
+      color: #F4F6F9 !important;
     }
 
     /* Tipografia e Títulos */
@@ -129,16 +132,16 @@
     html.dark .text-slate-800,
     html.dark .text-slate-700,
     html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark strong {
-      color: #F5F7F9 !important;
+      color: #F4F6F9 !important;
     }
 
     html.dark .text-slate-600,
     html.dark .text-slate-500 {
-      color: #C3CAD5 !important;
+      color: #BFC7D3 !important;
     }
 
     html.dark .text-slate-400 {
-      color: #8F99A8 !important;
+      color: #8592A8 !important;
     }
 
     /* Bordas */
@@ -150,7 +153,7 @@
     html.dark .border-indigo-200,
     html.dark .border-emerald-100,
     html.dark .border-emerald-200 {
-      border-color: #283142 !important;
+      border-color: #232D40 !important;
     }
 
     /* CAMPOS DINÂMICOS QUE PODEM SER ALTERADOS (MANTIDOS COM FUNDO BRANCO E TEXTO ESCURO NO DARK MODE) */
@@ -158,17 +161,17 @@
     html.dark select,
     html.dark textarea {
       background-color: #ffffff !important;
-      color: #161B26 !important;
-      border: 1.5px solid #C3CAD5 !important;
+      color: #131A27 !important;
+      border: 1.5px solid #BFC7D3 !important;
       font-weight: 600 !important;
     }
     html.dark select option {
       background-color: #ffffff !important;
-      color: #161B26 !important;
+      color: #131A27 !important;
     }
     html.dark input::placeholder,
     html.dark textarea::placeholder {
-      color: #667080 !important;
+      color: #5F6B80 !important;
     }
 
     /* PRESERVAÇÃO DA BARRA DE PROGRESSO NO DARK MODE (GRADIENTE VIVO) */
@@ -179,19 +182,17 @@
     }
 
     /* PRESERVAÇÃO DAS CORES VIVAS DE TODOS OS BOTÕES COLORIDOS NO DARK MODE */
-    html.dark button[class*="bg-blue-"], html.dark a[class*="bg-blue-"] {
-      background-color: #2F3C8F !important;
-      color: #ffffff !important;
+    html.dark button[class*="bg-blue-6"], html.dark a[class*="bg-blue-6"] {
+      background-color: #FFB224 !important;
+      color: #1A1200 !important;
     }
-    html.dark button[class*="bg-blue-"]:hover, html.dark a[class*="bg-blue-"]:hover {
-      background-color: #28337A !important;
+    html.dark button[class*="bg-indigo-6"], html.dark a[class*="bg-indigo-6"],
+    html.dark button[class*="bg-indigo-7"], html.dark a[class*="bg-indigo-7"] {
+      background-color: #FFB224 !important;
+      color: #1A1200 !important;
     }
-    html.dark button[class*="bg-indigo-"], html.dark a[class*="bg-indigo-"] {
-      background-color: #2F3C8F !important;
-      color: #ffffff !important;
-    }
-    html.dark button[class*="bg-indigo-"]:hover, html.dark a[class*="bg-indigo-"]:hover {
-      background-color: #28337A !important;
+    html.dark button[class*="bg-indigo-6"]:hover, html.dark a[class*="bg-indigo-6"]:hover {
+      background-color: #FFC04D !important;
     }
     html.dark button[class*="bg-emerald-"], html.dark a[class*="bg-emerald-"],
     html.dark button[class*="bg-green-"], html.dark a[class*="bg-green-"] {
@@ -214,7 +215,7 @@
       color: #020617 !important;
     }
     html.dark button[class*="bg-purple-"], html.dark a[class*="bg-purple-"] {
-      background-color: #2F3C8F !important;
+      background-color: #1F2A40 !important;
       color: #ffffff !important;
     }
     /* Preserva botões de amostra de paleta de cor das legendas e overlay OBS */
@@ -229,25 +230,29 @@
     html.dark #share-telao-modal > div,
     html.dark #finish-meeting-modal > div,
     html.dark #test-lab-modal > div {
-      background-color: #161C27 !important;
-      border-color: #283142 !important;
-      color: #F5F7F9 !important;
+      background-color: #131A27 !important;
+      border-color: #232D40 !important;
+      color: #F4F6F9 !important;
     }
 
     /* ========================================================
-       SISTEMA VISUAL "CABINE": BASE TIPOGRÁFICA E ACABAMENTO
+       SISTEMA VISUAL "SINAL": BASE TIPOGRÁFICA E ACABAMENTO
+       Uma família só (Archivo). A largura muda a voz: títulos
+       largos como letreiro de transmissão, texto em largura normal.
        ======================================================== */
     html { -webkit-text-size-adjust: 100%; }
     body {
-      font-family: "Schibsted Grotesk", system-ui, sans-serif;
+      font-family: Archivo, system-ui, sans-serif;
+      font-variation-settings: "wdth" 100;
       text-rendering: optimizeLegibility;
     }
     .font-mono, [id*="Timer"], [id*="Clock"], [id*="Percent"] { font-variant-numeric: tabular-nums; }
-    ::selection { background: rgba(47, 60, 143, 0.18); }
+    ::selection { background: rgba(255, 178, 36, 0.32); }
 
-    /* Pesos: o "font-black" (900) em toda parte achatava a hierarquia */
+    /* Títulos: largos e firmes. Pesos 900 viram 750 para não achatar a hierarquia */
+    h1, h2, h3, .font-display { font-variation-settings: "wdth" 112; letter-spacing: -0.01em; }
+    h1.font-black, h2.font-black, h1.font-extrabold, h2.font-extrabold, .font-display { font-variation-settings: "wdth" 125; letter-spacing: -0.02em; }
     .font-black { font-weight: 750 !important; }
-    h1.font-black, h2.font-black { font-weight: 800 !important; letter-spacing: -0.02em; }
 
     /* Tamanho mínimo legível: nada abaixo de 11px */
     .text-\[8px\], .text-\[9px\], .text-\[9\.5px\], .text-\[10px\] { font-size: 11px !important; line-height: 1.35; }
@@ -258,37 +263,54 @@
     body:not(.bg-black) .uppercase.tracking-wider,
     body:not(.bg-black) .uppercase.tracking-widest,
     body:not(.bg-black) [class*="uppercase"][class*="tracking-["] { letter-spacing: 0.005em !important; }
-
     body:not(.bg-black) [style*="text-transform: uppercase"],
     body:not(.bg-black) [style*="text-transform:uppercase"] { text-transform: none !important; letter-spacing: 0.005em !important; }
 
-    /* Superfícies: sombras discretas e frias no lugar das sombras coloridas */
-    .shadow-lg { box-shadow: 0 1px 2px rgba(22, 27, 38, 0.06), 0 8px 24px -12px rgba(22, 27, 38, 0.18) !important; }
-    .shadow-xl, .shadow-2xl { box-shadow: 0 1px 2px rgba(22, 27, 38, 0.06), 0 16px 40px -18px rgba(22, 27, 38, 0.28) !important; }
+    /* Superfícies: sombras secas e frias, sem brilho colorido */
+    .shadow-lg { box-shadow: 0 1px 2px rgba(12, 17, 27, 0.06), 0 10px 24px -14px rgba(12, 17, 27, 0.22) !important; }
+    .shadow-xl, .shadow-2xl { box-shadow: 0 1px 2px rgba(12, 17, 27, 0.06), 0 18px 40px -20px rgba(12, 17, 27, 0.32) !important; }
     html.dark .shadow-lg, html.dark .shadow-xl, html.dark .shadow-2xl { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 16px 40px -18px rgba(0, 0, 0, 0.6) !important; }
+
+    /* Botões: cantos mais secos em toda a interface; peso e largura de letreiro */
+    button.rounded-xl, button.rounded-2xl, button.rounded-3xl,
+    a.rounded-xl[class*="bg-"], a.rounded-2xl[class*="bg-"] { border-radius: 0.4rem !important; }
+    button[class*="font-bold"], button[class*="font-black"], button[class*="font-semibold"] { font-variation-settings: "wdth" 106; }
+
+    /* Botão de canto cortado: a assinatura da marca, usado nas ações principais */
+    .btn-cut {
+      border-radius: 0 !important;
+      clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+      font-variation-settings: "wdth" 112 !important;
+      font-weight: 700 !important;
+    }
+    .btn-onair { background: #FFB224 !important; color: #1A1200 !important; transition: filter 0.2s; }
+    .btn-onair:hover { filter: brightness(1.07); }
+    .btn-night { background: #131A27 !important; color: #EAF0F7 !important; box-shadow: inset 0 0 0 1px #232D40; transition: background 0.2s; }
+    .btn-night:hover { background: #1A2333 !important; }
 
     /* Botões e campos: resposta ao toque e foco visível pelo teclado */
     button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
     button:not(:disabled):active { transform: translateY(1px); }
-    :focus-visible { outline: 2px solid #4E5DB0 !important; outline-offset: 2px; }
+    :focus-visible { outline: 2px solid #F29A00 !important; outline-offset: 2px; }
     input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="color"]):focus,
     select:focus, textarea:focus {
-      border-color: #4E5DB0 !important;
-      box-shadow: 0 0 0 3px rgba(78, 93, 176, 0.18) !important;
+      border-color: #F29A00 !important;
+      box-shadow: 0 0 0 3px rgba(255, 178, 36, 0.22) !important;
       outline: none !important;
     }
+    input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color: #F29A00; }
 
-    /* Campos no tema escuro: superfície escura e texto claro (antes ficavam brancos, às vezes com texto branco) */
+    /* Campos no tema escuro: superfície escura e texto claro */
     html.dark body input:not([type="range"]):not([type="color"]):not([type="checkbox"]):not([type="radio"]),
     html.dark body select,
     html.dark body textarea {
-      background-color: #121722 !important;
-      color: #F5F7F9 !important;
-      border: 1px solid #363E4C !important;
+      background-color: #0F1520 !important;
+      color: #EAF0F7 !important;
+      border: 1px solid #2A3448 !important;
       font-weight: 500 !important;
     }
-    html.dark body select option { background-color: #161C27 !important; color: #F5F7F9 !important; }
-    html.dark body input::placeholder, html.dark body textarea::placeholder { color: #8F99A8 !important; }
+    html.dark body select option { background-color: #131A27 !important; color: #EAF0F7 !important; }
+    html.dark body input::placeholder, html.dark body textarea::placeholder { color: #8592A8 !important; }
 
     /* Amostras de cor das legendas mostram a cor real que aplicam */
     button[onclick*="'#38bdf8'"] { background-color: #38bdf8 !important; }
@@ -296,41 +318,51 @@
     button[onclick*="'#0000ff'"] { background-color: #0000ff !important; }
     button[onclick*="'#00ff00'"] { background-color: #00ff00 !important; }
 
-    /* Legendas: a fala traduzida é o produto, então ganha a fonte de leitura */
+    /* Legendas: largura normal da Archivo, grande e com respiro */
     #audience-subtitles-feed, #audience-subtitles-feed *,
     #transmitter-transcription-feed, #transmitter-transcription-feed *,
     [id^="target-transcription-feed-"], [id^="target-transcription-feed-"] *,
     [id^="overlay-feed-"], [id^="overlay-feed-"] * {
-      font-family: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif !important;
+      font-family: Archivo, system-ui, sans-serif !important;
+      font-variation-settings: "wdth" 100 !important;
     }
-
-    #audience-subtitles-feed > p:not(.placeholder-empty) { font-size: 1.2rem !important; line-height: 1.6 !important; margin-bottom: 0.9rem; }
-    @media (min-width: 640px) { #audience-subtitles-feed > p:not(.placeholder-empty) { font-size: 1.35rem !important; } }
-    #audience-subtitles-feed .audience-para-live { color: #4E5DB0; }
-    html.dark #audience-subtitles-feed .audience-para-live { color: #A1ABDA; }
+    #audience-subtitles-feed > p:not(.placeholder-empty) { font-size: 1.22rem !important; line-height: 1.55 !important; margin-bottom: 0.9rem; font-weight: 450; }
+    @media (min-width: 640px) { #audience-subtitles-feed > p:not(.placeholder-empty) { font-size: 1.38rem !important; } }
+    #audience-subtitles-feed .audience-para-live { color: #C77C00; }
+    html.dark #audience-subtitles-feed .audience-para-live { color: #FFB224; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
     /* Checklist do assistente do motor: círculo pendente, check quando pronto */
     .step-icon { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; flex-shrink: 0; }
     .step-icon:empty { border: 1.5px solid currentColor; border-radius: 9999px; opacity: 0.6; }
 
-    /* Sinal "ao vivo": barras de nível no lugar do ponto piscando */
-    .live-signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+    /* "No ar": barras de nível em âmbar no lugar do ponto piscando */
+    .live-signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; color: #F29A00; }
+    html.dark .live-signal, .on-night .live-signal { color: #FFB224; }
     .live-signal i { display: block; width: 3px; border-radius: 1px; background: currentColor; transform-origin: bottom; animation: liveBar 1.1s ease-in-out infinite; }
     .live-signal i:nth-child(1) { height: 45%; animation-delay: -0.2s; }
     .live-signal i:nth-child(2) { height: 100%; animation-delay: -0.5s; }
     .live-signal i:nth-child(3) { height: 70%; animation-delay: -0.8s; }
     @keyframes liveBar { 0%, 100% { transform: scaleY(0.45); } 50% { transform: scaleY(1); } }
+    .onair-pill { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.85rem; color: #FFB224; border: 1px solid rgba(255, 178, 36, 0.35); border-radius: 999px; padding: 6px 12px; }
 
-    /* Entrada única e orquestrada do painel (uma vez por carregamento) */
+    /* Símbolo da marca */
+    .brand-mark { display: block; flex-shrink: 0; }
+    .wordmark { font-weight: 700; font-variation-settings: "wdth" 125; letter-spacing: 0.01em; }
+
+    html.dark .brand-mark:not(.on-dark) path[stroke="#131A27"] { stroke: #EAF0F7; }
+    .on-night .btn-theme-toggle { background: transparent !important; border-color: #232D40 !important; color: #EAF0F7 !important; }
+    .on-night .btn-theme-toggle:hover { background: #131A27 !important; }
+
+    /* Entrada única e orquestrada do Hub (uma vez por carregamento) */
     @keyframes cabineEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-    .cabine-enter > * { animation: cabineEnter 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-    .cabine-enter > *:nth-child(2) { animation-delay: 0.08s; }
-    .cabine-enter > *:nth-child(3) { animation-delay: 0.16s; }
+    .cabine-enter > * { animation: cabineEnter 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .cabine-enter > *:nth-child(2) { animation-delay: 0.1s; }
+    .cabine-enter > *:nth-child(3) { animation-delay: 0.2s; }
 
     /* Rolagem fina e discreta */
-    * { scrollbar-width: thin; scrollbar-color: #C3CAD5 transparent; }
-    html.dark * { scrollbar-color: #363E4C transparent; }
+    * { scrollbar-width: thin; scrollbar-color: #BFC7D3 transparent; }
+    html.dark * { scrollbar-color: #333C4E transparent; }
 
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
@@ -354,9 +386,89 @@
       } catch(e) { return 'light'; }
     }
 
+    // ========================================================
+    // MARCA "SINAL": símbolo (cérebro feito de ondas) e animação do Hub.
+    // Arquivos do logo: design/logo/ (gerados por design/gerar-logo.js)
+    // ========================================================
+    var BRAIN_SIDE_PATH = 'M80 190C58 160 62 110 98 80C130 52 180 38 230 42C290 46 338 74 352 120C362 152 352 182 330 196C342 214 330 240 302 242C284 244 268 236 260 226C252 236 246 256 244 282C243 292 228 292 226 282C224 262 222 246 214 236C190 238 160 232 140 220C120 222 96 212 80 190Z';
+    var BRAND_WAVES = '<path d="M0 7 L0 7.00 L2 7.45 L4 7.40 L6 6.92 L8 6.52 L10 6.65 L12 7.16 L14 7.49 L16 7.29 L18 6.77 L20 6.50 L22 6.78 L24 7.30 L26 7.49 L28 7.15 L30 6.64 L32 6.53 L34 6.93 L36 7.41 L38 7.44 L40 7.00" fill="none" stroke="LINE" stroke-width="1.5" stroke-linecap="round"/><path d="M0 10.6 L0 11.19 L2 11.20 L4 10.56 L6 9.96 L8 10.06 L10 10.75 L12 11.28 L14 11.06 L16 10.34 L18 9.90 L20 10.22 L22 10.96 L24 11.30 L26 10.88 L28 10.15 L30 9.92 L32 10.43 L34 11.13 L36 11.25 L38 10.66 L40 10.01" fill="none" stroke="LINE" stroke-width="1.5" stroke-linecap="round"/><path d="M0 14.2 L0 15.02 L2 14.24 L4 13.42 L6 13.45 L8 14.30 L10 15.04 L12 14.86 L14 13.96 L16 13.32 L18 13.64 L20 14.58 L22 15.10 L24 14.64 L26 13.70 L28 13.31 L30 13.89 L32 14.81 L34 15.07 L36 14.37 L38 13.49 L40 13.38" fill="none" stroke="LINE" stroke-width="1.5" stroke-linecap="round"/><path d="M0 17.8 L0 17.96 L2 16.90 L4 16.83 L6 17.82 L8 18.79 L10 18.68 L12 17.61 L14 16.75 L16 17.04 L18 18.16 L20 18.89 L22 18.43 L24 17.28 L26 16.70 L28 17.32 L30 18.47 L32 18.88 L34 18.12 L36 17.00 L38 16.76 L40 17.65" fill="none" stroke="#FFB224" stroke-width="1.5" stroke-linecap="round"/><path d="M0 21.4 L0 20.72 L2 20.57 L4 21.33 L6 22.17 L8 22.17 L10 21.33 L12 20.57 L14 20.71 L16 21.61 L18 22.27 L20 21.99 L22 21.06 L24 20.50 L26 20.93 L28 21.87 L30 22.30 L32 21.74 L34 20.81 L36 20.53 L38 21.19 L40 22.09" fill="none" stroke="LINE" stroke-width="1.5" stroke-linecap="round"/><path d="M0 25 L0 24.33 L2 24.87 L4 25.56 L6 25.63 L8 25.02 L10 24.38 L12 24.42 L14 25.09 L16 25.66 L18 25.51 L20 24.80 L22 24.31 L24 24.58 L26 25.30 L28 25.70 L30 25.33 L32 24.60 L34 24.31 L36 24.77 L38 25.49 L40 25.67" fill="none" stroke="LINE" stroke-width="1.5" stroke-linecap="round"/><path d="M0 28.6 L0 28.46 L2 28.96 L4 29.07 L6 28.66 L8 28.19 L10 28.16 L12 28.62 L14 29.05 L16 28.99 L18 28.50 L20 28.12 L22 28.26 L24 28.77 L26 29.10 L28 28.88 L30 28.36 L32 28.10 L34 28.39 L36 28.91 L38 29.09 L40 28.74" fill="none" stroke="LINE" stroke-width="1.5" stroke-linecap="round"/>';
+    var __brandMarkSeq = 0;
+
+    // Símbolo em SVG. onDark = linhas claras (para fundos escuros).
+    function brandMark(size, onDark) {
+      const id = 'bm' + (++__brandMarkSeq);
+      const line = onDark ? '#EAF0F7' : '#131A27';
+      return '<svg class="brand-mark' + (onDark ? ' on-dark' : '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 40 40" aria-hidden="true">'
+        + '<defs><clipPath id="' + id + '"><path d="' + BRAIN_SIDE_PATH + '" transform="translate(1.2 2.6) scale(0.094)"/></clipPath></defs>'
+        + '<g clip-path="url(#' + id + ')">' + BRAND_WAVES.split('LINE').join(line) + '</g></svg>';
+    }
+
+    // Ícone do app: o símbolo sobre o azul-noite (mesmo desenho do favicon)
+    function brandTile(size) {
+      const inner = Math.round(size * 0.78);
+      return '<span class="inline-flex items-center justify-center shrink-0 bg-[#0C111B]" style="width:' + size + 'px;height:' + size + 'px;border-radius:' + Math.round(size * 0.22) + 'px">' + brandMark(inner, true) + '</span>';
+    }
+
+    // Cérebro de ondas de fala no topo do Hub. Para sozinho fora da tela,
+    // ao trocar de página e com "reduzir movimento" ligado.
+    function mountBrainWaves(canvas) {
+      if (window.__brainWavesStop) window.__brainWavesStop();
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const path = new Path2D(BRAIN_SIDE_PATH);
+      let raf = 0, ctx = null, running = false;
+
+      function fit() {
+        const r = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.max(1, Math.round(r.width * dpr));
+        canvas.height = Math.max(1, Math.round(r.height * dpr));
+        ctx = canvas.getContext('2d');
+        const sc = Math.min(canvas.width / 400, canvas.height / 320);
+        ctx.setTransform(sc, 0, 0, sc, (canvas.width - 400 * sc) / 2, (canvas.height - 320 * sc) / 2);
+      }
+      function draw(t) {
+        const time = t / 1000;
+        ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.restore();
+        ctx.save(); ctx.clip(path);
+        // Duas rajadas de "fala" atravessam o cérebro em ritmos diferentes
+        const c1 = 60 + ((time * 70) % 340), c2 = 60 + ((time * 46 + 170) % 340);
+        for (let k = 0; k < 30; k++) {
+          const y = 44 + k * 8.4, mid = k === 15;
+          ctx.beginPath();
+          for (let x = 60; x <= 364; x += 3) {
+            const env = Math.exp(-((x - c1) ** 2) / 1800) + 0.7 * Math.exp(-((x - c2) ** 2) / 2600);
+            const amp = 1.2 + env * (7 - Math.abs(k - 15) * 0.25);
+            const yy = y + Math.sin(x * 0.11 + time * 5 + k * 0.6) * amp * (0.6 + 0.4 * Math.sin(time * 2.3 + k));
+            if (x === 60) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+          }
+          ctx.lineWidth = mid ? 2 : 1.2;
+          ctx.strokeStyle = mid ? '#FFB224' : 'rgba(234, 240, 247, ' + (0.28 + 0.5 * Math.exp(-((k - 15) ** 2) / 90)).toFixed(3) + ')';
+          ctx.stroke();
+        }
+        ctx.restore();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(234, 240, 247, 0.35)'; ctx.stroke(path);
+      }
+      function loop(t) {
+        if (!canvas.isConnected) { stop(); return; }
+        draw(t); raf = requestAnimationFrame(loop);
+      }
+      function start() {
+        fit();
+        if (reduce) { draw(1200); return; }
+        if (running) return;
+        running = true; raf = requestAnimationFrame(loop);
+      }
+      function stop() { running = false; cancelAnimationFrame(raf); }
+      const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting ? start() : stop()), { threshold: 0.1 });
+      io.observe(canvas);
+      const onResize = () => { if (!canvas.isConnected) return; fit(); if (!running) draw(1200); };
+      window.addEventListener('resize', onResize);
+      window.__brainWavesStop = () => { stop(); io.disconnect(); window.removeEventListener('resize', onResize); };
+    }
+
     // Botão principal de ouvir na tela do público (estado desligado / ligado)
-    var AUDIENCE_AUDIO_BTN_OFF = 'flex-1 h-12 px-4 rounded-2xl font-semibold text-[15px] transition-colors flex items-center justify-center gap-2 cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white';
-    var AUDIENCE_AUDIO_BTN_ON = 'flex-1 h-12 px-4 rounded-2xl font-semibold text-[15px] transition-colors flex items-center justify-center gap-2 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white';
+    var AUDIENCE_AUDIO_BTN_OFF = 'btn-cut btn-onair flex-1 h-12 px-4 text-[15px] flex items-center justify-center gap-2 cursor-pointer';
+    var AUDIENCE_AUDIO_BTN_ON = 'btn-cut btn-night flex-1 h-12 px-4 text-[15px] flex items-center justify-center gap-2 cursor-pointer';
 
     function setGlobalTheme(theme) {
       try {
@@ -530,7 +642,7 @@
         }
         // 6. ROTA PADRÃO PÚBLICA: PÁGINA EM CONSTRUÇÃO CLEAN E CLARA (/)
         else {
-          document.body.className = "bg-[#F5F7F9] text-[#161B26] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
+          document.body.className = "bg-[#F4F6F9] text-[#131A27] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
           renderPublicConstructionPage();
         }
       } catch(globalRouterErr) {
@@ -655,17 +767,30 @@
     function renderPublicConstructionPage() {
       document.title = "Brain Audiovisual — Página em construção";
       document.documentElement.classList.remove('dark');
-      document.body.className = "bg-slate-50 text-slate-900 font-sans antialiased m-0 min-h-screen flex items-center p-6";
+      document.body.className = "on-night bg-[#0C111B] text-[#EAF0F7] font-sans antialiased m-0 min-h-screen";
+      // A regra antiga "body.light-mode" usa !important; aqui o fundo é sempre o azul-noite
+      document.body.style.setProperty('background-color', '#0C111B', 'important');
+      document.body.style.setProperty('color', '#EAF0F7', 'important');
       root.innerHTML = `
-        <main class="w-full max-w-3xl mx-auto">
-          <p class="flex items-center gap-2 text-sm font-semibold text-emerald-700">
-            <span class="live-signal" aria-hidden="true"><i></i><i></i><i></i></span>
-            Em breve
-          </p>
-          <h1 class="mt-5 text-5xl sm:text-7xl font-extrabold tracking-tight leading-[0.95] text-slate-900">Brain<br>Audiovisual</h1>
-          <p class="mt-6 max-w-md text-lg text-slate-600 leading-relaxed">Tradução simultânea e dublagem para congressos e transmissões médicas. Esta página está em construção.</p>
-        </main>
+        <div class="min-h-screen flex flex-col">
+          <header class="max-w-6xl w-full mx-auto px-6 h-16 flex items-center gap-3">
+            ${brandMark(30, true)}
+            <span class="wordmark text-[15px]">BRAIN AUDIOVISUAL</span>
+          </header>
+          <main class="flex-1 max-w-6xl w-full mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+            <div>
+              <span class="onair-pill"><span class="live-signal" aria-hidden="true"><i></i><i></i><i></i></span>Em breve</span>
+              <h1 class="font-display mt-6 text-5xl sm:text-7xl font-extrabold leading-[0.95]">Tradução que acompanha a cirurgia</h1>
+              <p class="mt-6 max-w-md text-lg text-[#8592A8] leading-relaxed">Tradução simultânea e dublagem para congressos e transmissões médicas. Esta página está em construção.</p>
+            </div>
+            <div class="relative w-full max-w-xl mx-auto aspect-[5/4]">
+              <canvas id="hub-brain-canvas" class="absolute inset-0 w-full h-full" role="img" aria-label="Cérebro formado por ondas de fala em movimento"></canvas>
+            </div>
+          </main>
+        </div>
       `;
+      const brainCanvas = document.getElementById('hub-brain-canvas');
+      if (brainCanvas) mountBrainWaves(brainCanvas);
     }
 
     // ========================================================
@@ -723,9 +848,7 @@
           <div class="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-xl shadow-slate-200/50">
             
             <div class="text-center mb-8">
-              <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
-                BA
-              </div>
+              <div class="flex justify-center mb-4">${brandTile(48)}</div>
               <h1 class="text-2xl font-bold tracking-tight text-slate-900">Acesso Restrito</h1>
               <p class="text-xs text-slate-500 mt-1">Painel Master de Operações • Brain Audiovisual</p>
               <div class="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold border border-blue-100">
@@ -1253,82 +1376,57 @@
       root.innerHTML = `
         <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
 
-          <header class="border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-40">
-            <div class="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
+          <!-- Topo escuro: a cabine de transmissão -->
+          <div class="on-night bg-[#0C111B] text-[#EAF0F7]">
+            <div class="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4 border-b border-[#232D40]">
               <div class="flex items-center gap-3 min-w-0">
-                <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-extrabold text-sm tracking-tight shrink-0">BA</div>
-                <div class="min-w-0">
-                  <h1 class="text-[15px] font-bold leading-tight text-slate-900 dark:text-white truncate">Brain Audiovisual</h1>
-                  <p class="text-xs text-slate-500 dark:text-slate-400 truncate">Painel de operação</p>
-                </div>
+                ${brandMark(30, true)}
+                <span class="wordmark text-[15px] truncate">BRAIN AUDIOVISUAL</span>
               </div>
               <div class="flex items-center gap-2">
-                <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer flex items-center gap-1.5">
-                  <span>Tema</span>
-                </button>
-                <button onclick="handleAdminLogout()" class="text-xs font-semibold px-3 py-1.5 rounded-xl text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer">
-                  Sair
-                </button>
+                <span class="onair-pill hidden sm:inline-flex"><span class="live-signal" aria-hidden="true"><i></i><i></i><i></i></span>Pronto para transmitir</span>
+                <button onclick="toggleGlobalTheme()" class="btn-theme-toggle"><span>Tema</span></button>
+                <button onclick="handleAdminLogout()" class="text-sm font-semibold px-3 h-9 rounded-md text-[#8592A8] hover:text-[#EAF0F7] transition-colors cursor-pointer">Sair</button>
               </div>
             </div>
-          </header>
 
-          <main class="${window.__cabineEntered ? '' : 'cabine-enter '}max-w-6xl w-full mx-auto px-5 sm:px-8 py-10 sm:py-16 flex-1">
-
-            <div class="max-w-2xl mb-10 sm:mb-12">
-              <h2 class="text-3xl sm:text-[2.6rem] font-extrabold tracking-tight leading-[1.08] text-slate-900 dark:text-white">O que vamos operar hoje?</h2>
-              <p class="mt-3 text-base text-slate-600 dark:text-slate-400 leading-relaxed">Tradução ao vivo para um evento acontecendo agora, ou dublagem de vídeos já gravados.</p>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-stretch">
-
-              <section class="lg:col-span-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 flex flex-col">
-                <div class="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-sm font-semibold">
-                  <span class="live-signal" aria-hidden="true"><i></i><i></i><i></i></span>
-                  Pronto para transmitir
+            <div class="${window.__cabineEntered ? '' : 'cabine-enter '}max-w-6xl mx-auto px-5 sm:px-8 pt-10 pb-12 lg:pt-16 lg:pb-20 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+              <div>
+                <h2 class="font-display text-[2.6rem] sm:text-6xl font-extrabold leading-[0.98] text-[#EAF0F7]">O que vamos operar hoje?</h2>
+                <p class="mt-5 text-lg text-[#8592A8] leading-relaxed max-w-md">Tradução simultânea para o congresso de agora, ou dublagem dos vídeos que já foram gravados.</p>
+                <div class="mt-9 flex flex-wrap gap-3">
+                  <button type="button" onclick="window.navigateToAdminModule('translation')" class="btn-cut btn-onair h-14 px-7 text-base cursor-pointer">Abrir tradução ao vivo</button>
+                  <button type="button" id="hubAvLaunchBtn" onclick="window.launchAudioVisualStudio(event)" class="btn-cut btn-night h-14 px-7 text-base cursor-pointer"><span>Abrir estúdio</span></button>
                 </div>
-                <h3 class="mt-4 text-2xl sm:text-[1.75rem] font-bold tracking-tight text-slate-900 dark:text-white">Tradução simultânea</h3>
-                <p class="mt-2 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed max-w-prose">Capte a fala do palestrante, traduza em até seis idiomas e entregue legenda e voz para o público no celular, pelo QR Code, e no telão pelo OBS.</p>
+              </div>
+              <div class="relative w-full max-w-xl mx-auto aspect-[5/4]">
+                <canvas id="hub-brain-canvas" class="absolute inset-0 w-full h-full" role="img" aria-label="Cérebro formado por ondas de fala em movimento"></canvas>
+              </div>
+            </div>
+          </div>
 
-                <div class="mt-7 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 px-4 py-4">
-                  <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Rota de idiomas</p>
-                  <div class="flex items-center gap-3 flex-wrap">
-                    <span class="inline-flex items-center h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm font-bold tracking-wide">PT</span>
-                    <svg class="w-6 h-6 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h14"/><path d="m13 6 6 6-6 6"/></svg>
-                    <div class="flex flex-wrap gap-1.5">
-                      ${routeLangs.map(l => `<span class="inline-flex items-center h-9 px-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold tracking-wide">${l}</span>`).join('')}
-                    </div>
+          <!-- Painel claro: o que cada módulo faz -->
+          <main class="max-w-6xl w-full mx-auto px-5 sm:px-8 py-10 sm:py-12 flex-1">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-200 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+              <article class="bg-white dark:bg-slate-900 p-6 sm:p-8">
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white">Tradução simultânea</h3>
+                <p class="mt-2 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed max-w-prose">Capte a fala do palestrante, traduza e entregue legenda e voz para o público no celular, pelo QR Code, e no telão pelo OBS.</p>
+                <div class="mt-6 flex items-center gap-3 flex-wrap">
+                  <span class="inline-flex items-center h-9 px-3 rounded-md bg-[#0C111B] text-[#FFB224] text-sm font-bold tracking-wide">PT</span>
+                  <svg class="w-6 h-6 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+                  <div class="flex flex-wrap gap-1.5">
+                    ${routeLangs.map(l => `<span class="inline-flex items-center h-9 px-3 rounded-md border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold tracking-wide">${l}</span>`).join('')}
                   </div>
                 </div>
-
-                <div class="mt-auto pt-8">
-                  <button type="button" onclick="window.navigateToAdminModule('translation')" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-12 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[15px] transition-colors cursor-pointer">
-                    Abrir tradução ao vivo
-                  </button>
+              </article>
+              <article class="bg-white dark:bg-slate-900 p-6 sm:p-8">
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white">Estúdio de dublagem</h3>
+                <p class="mt-2 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">Envie um vídeo ou um link do YouTube ou Vimeo. O estúdio transcreve, traduz e gera a dublagem com legendas .vtt e .srt, tudo num pacote .zip, sem custo por minuto.</p>
+                <div class="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                  <span class="text-slate-500 dark:text-slate-400">Motor local: <span id="hubEngineStatusBadge" class="font-semibold text-slate-700 dark:text-slate-200">verificando</span></span>
+                  <button type="button" onclick="window.showEngineSetupModal()" class="font-semibold text-slate-700 dark:text-slate-200 underline decoration-slate-300 underline-offset-4 hover:decoration-[#F29A00] bg-transparent border-0 p-0 cursor-pointer">Instalar ou reparar o motor</button>
                 </div>
-              </section>
-
-              <section class="lg:col-span-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 flex flex-col">
-                <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                  Motor local: <span id="hubEngineStatusBadge" class="font-semibold text-slate-700 dark:text-slate-200">verificando</span>
-                </div>
-                <h3 class="mt-4 text-2xl sm:text-[1.75rem] font-bold tracking-tight text-slate-900 dark:text-white">Estúdio de dublagem</h3>
-                <p class="mt-2 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">Envie um vídeo ou um link do YouTube ou Vimeo. O estúdio transcreve, traduz e gera a dublagem com legendas .vtt e .srt, tudo num pacote .zip.</p>
-
-                <ul class="mt-6 space-y-2.5 text-sm text-slate-600 dark:text-slate-300">
-                  <li class="flex gap-2.5"><span class="mt-2 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>Fila de vários vídeos de uma vez</li>
-                  <li class="flex gap-2.5"><span class="mt-2 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>Vozes neurais masculinas e femininas</li>
-                  <li class="flex gap-2.5"><span class="mt-2 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>Roda neste computador, sem custo por minuto</li>
-                </ul>
-
-                <div class="mt-auto pt-8 space-y-3">
-                  <button type="button" id="hubAvLaunchBtn" onclick="window.launchAudioVisualStudio(event)" class="w-full inline-flex items-center justify-center gap-2 h-12 px-6 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-semibold text-[15px] transition-colors cursor-pointer">
-                    <span>Abrir estúdio</span>
-                  </button>
-                  <button type="button" onclick="window.showEngineSetupModal()" class="w-full text-center text-sm text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300 bg-transparent border-0 p-0 cursor-pointer">Instalar ou reparar o motor local</button>
-                </div>
-              </section>
-
+              </article>
             </div>
           </main>
 
@@ -1338,6 +1436,9 @@
         </div>
       `;
       window.__cabineEntered = true;
+      updateThemeButtonUI();
+      const brainCanvas = document.getElementById('hub-brain-canvas');
+      if (brainCanvas) mountBrainWaves(brainCanvas);
       setTimeout(() => { if (window.updateHubEngineStatus) window.updateHubEngineStatus(); }, 150);
     }
 
@@ -1880,11 +1981,11 @@ pause\r
       const pulseEl = document.getElementById('avTimerPulse');
       if (statusEl) {
         statusEl.innerText = 'PROCESSANDO...';
-        statusEl.style.color = '#4E5DB0';
+        statusEl.style.color = '#475571';
       }
       if (pulseEl) {
-        pulseEl.style.backgroundColor = '#4E5DB0';
-        pulseEl.style.boxShadow = '0 0 8px #4E5DB0';
+        pulseEl.style.backgroundColor = '#475571';
+        pulseEl.style.boxShadow = '0 0 8px #475571';
       }
 
       avTimerInterval = setInterval(() => {
@@ -1932,10 +2033,10 @@ pause\r
       if (clockEl) clockEl.innerText = '00:00:00';
       if (statusEl) {
         statusEl.innerText = 'AGUARDANDO';
-        statusEl.style.color = '#8F99A8';
+        statusEl.style.color = '#8592A8';
       }
       if (pulseEl) {
-        pulseEl.style.backgroundColor = '#8F99A8';
+        pulseEl.style.backgroundColor = '#8592A8';
         pulseEl.style.boxShadow = 'none';
       }
     };
@@ -1980,7 +2081,7 @@ pause\r
           if (cpuEl) cpuEl.innerText = `${data.cpu.usagePercent}%`;
           if (cpuBar) {
             cpuBar.style.width = `${data.cpu.usagePercent}%`;
-            cpuBar.style.backgroundColor = data.cpu.usagePercent > 80 ? '#ef4444' : data.cpu.usagePercent > 50 ? '#f59e0b' : '#4E5DB0';
+            cpuBar.style.backgroundColor = data.cpu.usagePercent > 80 ? '#ef4444' : data.cpu.usagePercent > 50 ? '#f59e0b' : '#475571';
           }
           if (cpuModel && data.cpu.model) {
             cpuModel.innerText = `${data.cpu.model.replace(/\(R\)|\(TM\)/gi, '').trim().substring(0, 24)} (${data.cpu.cores} Cores)`;
@@ -2013,7 +2114,7 @@ pause\r
           if (ramEl) ramEl.innerText = `${data.ram.usagePercent}%`;
           if (ramBar) {
             ramBar.style.width = `${data.ram.usagePercent}%`;
-            ramBar.style.backgroundColor = data.ram.usagePercent > 85 ? '#ef4444' : data.ram.usagePercent > 70 ? '#f59e0b' : '#4E5DB0';
+            ramBar.style.backgroundColor = data.ram.usagePercent > 85 ? '#ef4444' : data.ram.usagePercent > 70 ? '#f59e0b' : '#475571';
           }
           if (ramDetail) {
             ramDetail.innerText = `${data.ram.usedGb} / ${data.ram.totalGb} GB (${data.ram.freeGb} GB livres)`;
@@ -2033,19 +2134,19 @@ pause\r
 
       if (tab === 'url') {
         urlBtn.style.backgroundColor = '#ffffff';
-        urlBtn.style.color = '#28337A';
+        urlBtn.style.color = '#172033';
         urlBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
         fileBtn.style.backgroundColor = 'transparent';
-        fileBtn.style.color = '#667080';
+        fileBtn.style.color = '#5F6B80';
         fileBtn.style.boxShadow = 'none';
         urlContent.style.display = 'block';
         fileContent.style.display = 'none';
       } else {
         fileBtn.style.backgroundColor = '#ffffff';
-        fileBtn.style.color = '#28337A';
+        fileBtn.style.color = '#172033';
         fileBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
         urlBtn.style.backgroundColor = 'transparent';
-        urlBtn.style.color = '#667080';
+        urlBtn.style.color = '#5F6B80';
         urlBtn.style.boxShadow = 'none';
         urlContent.style.display = 'none';
         fileContent.style.display = 'block';
@@ -2071,7 +2172,7 @@ pause\r
         dropzone.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); dropzone.style.borderColor = '#6366f1'; });
       });
       ['dragleave', 'drop'].forEach(name => {
-        dropzone.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); dropzone.style.borderColor = '#C3CAD5'; });
+        dropzone.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); dropzone.style.borderColor = '#BFC7D3'; });
       });
       dropzone.addEventListener('drop', e => {
         const dt = e.dataTransfer;
@@ -2109,7 +2210,7 @@ pause\r
       const time = new Date().toLocaleTimeString('pt-BR');
       const div = document.createElement('div');
       div.style.color = color;
-      div.innerHTML = `<span style="color:#667080; font-family:monospace; margin-right:6px;">[${time}]</span> ${msg}`;
+      div.innerHTML = `<span style="color:#5F6B80; font-family:monospace; margin-right:6px;">[${time}]</span> ${msg}`;
       el.appendChild(div);
       el.scrollTop = el.scrollHeight;
     };
@@ -2280,14 +2381,14 @@ pause\r
           circle.style.borderColor = '#0E9F6E';
           circle.innerText = '✓';
         } else if (i === data.step) {
-          circle.style.backgroundColor = '#2F3C8F';
+          circle.style.backgroundColor = '#1F2A40';
           circle.style.color = '#ffffff';
-          circle.style.borderColor = '#2F3C8F';
+          circle.style.borderColor = '#1F2A40';
           circle.innerText = String(i);
         } else {
-          circle.style.backgroundColor = '#ECEFF3';
-          circle.style.color = '#8F99A8';
-          circle.style.borderColor = '#DDE2EA';
+          circle.style.backgroundColor = '#EAEEF3';
+          circle.style.color = '#8592A8';
+          circle.style.borderColor = '#D9DEE6';
           circle.innerText = String(i);
         }
       }
@@ -2299,8 +2400,8 @@ pause\r
           term.innerHTML = '';
           data.logs.forEach(l => {
             const div = document.createElement('div');
-            div.style.color = l.type === 'error' ? '#f87171' : '#C3CAD5';
-            div.innerHTML = `<span style="color:#667080; font-family:monospace; margin-right:6px;">[${l.timestamp}]</span> ${l.message}`;
+            div.style.color = l.type === 'error' ? '#f87171' : '#BFC7D3';
+            div.innerHTML = `<span style="color:#5F6B80; font-family:monospace; margin-right:6px;">[${l.timestamp}]</span> ${l.message}`;
             term.appendChild(div);
           });
           term.scrollTop = term.scrollHeight;
@@ -2360,24 +2461,24 @@ pause\r
         document.body.classList.remove('dark');
         document.body.classList.remove('dark-mode');
         document.body.classList.add('light-mode');
-        document.body.style.backgroundColor = '#F5F7F9';
-        document.body.style.color = '#161B26';
+        document.body.style.backgroundColor = '#F4F6F9';
+        document.body.style.color = '#131A27';
       } else {
         document.documentElement.classList.add('dark');
         document.body.classList.add('dark');
         document.body.classList.add('dark-mode');
         document.body.classList.remove('light-mode');
-        document.body.style.backgroundColor = '#0E121A';
-        document.body.style.color = '#F5F7F9';
+        document.body.style.backgroundColor = '#0C111B';
+        document.body.style.color = '#F4F6F9';
       }
 
-      const pageBg = isWhiteTheme ? '#F5F7F9' : '#0E121A';
-      const cardBg = isWhiteTheme ? '#ffffff' : '#161C27';
-      const cardBorder = isWhiteTheme ? '#DDE2EA' : '#232A36';
-      const textMain = isWhiteTheme ? '#161B26' : '#F5F7F9';
-      const textMuted = isWhiteTheme ? '#667080' : '#8F99A8';
-      const inputBg = isWhiteTheme ? '#ffffff' : '#232A36';
-      const inputBorder = isWhiteTheme ? '#C3CAD5' : '#363E4C';
+      const pageBg = isWhiteTheme ? '#F4F6F9' : '#0C111B';
+      const cardBg = isWhiteTheme ? '#ffffff' : '#131A27';
+      const cardBorder = isWhiteTheme ? '#D9DEE6' : '#1E2636';
+      const textMain = isWhiteTheme ? '#131A27' : '#F4F6F9';
+      const textMuted = isWhiteTheme ? '#5F6B80' : '#8592A8';
+      const inputBg = isWhiteTheme ? '#ffffff' : '#1E2636';
+      const inputBorder = isWhiteTheme ? '#BFC7D3' : '#333C4E';
 
       root.innerHTML = `
         <div id="audiovisual-studio-view" style="min-height: 100vh; background-color: ${pageBg} !important; color: ${textMain} !important; font-family: 'Schibsted Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
@@ -2385,16 +2486,16 @@ pause\r
           <!-- HEADER DO ESTÚDIO AUDIOVISUAL -->
           <header style="background-color: ${cardBg} !important; border-bottom: 1px solid ${cardBorder} !important; position: sticky; top: 0; z-index: 40; padding: 16px 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
             <div style="display: flex; align-items: center; gap: 14px;">
-              <button onclick="window.navigateToAdminModule('')" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
+              <button onclick="window.navigateToAdminModule('')" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#EAEEF3' : '#1E2636'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
                 Início
               </button>
               <div style="width: 1px; height: 22px; background: ${cardBorder};"></div>
               <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #2F3C8F, #2F3C8F); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 900; font-size: 14px; box-shadow: 0 4px 12px rgba(47, 60, 143, 0.3);">AV</div>
+                ${brandTile(40)}
                 <div>
                   <div style="display: flex; align-items: center; gap: 8px;">
                     <h1 style="font-size: 16px; font-weight: 900; color: ${textMain}; letter-spacing: -0.02em; margin: 0;">Estúdio de dublagem</h1>
-                    <span style="font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 9999px; background: rgba(47, 60, 143, 0.1); color: #2F3C8F; border: 1px solid rgba(47, 60, 143, 0.25); ">Lote</span>
+                    <span style="font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 9999px; background: rgba(31, 42, 64, 0.1); color: #1F2A40; border: 1px solid rgba(31, 42, 64, 0.25); ">Lote</span>
                   </div>
                   <p style="font-size: 12px; color: ${textMuted}; margin: 2px 0 0 0;">Vídeo ou link entra, dublagem e legendas .vtt e .srt saem</p>
                 </div>
@@ -2404,11 +2505,11 @@ pause\r
             <div style="display: flex; align-items: center; gap: 12px;">
               <!-- STATUS SYSTEM PILLS -->
               <div style="display: flex; align-items: center; gap: 8px;">
-                <div id="avFfmpegPill" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; border: 1px solid ${cardBorder}; font-size: 12px; font-weight: 600; color: ${textMuted};">
+                <div id="avFfmpegPill" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; background: ${isWhiteTheme ? '#EAEEF3' : '#1E2636'}; border: 1px solid ${cardBorder}; font-size: 12px; font-weight: 600; color: ${textMuted};">
                   <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span>
                   <span>Verificando FFmpeg...</span>
                 </div>
-                <div id="avYtdlpPill" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; border: 1px solid ${cardBorder}; font-size: 12px; font-weight: 600; color: ${textMuted};">
+                <div id="avYtdlpPill" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; background: ${isWhiteTheme ? '#EAEEF3' : '#1E2636'}; border: 1px solid ${cardBorder}; font-size: 12px; font-weight: 600; color: ${textMuted};">
                   <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span>
                   <span>yt-dlp...</span>
                 </div>
@@ -2417,11 +2518,11 @@ pause\r
               <div style="width: 1px; height: 22px; background: ${cardBorder};"></div>
 
               <!-- BOTÃO DE TEMA (CLARO / ESCURO) -->
-              <button onclick="window.avToggleTheme()" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
+              <button onclick="window.avToggleTheme()" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#EAEEF3' : '#1E2636'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
                 ${isWhiteTheme ? 'Modo Escuro' : 'Modo Claro (Branco)'}
               </button>
 
-              <button onclick="window.navigateToAdminModule('translation')" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
+              <button onclick="window.navigateToAdminModule('translation')" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#EAEEF3' : '#1E2636'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
                 Tradução ao vivo
               </button>
             </div>
@@ -2433,13 +2534,13 @@ pause\r
             ${window.location.protocol === 'https:' ? `
               <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 18px; padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                  <span style="color: #2F3C8F; display: flex;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg></span>
+                  <span style="color: #1F2A40; display: flex;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg></span>
                   <div>
                     <h4 style="font-size: 13px; font-weight: 800; color: #1e40af; margin: 0;">Motor Local de Alta Performance (FFmpeg 7.1 + yt-dlp)</h4>
-                    <p style="font-size: 12px; color: #4E5DB0; margin: 2px 0 0 0;">O processamento pesado dos vídeos roda diretamente no hardware da sua máquina. Para processar sem restrições HTTPS do navegador, use o console local:</p>
+                    <p style="font-size: 12px; color: #475571; margin: 2px 0 0 0;">O processamento pesado dos vídeos roda diretamente no hardware da sua máquina. Para processar sem restrições HTTPS do navegador, use o console local:</p>
                   </div>
                 </div>
-                <button type="button" onclick="window.launchAudioVisualStudio(event)" style="background: #2F3C8F; color: #ffffff; padding: 9px 18px; border-radius: 12px; font-weight: 800; font-size: 12px; text-decoration: none; white-space: nowrap; box-shadow: 0 2px 6px rgba(37,99,235,0.25); border: none; cursor: pointer;">
+                <button type="button" onclick="window.launchAudioVisualStudio(event)" style="background: #1F2A40; color: #ffffff; padding: 9px 18px; border-radius: 12px; font-weight: 800; font-size: 12px; text-decoration: none; white-space: nowrap; box-shadow: 0 2px 6px rgba(37,99,235,0.25); border: none; cursor: pointer;">
                   Abrir Console / Configurar Engine ➔
                 </button>
               </div>
@@ -2455,18 +2556,18 @@ pause\r
                   
                   <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid ${cardBorder};">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                      <div style="width: 32px; height: 32px; border-radius: 10px; background: #e0e7ff; color: #28337A; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">1</div>
+                      <div style="width: 32px; height: 32px; border-radius: 10px; background: #e0e7ff; color: #172033; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">1</div>
                       <h2 style="font-size: 16px; font-weight: 800; color: ${textMain}; margin: 0;">Fonte do Vídeo / Aula Gravada</h2>
                     </div>
                     <span style="font-size: 12px; color: ${textMuted}; font-weight: 500;">YouTube, Vimeo ou Arquivo Local</span>
                   </div>
 
                   <!-- TABS SELETORAS -->
-                  <div style="display: flex; background: ${isWhiteTheme ? '#ECEFF3' : '#161B26'}; padding: 4px; border-radius: 16px; margin-bottom: 20px;">
-                    <button type="button" id="avTabUrlBtn" onclick="window.avSwitchTab('url')" style="flex: 1; padding: 10px 14px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: #ffffff; color: #28337A; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                  <div style="display: flex; background: ${isWhiteTheme ? '#EAEEF3' : '#131A27'}; padding: 4px; border-radius: 16px; margin-bottom: 20px;">
+                    <button type="button" id="avTabUrlBtn" onclick="window.avSwitchTab('url')" style="flex: 1; padding: 10px 14px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: #ffffff; color: #172033; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                       Link de Vídeo (YouTube / Vimeo)
                     </button>
-                    <button type="button" id="avTabFileBtn" onclick="window.avSwitchTab('file')" style="flex: 1; padding: 10px 14px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: transparent; color: #667080;">
+                    <button type="button" id="avTabFileBtn" onclick="window.avSwitchTab('file')" style="flex: 1; padding: 10px 14px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: transparent; color: #5F6B80;">
                       Arquivo Local (Upload do Computador)
                     </button>
                   </div>
@@ -2487,7 +2588,7 @@ pause\r
                         <button 
                           type="button" 
                           onclick="window.avPasteUrl()" 
-                          style="padding: 0 20px; border-radius: 14px; background: #2F3C8F; color: #ffffff; font-weight: 800; font-size: 13px; border: none; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 6px rgba(47, 60, 143, 0.3);"
+                          style="padding: 0 20px; border-radius: 14px; background: #1F2A40; color: #ffffff; font-weight: 800; font-size: 13px; border: none; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 6px rgba(31, 42, 64, 0.3);"
                         >
                           Colar Link
                         </button>
@@ -2498,7 +2599,7 @@ pause\r
                     </div>
 
                     <!-- COOKIES OPCIONAIS PARA VÍDEOS PRIVADOS -->
-                    <details style="background: ${isWhiteTheme ? '#F5F7F9' : '#232A36'}; border: 1px solid ${cardBorder}; border-radius: 14px; overflow: hidden; margin-top: 14px;">
+                    <details style="background: ${isWhiteTheme ? '#F4F6F9' : '#1E2636'}; border: 1px solid ${cardBorder}; border-radius: 14px; overflow: hidden; margin-top: 14px;">
                       <summary style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: ${textMuted}; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
                         <span>Vídeo Privado / Sob Login (Cookies Opcionais)</span>
                         <span style="font-size: 10px;">▼</span>
@@ -2517,19 +2618,19 @@ pause\r
 
                   <!-- CONTEÚDO DA ABA: ARQUIVO LOCAL (DRAG & DROP) -->
                   <div id="avFileTabContent" style="display: none;">
-                    <div id="avDropzone" onclick="document.getElementById('avFileInput').click()" style="border: 2px dashed ${inputBorder}; border-radius: 18px; padding: 36px 20px; text-align: center; cursor: pointer; background: ${isWhiteTheme ? '#F5F7F9' : '#232A36'}; transition: all 0.2s;">
+                    <div id="avDropzone" onclick="document.getElementById('avFileInput').click()" style="border: 2px dashed ${inputBorder}; border-radius: 18px; padding: 36px 20px; text-align: center; cursor: pointer; background: ${isWhiteTheme ? '#F4F6F9' : '#1E2636'}; transition: all 0.2s;">
                       <input type="file" id="avFileInput" accept="video/*,audio/*" style="display: none" onchange="window.avOnFileSelected(this.files)">
-                      <div style="width: 52px; height: 52px; border-radius: 16px; background: rgba(47, 60, 143, 0.1); color: #2F3C8F; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 12px auto;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></div>
+                      <div style="width: 52px; height: 52px; border-radius: 16px; background: rgba(31, 42, 64, 0.1); color: #1F2A40; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 12px auto;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></div>
                       <p style="font-size: 15px; font-weight: 800; color: ${textMain}; margin: 0 0 4px 0;">Arraste e solte seu vídeo ou áudio aqui</p>
                       <p style="font-size: 12px; color: ${textMuted}; margin: 0 0 16px 0;">MP4, MKV, MOV, MP3, WAV (Sem limite de tamanho)</p>
-                      <button type="button" style="padding: 8px 18px; border-radius: 10px; background: ${isWhiteTheme ? '#ffffff' : '#161B26'}; border: 1px solid ${inputBorder}; color: ${textMain}; font-weight: 700; font-size: 12px; cursor: pointer;">
+                      <button type="button" style="padding: 8px 18px; border-radius: 10px; background: ${isWhiteTheme ? '#ffffff' : '#131A27'}; border: 1px solid ${inputBorder}; color: ${textMain}; font-weight: 700; font-size: 12px; cursor: pointer;">
                         Procurar no Computador
                       </button>
                     </div>
 
-                    <div id="avFileSelectedCard" style="display: none; padding: 16px; border-radius: 14px; background: rgba(47, 60, 143, 0.08); border: 1px solid rgba(47, 60, 143, 0.3); align-items: center; justify-content: space-between; margin-top: 12px;">
+                    <div id="avFileSelectedCard" style="display: none; padding: 16px; border-radius: 14px; background: rgba(31, 42, 64, 0.08); border: 1px solid rgba(31, 42, 64, 0.3); align-items: center; justify-content: space-between; margin-top: 12px;">
                       <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 36px; height: 36px; border-radius: 10px; background: #2F3C8F; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">✓</div>
+                        <div style="width: 36px; height: 36px; border-radius: 10px; background: #1F2A40; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">✓</div>
                         <div>
                           <p id="avFileName" style="font-size: 13px; font-weight: 800; color: ${textMain}; margin: 0;">arquivo.mp4</p>
                           <p id="avFileSize" style="font-size: 11px; color: ${textMuted}; margin: 2px 0 0 0;">0 MB</p>
@@ -2580,15 +2681,15 @@ pause\r
                       </label>
                       <div style="display: flex; flex-wrap: wrap; gap: 10px;">
                         <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
-                          <input type="checkbox" id="avLangPt" checked style="accent-color: #2F3C8F;">
+                          <input type="checkbox" id="avLangPt" checked style="accent-color: #1F2A40;">
                           <span>Português (PT)</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
-                          <input type="checkbox" id="avLangEn" checked style="accent-color: #2F3C8F;">
+                          <input type="checkbox" id="avLangEn" checked style="accent-color: #1F2A40;">
                           <span>Inglês (EN)</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
-                          <input type="checkbox" id="avLangEs" checked style="accent-color: #2F3C8F;">
+                          <input type="checkbox" id="avLangEs" checked style="accent-color: #1F2A40;">
                           <span>Espanhol (ES)</span>
                         </label>
                       </div>
@@ -2604,14 +2705,14 @@ pause\r
                       </label>
                       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                         <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; cursor: pointer;">
-                          <input type="radio" name="avAudioMode" value="dubbing" checked style="margin-top: 3px; accent-color: #2F3C8F;">
+                          <input type="radio" name="avAudioMode" value="dubbing" checked style="margin-top: 3px; accent-color: #1F2A40;">
                           <div>
                             <span style="display: block; font-size: 13px; font-weight: 800; color: ${textMain};">Dublagem Limpa</span>
                             <span style="display: block; font-size: 11px; color: ${textMuted}; margin-top: 2px;">100% voz IA sincronizada</span>
                           </div>
                         </label>
                         <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; cursor: pointer;">
-                          <input type="radio" name="avAudioMode" value="voiceover" style="margin-top: 3px; accent-color: #2F3C8F;">
+                          <input type="radio" name="avAudioMode" value="voiceover" style="margin-top: 3px; accent-color: #1F2A40;">
                           <div>
                             <span style="display: block; font-size: 13px; font-weight: 800; color: ${textMain};">Voice-Over / Overdub</span>
                             <span style="display: block; font-size: 11px; color: ${textMuted}; margin-top: 2px;">Voz original suave (12%) ao fundo</span>
@@ -2646,7 +2747,7 @@ pause\r
                         type="button" 
                         id="avStartBtn" 
                         onclick="window.avStartProcessing()" 
-                        style="width: 100%; padding: 16px; border-radius: 16px; background: linear-gradient(135deg, #2F3C8F, #7e22ce); color: #ffffff; font-weight: 900; font-size: 15px; border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(47, 60, 143, 0.35); transition: all 0.2s;"
+                        style="width: 100%; padding: 16px; border-radius: 16px; background: linear-gradient(135deg, #1F2A40, #7e22ce); color: #ffffff; font-weight: 900; font-size: 15px; border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(31, 42, 64, 0.35); transition: all 0.2s;"
                       >
                         INICIAR PROCESSAMENTO AUDIOVISUAL
                       </button>
@@ -2671,47 +2772,47 @@ pause\r
                     
                     <div style="display: flex; align-items: center; gap: 12px;">
                       <!-- CRONÔMETRO CORRIDO -->
-                      <div id="avTimerContainer" style="display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#ECEFF3' : '#161B26'}; border: 1.5px solid ${cardBorder};">
-                        <span id="avTimerPulse" style="width: 8px; height: 8px; border-radius: 50%; background: #8F99A8; display: inline-block; transition: all 0.3s ease;"></span>
+                      <div id="avTimerContainer" style="display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#EAEEF3' : '#131A27'}; border: 1.5px solid ${cardBorder};">
+                        <span id="avTimerPulse" style="width: 8px; height: 8px; border-radius: 50%; background: #8592A8; display: inline-block; transition: all 0.3s ease;"></span>
                         <span id="avTimerClock" style="font-family: monospace; font-size: 14px; font-weight: 900; color: ${textMain}; letter-spacing: 0.05em;">00:00:00</span>
                         <span id="avTimerStatus" style="font-size: 10px; font-weight: 800; color: ${textMuted}; text-transform: uppercase;">AGUARDANDO</span>
                       </div>
-                      <span id="avPercentLabel" style="font-family: monospace; font-size: 18px; font-weight: 900; color: #2F3C8F;">0%</span>
+                      <span id="avPercentLabel" style="font-family: monospace; font-size: 18px; font-weight: 900; color: #1F2A40;">0%</span>
                     </div>
                   </div>
 
                   <!-- STEPPER DE 6 FASES -->
                   <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; text-align: center; margin-bottom: 20px;">
                     <div id="avStep1" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: #2F3C8F; color: #fff; font-weight: 900; font-size: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(79,70,229,0.3);">1</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: #1F2A40; color: #fff; font-weight: 900; font-size: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(79,70,229,0.3);">1</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Download</span>
                     </div>
                     <div id="avStep2" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">2</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#EAEEF3' : '#1E2636'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">2</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Silêncios</span>
                     </div>
                     <div id="avStep3" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">3</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#EAEEF3' : '#1E2636'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">3</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Transcrição</span>
                     </div>
                     <div id="avStep4" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">4</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#EAEEF3' : '#1E2636'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">4</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Tradução</span>
                     </div>
                     <div id="avStep5" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">5</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#EAEEF3' : '#1E2636'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">5</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Dublagem</span>
                     </div>
                     <div id="avStep6" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">6</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#EAEEF3' : '#1E2636'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">6</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">ZIP</span>
                     </div>
                   </div>
 
                   <!-- BARRA DE PROGRESSO -->
                   <div style="margin-bottom: 20px;">
-                    <div style="width: 100%; height: 10px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; border-radius: 9999px; overflow: hidden; border: 1px solid ${cardBorder};">
-                      <div id="avProgressBarFill" style="height: 100%; width: 0%; background: linear-gradient(90deg, #2F3C8F, #2F3C8F, #0E9F6E); border-radius: 9999px; transition: width 0.3s ease;"></div>
+                    <div style="width: 100%; height: 10px; background: ${isWhiteTheme ? '#EAEEF3' : '#1E2636'}; border-radius: 9999px; overflow: hidden; border: 1px solid ${cardBorder};">
+                      <div id="avProgressBarFill" style="height: 100%; width: 0%; background: linear-gradient(90deg, #1F2A40, #1F2A40, #0E9F6E); border-radius: 9999px; transition: width 0.3s ease;"></div>
                     </div>
                     <div style="display: flex; justify-content: space-between; font-size: 12px; color: ${textMuted}; font-weight: 600; margin-top: 6px;">
                       <span id="avStatusMessage">Aguardando início do job...</span>
@@ -2720,7 +2821,7 @@ pause\r
                   </div>
 
                   <!-- MONITOR DE RECURSOS DO HARDWARE (CPU, GPU, RAM) -->
-                  <div style="background: ${isWhiteTheme ? '#F5F7F9' : '#0b1120'}; border-radius: 18px; padding: 14px 16px; border: 1px solid ${cardBorder}; margin-bottom: 20px;">
+                  <div style="background: ${isWhiteTheme ? '#F4F6F9' : '#0b1120'}; border-radius: 18px; padding: 14px 16px; border: 1px solid ${cardBorder}; margin-bottom: 20px;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                       <div style="display: flex; align-items: center; gap: 6px;">
                         <span style="display: flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg></span>
@@ -2734,37 +2835,37 @@ pause\r
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
                       
                       <!-- CPU WIDGET -->
-                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#232A36'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
+                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#1E2636'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
                           <span style="font-size: 10px; font-weight: 800; color: ${textMuted};">CPU (PROCESSADOR)</span>
-                          <span id="avHwCpuVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #4E5DB0;">0%</span>
+                          <span id="avHwCpuVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #475571;">0%</span>
                         </div>
-                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#DDE2EA' : '#363E4C'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
-                          <div id="avHwCpuBar" style="height: 100%; width: 0%; background: #4E5DB0; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
+                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#D9DEE6' : '#333C4E'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
+                          <div id="avHwCpuBar" style="height: 100%; width: 0%; background: #475571; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
                         </div>
                         <p id="avHwCpuModel" style="font-size: 10px; color: ${textMuted}; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CPU...</p>
                       </div>
 
                       <!-- GPU WIDGET -->
-                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#232A36'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
+                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#1E2636'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
                           <span style="font-size: 10px; font-weight: 800; color: ${textMuted};">GPU (PLACA DE VÍDEO)</span>
                           <span id="avHwGpuVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #0E9F6E;">0%</span>
                         </div>
-                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#DDE2EA' : '#363E4C'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
+                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#D9DEE6' : '#333C4E'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
                           <div id="avHwGpuBar" style="height: 100%; width: 0%; background: #0E9F6E; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
                         </div>
                         <p id="avHwGpuName" style="font-size: 10px; color: ${textMuted}; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">GPU...</p>
                       </div>
 
                       <!-- RAM WIDGET -->
-                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#232A36'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
+                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#1E2636'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
                           <span style="font-size: 10px; font-weight: 800; color: ${textMuted};">MEMÓRIA RAM</span>
-                          <span id="avHwRamVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #4E5DB0;">0%</span>
+                          <span id="avHwRamVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #475571;">0%</span>
                         </div>
-                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#DDE2EA' : '#363E4C'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
-                          <div id="avHwRamBar" style="height: 100%; width: 0%; background: #4E5DB0; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
+                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#D9DEE6' : '#333C4E'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
+                          <div id="avHwRamBar" style="height: 100%; width: 0%; background: #475571; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
                         </div>
                         <p id="avHwRamDetail" style="font-size: 10px; color: ${textMuted}; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">RAM...</p>
                       </div>
@@ -2773,30 +2874,30 @@ pause\r
                   </div>
 
                   <!-- TERMINAL DE LOGS -->
-                  <div style="background: #090e17; border-radius: 16px; overflow: hidden; border: 1px solid #232A36; margin-bottom: 20px;">
-                    <div style="background: #161B26; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #232A36;">
+                  <div style="background: #090e17; border-radius: 16px; overflow: hidden; border: 1px solid #1E2636; margin-bottom: 20px;">
+                    <div style="background: #131A27; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1E2636;">
                       <div style="display: flex; gap: 6px;">
                         <span style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span>
                         <span style="width: 10px; height: 10px; border-radius: 50%; background: #f59e0b;"></span>
                         <span style="width: 10px; height: 10px; border-radius: 50%; background: #0E9F6E;"></span>
                       </div>
-                      <span style="font-family: monospace; font-size: 11px; font-weight: 700; color: #8F99A8; letter-spacing: 0.05em;">ENGINE TERMINAL LOGS</span>
-                      <button onclick="document.getElementById('avTerminalLogs').innerHTML = ''" style="background: transparent; border: none; font-size: 11px; color: #667080; cursor: pointer;">Limpar</button>
+                      <span style="font-family: monospace; font-size: 11px; font-weight: 700; color: #8592A8; letter-spacing: 0.05em;">ENGINE TERMINAL LOGS</span>
+                      <button onclick="document.getElementById('avTerminalLogs').innerHTML = ''" style="background: transparent; border: none; font-size: 11px; color: #5F6B80; cursor: pointer;">Limpar</button>
                     </div>
                     <div id="avTerminalLogs" style="padding: 14px; font-family: monospace; font-size: 12px; line-height: 1.6; height: 190px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
-                      <div style="color: #38bdf8;"><span style="color:#667080; margin-right:6px;">[00:00:00]</span> AudioVisual Edition Engine inicializada. Aguardando comando.</div>
+                      <div style="color: #38bdf8;"><span style="color:#5F6B80; margin-right:6px;">[00:00:00]</span> AudioVisual Edition Engine inicializada. Aguardando comando.</div>
                     </div>
                   </div>
 
                   <!-- AUDIO PREVIEW PLAYER -->
-                  <div id="avPreviewCard" style="display: none; padding: 16px; border-radius: 16px; background: ${isWhiteTheme ? '#F5F7F9' : '#232A36'}; border: 1px solid ${cardBorder}; margin-bottom: 20px;">
+                  <div id="avPreviewCard" style="display: none; padding: 16px; border-radius: 16px; background: ${isWhiteTheme ? '#F4F6F9' : '#1E2636'}; border: 1px solid ${cardBorder}; margin-bottom: 20px;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
                       <h4 style="font-size: 13px; font-weight: 800; color: ${textMain}; margin: 0;">Pré-escuta de Faixas Dubladas</h4>
                       <div style="display: flex; gap: 6px;">
-                        <button type="button" onclick="window.avSwitchAudioTrack('original')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: #2F3C8F; color: #fff; border: none; cursor: pointer;">Original</button>
-                        <button type="button" onclick="window.avSwitchAudioTrack('pt')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#161B26'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">PT </button>
-                        <button type="button" onclick="window.avSwitchAudioTrack('en')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#161B26'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">EN </button>
-                        <button type="button" onclick="window.avSwitchAudioTrack('es')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#161B26'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">ES </button>
+                        <button type="button" onclick="window.avSwitchAudioTrack('original')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: #1F2A40; color: #fff; border: none; cursor: pointer;">Original</button>
+                        <button type="button" onclick="window.avSwitchAudioTrack('pt')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#131A27'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">PT </button>
+                        <button type="button" onclick="window.avSwitchAudioTrack('en')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#131A27'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">EN </button>
+                        <button type="button" onclick="window.avSwitchAudioTrack('es')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#131A27'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">ES </button>
                       </div>
                     </div>
                     <audio id="avAudioPlayer" controls style="width: 100%; height: 36px;"></audio>
@@ -3399,9 +3500,7 @@ pause\r
               <button onclick="window.navigateToAdminModule('')" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all font-bold text-xs flex items-center gap-1.5 cursor-pointer">
                 <span>Início</span>
               </button>
-              <div class="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-500/20 text-white font-black text-lg">
-                BA
-              </div>
+              ${brandTile(40)}
               <div>
                 <div class="flex items-center gap-2">
                   <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white">Tradução simultânea</h1>
@@ -3426,7 +3525,7 @@ pause\r
                 <span>Histórico (${historyMeetings.length})</span>
               </button>
 
-              <a href="#section-create-meeting" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5">
+              <a href="#section-create-meeting" class="btn-cut btn-onair text-sm px-4 h-9 cursor-pointer flex items-center gap-1.5">
                 <span>Nova sala</span>
               </a>
             </div>
@@ -3721,7 +3820,7 @@ pause\r
                   <button
                     type="submit"
                     onclick="handleCreateMeetingSubmit(event)"
-                    class="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    class="btn-cut btn-onair w-full sm:w-auto px-8 h-12 text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span>Criar sala e abrir cockpit</span>
                   </button>
@@ -4406,7 +4505,7 @@ pause\r
           <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 backdrop-blur-md">
             <div class="max-w-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
               <div class="flex items-center gap-2.5 min-w-0">
-                <div class="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center font-extrabold text-white text-sm shrink-0">B</div>
+                ${brandTile(34)}
                 <div class="min-w-0">
                   <h1 class="text-[15px] font-bold text-slate-900 dark:text-white leading-tight truncate">${meeting.title || 'Evento ao vivo'}</h1>
                   <p class="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
@@ -4929,7 +5028,7 @@ pause\r
             <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 backdrop-blur-md">
               <div class="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
                 <div class="flex items-center gap-2.5 min-w-0">
-                  <div class="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center font-extrabold text-white text-sm shrink-0">B</div>
+                  ${brandTile(34)}
                   <div class="min-w-0">
                     <h1 class="text-[15px] font-bold text-slate-900 dark:text-white leading-tight truncate">${meeting.title || t.title}</h1>
                     <p class="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
@@ -6366,8 +6465,8 @@ pause\r
           <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-3 shadow-xs backdrop-blur-md">
             
             <div class="flex items-center gap-3">
-              <a href="${getAdminBaseUrl()}" title="Voltar ao Painel" class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white text-sm shadow-xs hover:opacity-90">
-                BA
+              <a href="${getAdminBaseUrl()}" title="Voltar ao Painel" class="shrink-0 hover:opacity-90">
+                ${brandTile(34)}
               </a>
               <div>
                 <div class="flex items-center gap-2">
@@ -6653,7 +6752,7 @@ pause\r
                       <div class="feed-spacer mt-auto"></div>
                       <div class="placeholder-empty text-slate-500 italic text-xs py-10 text-center space-y-2">
                         <p>Aguardando fala do palestrante... O texto será commitado em tempo real de baixo para cima.</p>
-                        <button type="button" onclick="toggleMasterMicCapture()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/90 hover:bg-blue-600 text-white font-bold text-[11px] shadow-sm cursor-pointer not-italic transition-all">
+                        <button type="button" onclick="toggleMasterMicCapture()" class="btn-cut btn-onair inline-flex items-center gap-1.5 px-4 h-10 text-sm cursor-pointer not-italic">
                           <span>Ligar o microfone</span>
                         </button>
                       </div>
@@ -6667,7 +6766,7 @@ pause\r
                   <div class="flex items-center gap-1">
                     <span class="text-[10px] text-slate-400">Fundo:</span>
                     <button onclick="setTransSubtitleBg('#000000')" title="Preto" class="w-3.5 h-3.5 rounded-full bg-black border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
-                    <button onclick="setTransSubtitleBg('#161B26')" title="Azul Noite" class="w-3.5 h-3.5 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
+                    <button onclick="setTransSubtitleBg('#131A27')" title="Azul Noite" class="w-3.5 h-3.5 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                     <button onclick="setTransSubtitleBg('#ffffff')" title="Branco" class="w-3.5 h-3.5 rounded-full bg-white border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                   </div>
 
@@ -6888,7 +6987,7 @@ pause\r
                       <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400">Fundo:</span>
                         <button onclick="setTargetSubtitleBg('${langCode}', '#000000')" title="Preto" class="w-3.5 h-3.5 rounded-full bg-black border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
-                        <button onclick="setTargetSubtitleBg('${langCode}', '#161B26')" title="Azul Noite" class="w-3.5 h-3.5 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
+                        <button onclick="setTargetSubtitleBg('${langCode}', '#131A27')" title="Azul Noite" class="w-3.5 h-3.5 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                         <button onclick="setTargetSubtitleBg('${langCode}', '#ffffff')" title="Branco" class="w-3.5 h-3.5 rounded-full bg-white border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       </div>
 
@@ -8766,7 +8865,7 @@ pause\r
               text: currentActiveQrModalUrl,
               width: 220,
               height: 220,
-              colorDark: '#161B26',
+              colorDark: '#131A27',
               colorLight: '#ffffff',
               correctLevel: QRCode.CorrectLevel.H
             });
@@ -8833,7 +8932,7 @@ pause\r
               text: portalUrl,
               width: 240,
               height: 240,
-              colorDark: '#161B26',
+              colorDark: '#131A27',
               colorLight: '#ffffff',
               correctLevel: QRCode.CorrectLevel.H
             });

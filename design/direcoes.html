@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Direções de Marca</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..600&family=Hanken+Grotesk:wght@400..700&family=Archivo:wdth,wght@62..125,400..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page: #EEF0F3;
+    --page-ink: #15171C;
+    --page-muted: #5B6270;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--page); color: var(--page-ink); font-family: "Hanken Grotesk", system-ui, sans-serif; }
+  .board-head { max-width: 1180px; margin: 0 auto; padding: 56px 24px 28px; }
+  .board-head h1 { font-family: "Hanken Grotesk"; font-weight: 700; font-size: clamp(2rem, 4vw, 2.9rem); letter-spacing: -0.03em; line-height: 1.05; margin: 0; }
+  .board-head p { max-width: 62ch; color: var(--page-muted); font-size: 1.06rem; line-height: 1.55; margin: 14px 0 0; }
+  .board-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .board-nav a { text-decoration: none; color: var(--page-ink); border: 1px solid #C9CED8; border-radius: 999px; padding: 8px 14px; font-weight: 600; font-size: 0.95rem; }
+  .board-nav a:hover { border-color: var(--page-ink); }
+  .dir { max-width: 1180px; margin: 0 auto 40px; padding: 0 24px; }
+  .dir-label { display: flex; align-items: baseline; gap: 12px; margin: 0 0 12px; }
+  .dir-label h2 { margin: 0; font-size: 1.35rem; letter-spacing: -0.01em; }
+  .dir-label span { color: var(--page-muted); }
+  .frame { border-radius: 22px; overflow: hidden; box-shadow: 0 1px 2px rgba(20, 24, 33, .06), 0 30px 60px -30px rgba(20, 24, 33, .35); }
+  .board-foot { max-width: 1180px; margin: 0 auto; padding: 8px 24px 80px; color: var(--page-muted); line-height: 1.55; }
+  canvas, svg { display: block; }
+
+  /* ---------- Partes comuns dos mockups ---------- */
+  .mock-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 24px; align-items: center; padding: 28px 28px 44px; }
+  .hero-copy h3 { margin: 0; }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+  .viz { position: relative; width: 100%; aspect-ratio: 5 / 4; }
+  .viz canvas, .viz svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .sheet { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; }
+  .cell { padding: 22px 24px 24px; }
+  .cell h4 { margin: 0 0 14px; font-size: 0.82rem; font-weight: 600; opacity: .7; }
+  .swatches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .sw { display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem; }
+  .sw i { display: block; height: 42px; border-radius: 10px; box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .25); }
+  .sw b { font-weight: 600; }
+  .logos { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .tile { display: grid; place-items: center; border-radius: 14px; }
+  .caption-demo p { margin: 0 0 8px; }
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; }
+    .viz { max-width: 520px; }
+    .sheet { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 560px) {
+    .sheet { grid-template-columns: 1fr; }
+    .mock-nav { padding: 16px; }
+    .hero { padding: 16px 16px 32px; }
+    .cell { padding: 18px 16px; }
+  }
+
+  /* =========================================================
+     DIREÇÃO 1 — ANATOMIA
+     Prancha de anatomia: papel frio, tinta, vermelho arterial.
+     ========================================================= */
+  .d1 { --bg: #F3F4F6; --ink: #14161B; --muted: #5E6573; --line: #D6DAE1; --artery: #A8201A; --vein: #1E3A5F; --card: #FFFFFF;
+        background: var(--bg); color: var(--ink); font-family: "Hanken Grotesk", sans-serif; }
+  .d1 .mock-nav { border-bottom: 1px solid var(--line); }
+  .d1 .wordmark { font-family: "Newsreader", serif; font-optical-sizing: auto; font-weight: 500; font-size: 1.32rem; letter-spacing: -0.01em; }
+  .d1 .nav-meta { font-size: .9rem; color: var(--muted); }
+  .d1 .hero-copy h3 { font-family: "Newsreader", serif; font-weight: 400; font-size: clamp(2.6rem, 5.4vw, 4.4rem); line-height: .98; letter-spacing: -0.025em; }
+  .d1 .hero-copy p { font-size: 1.08rem; line-height: 1.6; color: var(--muted); max-width: 44ch; margin: 18px 0 0; }
+  .d1 .plate { display: flex; justify-content: space-between; font-size: .8rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; margin-top: 8px; }
+  .d1 .btn { font: 600 1rem "Hanken Grotesk", sans-serif; border-radius: 8px; padding: 14px 22px; border: 1px solid var(--ink); cursor: pointer; transition: background .2s, color .2s; }
+  .d1 .btn-primary { background: var(--ink); color: #fff; }
+  .d1 .btn-primary:hover { background: var(--artery); border-color: var(--artery); }
+  .d1 .btn-ghost { background: transparent; color: var(--ink); }
+  .d1 .btn-ghost:hover { background: var(--card); }
+  .d1 .sheet { background: var(--line); border-top: 1px solid var(--line); }
+  .d1 .cell { background: var(--bg); }
+  .d1 .type-big { font-family: "Newsreader", serif; font-size: 2.6rem; line-height: 1; }
+  .d1 .caption-demo { font-size: 1.15rem; line-height: 1.5; }
+  .d1 .caption-demo .done { color: var(--muted); }
+  .d1 .caption-demo .live { color: var(--artery); }
+
+  /* =========================================================
+     DIREÇÃO 2 — SINAL
+     Cabine de transmissão: noite, âmbar de "no ar", fonte larga.
+     ========================================================= */
+  .d2 { --bg: #0C111B; --panel: #131A27; --ink: #EAF0F7; --muted: #8592A8; --line: #232D40; --amber: #FFB224; --amber-ink: #1A1200; --light: #F4F6F9; --light-ink: #121722;
+        background: var(--bg); color: var(--ink); font-family: "Archivo", sans-serif; font-variation-settings: "wdth" 100; }
+  .d2 .mock-nav { border-bottom: 1px solid var(--line); }
+  .d2 .wordmark { font-family: "Archivo"; font-weight: 700; font-variation-settings: "wdth" 125; font-size: 1.05rem; letter-spacing: 0.01em; }
+  .d2 .onair { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: .85rem; color: var(--amber); border: 1px solid rgba(255, 178, 36, .35); border-radius: 999px; padding: 6px 12px; }
+  .d2 .onair::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px var(--amber); }
+  .d2 .hero-copy h3 { font-family: "Archivo"; font-weight: 800; font-variation-settings: "wdth" 125; font-size: clamp(2.2rem, 4.6vw, 3.7rem); line-height: .98; letter-spacing: -0.02em; text-wrap: balance; }
+  .d2 .hero-copy p { font-size: 1.06rem; line-height: 1.6; color: var(--muted); max-width: 44ch; margin: 18px 0 0; }
+  .d2 .btn { font: 700 1rem "Archivo", sans-serif; font-variation-settings: "wdth" 112; padding: 15px 24px; border: 0; cursor: pointer;
+             clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); transition: filter .2s, background .2s; }
+  .d2 .btn-primary { background: var(--amber); color: var(--amber-ink); }
+  .d2 .btn-primary:hover { filter: brightness(1.08); }
+  .d2 .btn-ghost { background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+  .d2 .btn-ghost:hover { background: #1A2333; }
+  .d2 .sheet { background: #D9DEE6; }
+  .d2 .cell { background: var(--light); color: var(--light-ink); }
+  .d2 .type-big { font-family: "Archivo"; font-weight: 800; font-variation-settings: "wdth" 125; font-size: 2.3rem; line-height: 1; }
+  .d2 .caption-demo { font-size: 1.15rem; line-height: 1.5; background: var(--bg); color: var(--ink); padding: 14px 16px; border-radius: 12px; }
+  .d2 .caption-demo .done { color: var(--muted); }
+  .d2 .caption-demo .live { color: var(--amber); }
+
+  /* =========================================================
+     DIREÇÃO 3 — HEMISFÉRIOS
+     Dois hemisférios, duas línguas: branco clínico e cobalto.
+     ========================================================= */
+  .d3 { --bg: #FFFFFF; --soft: #F3F5FA; --ink: #0E1330; --muted: #5A6180; --line: #E3E6EF; --cobalt: #2747F5; --cobalt-deep: #1A33C7; --mint: #0FA67A;
+        background: var(--bg); color: var(--ink); font-family: "Instrument Sans", sans-serif; }
+  .d3 .wordmark { font-weight: 600; font-size: 1.15rem; letter-spacing: -0.02em; }
+  .d3 .nav-links { display: flex; gap: 6px; background: var(--soft); border-radius: 999px; padding: 4px; }
+  .d3 .nav-links span { padding: 7px 14px; border-radius: 999px; font-size: .92rem; font-weight: 500; color: var(--muted); }
+  .d3 .nav-links span.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(14, 19, 48, .08); }
+  .d3 .hero { background: radial-gradient(120% 90% at 78% 40%, #EEF1FF 0%, rgba(255, 255, 255, 0) 60%); }
+  .d3 .hero-copy h3 { font-weight: 600; font-size: clamp(2.4rem, 5vw, 4.1rem); line-height: 1; letter-spacing: -0.045em; }
+  .d3 .hero-copy p { font-size: 1.1rem; line-height: 1.6; color: var(--muted); max-width: 42ch; margin: 18px 0 0; }
+  .d3 .btn { font: 600 1rem "Instrument Sans", sans-serif; border-radius: 999px; padding: 15px 26px; border: 0; cursor: pointer; transition: transform .2s, background .2s, box-shadow .2s; }
+  .d3 .btn-primary { background: var(--cobalt); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 10px 24px -10px rgba(39, 71, 245, .7); }
+  .d3 .btn-primary:hover { background: var(--cobalt-deep); }
+  .d3 .btn-ghost { background: var(--soft); color: var(--ink); }
+  .d3 .btn-ghost:hover { background: #E8ECF7; }
+  .d3 .sheet { background: var(--line); border-top: 1px solid var(--line); }
+  .d3 .cell { background: #fff; }
+  .d3 .type-big { font-weight: 600; letter-spacing: -0.045em; font-size: 2.6rem; line-height: 1; }
+  .d3 .caption-demo { font-size: 1.15rem; line-height: 1.5; }
+  .d3 .caption-demo .done { color: var(--muted); }
+  .d3 .caption-demo .live { color: var(--cobalt); }
+  .d3 .pair { position: absolute; left: 0; right: 0; bottom: -2%; display: flex; justify-content: space-between; padding: 0 6%; font-weight: 600; font-size: clamp(.85rem, 1.6vw, 1.02rem); }
+  .d3 .pair span { transition: opacity .5s; }
+  .d3 .pair .src { color: var(--ink); }
+  .d3 .pair .dst { color: var(--cobalt); text-align: right; }
+
+  :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="board-head">
+  <h1>Três caminhos para a marca</h1>
+  <p>Cada quadro mostra a mesma tela inicial do Hub com logo, cores, fontes, botões e a animação do cérebro. Escolha um, ou misture partes (por exemplo, o logo de um com as cores de outro). Depois eu aplico no app inteiro.</p>
+  <nav class="board-nav" aria-label="Direções">
+    <a href="#anatomia">1. Anatomia</a>
+    <a href="#sinal">2. Sinal</a>
+    <a href="#hemisferios">3. Hemisférios</a>
+  </nav>
+</header>
+
+<!-- ======================= DIREÇÃO 1 ======================= -->
+<section class="dir" id="anatomia">
+  <div class="dir-label"><h2>1. Anatomia</h2><span>Prancha de anatomia médica: sério, editorial, de congresso científico</span></div>
+  <div class="frame d1">
+    <div class="mock-nav">
+      <div class="brand">
+        <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" class="logo-d1"></svg>
+        <span class="wordmark">Brain Audiovisual</span>
+      </div>
+      <span class="nav-meta">Painel de operação</span>
+    </div>
+    <div class="hero">
+      <div class="hero-copy">
+        <h3>O que vamos operar hoje?</h3>
+        <p>Tradução simultânea para o congresso de agora, ou dublagem dos vídeos que já foram gravados.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary">Abrir tradução ao vivo</button>
+          <button class="btn btn-ghost">Abrir estúdio</button>
+        </div>
+      </div>
+      <div>
+        <div class="viz"><canvas id="viz-d1" aria-label="Cérebro desenhado como rede de neurônios com impulsos vermelhos"></canvas></div>
+        <div class="plate"><span>Fig. 1, rede de impulsos</span><span>PT para EN, ES, FR, DE, IT, AR</span></div>
+      </div>
+    </div>
+    <div class="sheet">
+      <div class="cell">
+        <h4>Cores</h4>
+        <div class="swatches">
+          <div class="sw"><i style="background:#F3F4F6"></i><b>Papel</b>#F3F4F6</div>
+          <div class="sw"><i style="background:#14161B"></i><b>Tinta</b>#14161B</div>
+          <div class="sw"><i style="background:#A8201A"></i><b>Artéria</b>#A8201A</div>
+          <div class="sw"><i style="background:#1E3A5F"></i><b>Veia</b>#1E3A5F</div>
+        </div>
+      </div>
+      <div class="cell">
+        <h4>Fontes</h4>
+        <div class="type-big">Newsreader</div>
+        <p style="margin:10px 0 0;color:var(--muted)">Títulos em serifa de livro científico. Interface e legendas em Hanken Grotesk.</p>
+      </div>
+      <div class="cell">
+        <h4>Logo</h4>
+        <div class="logos">
+          <div class="tile" style="width:72px;height:72px;background:#fff;box-shadow:inset 0 0 0 1px var(--line)"><svg width="48" height="48" viewBox="0 0 40 40" class="logo-d1"></svg></div>
+          <div class="tile" style="width:72px;height:72px;background:#14161B"><svg width="48" height="48" viewBox="0 0 40 40" class="logo-d1 inv"></svg></div>
+          <div class="tile" style="width:32px;height:32px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);border-radius:8px"><svg width="22" height="22" viewBox="0 0 40 40" class="logo-d1"></svg></div>
+        </div>
+      </div>
+      <div class="cell">
+        <h4>Legenda no celular</h4>
+        <div class="caption-demo">
+          <p class="done">We open the retroperitoneum and find the left ureter.</p>
+          <p>The hypogastric nerve runs medial to this plane, <span class="live">so we stay close to the rectum</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= DIREÇÃO 2 ======================= -->
+<section class="dir" id="sinal">
+  <div class="dir-label"><h2>2. Sinal</h2><span>Cabine de transmissão: técnico, preciso, a sensação de estar no ar</span></div>
+  <div class="frame d2">
+    <div class="mock-nav">
+      <div class="brand">
+        <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" class="logo-d2"></svg>
+        <span class="wordmark">BRAIN AUDIOVISUAL</span>
+      </div>
+      <span class="onair">Pronto para transmitir</span>
+    </div>
+    <div class="hero">
+      <div class="hero-copy">
+        <h3>O que vamos operar hoje?</h3>
+        <p>Tradução simultânea para o congresso de agora, ou dublagem dos vídeos que já foram gravados.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary">Abrir tradução ao vivo</button>
+          <button class="btn btn-ghost">Abrir estúdio</button>
+        </div>
+      </div>
+      <div class="viz"><canvas id="viz-d2" aria-label="Cérebro formado por ondas de áudio que se movem como fala"></canvas></div>
+    </div>
+    <div class="sheet">
+      <div class="cell">
+        <h4>Cores</h4>
+        <div class="swatches">
+          <div class="sw"><i style="background:#0C111B"></i><b>Noite</b>#0C111B</div>
+          <div class="sw"><i style="background:#FFB224"></i><b>No ar</b>#FFB224</div>
+          <div class="sw"><i style="background:#EAF0F7"></i><b>Gelo</b>#EAF0F7</div>
+          <div class="sw"><i style="background:#8592A8"></i><b>Aço</b>#8592A8</div>
+        </div>
+      </div>
+      <div class="cell">
+        <h4>Fontes</h4>
+        <div class="type-big">Archivo</div>
+        <p style="margin:10px 0 0;color:#5B6270">Uma família só. Larga nos títulos, normal no texto. O painel de operação fica claro; só o topo é escuro.</p>
+      </div>
+      <div class="cell">
+        <h4>Logo</h4>
+        <div class="logos">
+          <div class="tile" style="width:72px;height:72px;background:#0C111B"><svg width="48" height="48" viewBox="0 0 40 40" class="logo-d2"></svg></div>
+          <div class="tile" style="width:72px;height:72px;background:#fff;box-shadow:inset 0 0 0 1px #D9DEE6"><svg width="48" height="48" viewBox="0 0 40 40" class="logo-d2 inv"></svg></div>
+          <div class="tile" style="width:32px;height:32px;background:#0C111B;border-radius:8px"><svg width="22" height="22" viewBox="0 0 40 40" class="logo-d2"></svg></div>
+        </div>
+      </div>
+      <div class="cell">
+        <h4>Legenda no celular</h4>
+        <div class="caption-demo">
+          <p class="done">We open the retroperitoneum and find the left ureter.</p>
+          <p>The hypogastric nerve runs medial to this plane, <span class="live">so we stay close to the rectum</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= DIREÇÃO 3 ======================= -->
+<section class="dir" id="hemisferios">
+  <div class="dir-label"><h2>3. Hemisférios</h2><span>Dois hemisférios, duas línguas: limpo, luminoso, tecnologia médica</span></div>
+  <div class="frame d3">
+    <div class="mock-nav">
+      <div class="brand">
+        <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" class="logo-d3"></svg>
+        <span class="wordmark">Brain Audiovisual</span>
+      </div>
+      <div class="nav-links" aria-hidden="true"><span class="on">Ao vivo</span><span>Estúdio</span><span>Histórico</span></div>
+    </div>
+    <div class="hero">
+      <div class="hero-copy">
+        <h3>O que vamos operar hoje?</h3>
+        <p>Tradução simultânea para o congresso de agora, ou dublagem dos vídeos que já foram gravados.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary">Abrir tradução ao vivo</button>
+          <button class="btn btn-ghost">Abrir estúdio</button>
+        </div>
+      </div>
+      <div class="viz">
+        <svg id="viz-d3" viewBox="0 0 400 320" style="height:90%" aria-label="Dois hemisférios do cérebro trocando termos médicos entre português e inglês"></svg>
+        <div class="pair" aria-live="off"><span class="src" id="d3-src">nervo hipogástrico</span><span class="dst" id="d3-dst">hypogastric nerve</span></div>
+      </div>
+    </div>
+    <div class="sheet">
+      <div class="cell">
+        <h4>Cores</h4>
+        <div class="swatches">
+          <div class="sw"><i style="background:#FFFFFF"></i><b>Branco clínico</b>#FFFFFF</div>
+          <div class="sw"><i style="background:#0E1330"></i><b>Marinho</b>#0E1330</div>
+          <div class="sw"><i style="background:#2747F5"></i><b>Cobalto</b>#2747F5</div>
+          <div class="sw"><i style="background:#0FA67A"></i><b>Ao vivo</b>#0FA67A</div>
+        </div>
+      </div>
+      <div class="cell">
+        <h4>Fontes</h4>
+        <div class="type-big">Instrument Sans</div>
+        <p style="margin:10px 0 0;color:var(--muted)">Uma família só, com títulos grandes e bem justos. Botões em pílula.</p>
+      </div>
+      <div class="cell">
+        <h4>Logo</h4>
+        <div class="logos">
+          <div class="tile" style="width:72px;height:72px;background:#F3F5FA"><svg width="48" height="48" viewBox="0 0 40 40" class="logo-d3"></svg></div>
+          <div class="tile" style="width:72px;height:72px;background:#0E1330"><svg width="48" height="48" viewBox="0 0 40 40" class="logo-d3 inv"></svg></div>
+          <div class="tile" style="width:32px;height:32px;background:#F3F5FA;border-radius:8px"><svg width="22" height="22" viewBox="0 0 40 40" class="logo-d3"></svg></div>
+        </div>
+      </div>
+      <div class="cell">
+        <h4>Legenda no celular</h4>
+        <div class="caption-demo">
+          <p class="done">We open the retroperitoneum and find the left ureter.</p>
+          <p>The hypogastric nerve runs medial to this plane, <span class="live">so we stay close to the rectum</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<p class="board-foot">As animações param sozinhas se o celular ou o computador estiver com "reduzir movimento" ligado. Na versão final elas rodam só no Hub, nunca durante a transmissão.</p>
+
+<script>
+(function () {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Contorno do cérebro em vista lateral (frente à esquerda), caixa 400x320.
+  const BRAIN_SIDE = 'M80 190C58 160 62 110 98 80C130 52 180 38 230 42C290 46 338 74 352 120C362 152 352 182 330 196C342 214 330 240 302 242C284 244 268 236 260 226C252 236 246 256 244 282C243 292 228 292 226 282C224 262 222 246 214 236C190 238 160 232 140 220C120 222 96 212 80 190Z';
+  const BRAIN_LINES = ['M140 205C170 182 212 166 254 170', 'M224 46C210 92 222 130 204 170', 'M262 224C290 214 316 206 330 196', 'M282 232C298 226 314 220 326 210', 'M118 120C140 104 160 112 176 96', 'M286 92C300 112 296 132 316 146'];
+  // Hemisférios vistos de cima, caixa 400x320.
+  const HEMI_L = 'M194 30C140 28 92 62 82 120C72 180 92 250 150 282C168 292 186 292 194 284C197 230 197 90 194 30Z';
+  const HEMI_R = 'M206 30C260 28 308 62 318 120C328 180 308 250 250 282C232 292 214 292 206 284C203 230 203 90 206 30Z';
+
+  function ns(tag, attrs, parent) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(el);
+    return el;
+  }
+
+  // Roda a animação só quando o quadro aparece na tela
+  function whenVisible(el, start, stop) {
+    new IntersectionObserver(entries => entries.forEach(e => e.isIntersecting ? start() : stop()), { threshold: 0.15 }).observe(el);
+  }
+
+  function fitCanvas(canvas) {
+    const r = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(r.width * dpr);
+    canvas.height = Math.round(r.height * dpr);
+    const ctx = canvas.getContext('2d');
+    // Encaixa a caixa 400x320 do desenho no tamanho real
+    const s = Math.min(canvas.width / 400, canvas.height / 320);
+    ctx.setTransform(s, 0, 0, s, (canvas.width - 400 * s) / 2, (canvas.height - 320 * s) / 2);
+    return { ctx, s };
+  }
+
+  /* ---------------- LOGOS ---------------- */
+  // 1. Anatomia: o contorno do cérebro num traço só, com um impulso vermelho
+  document.querySelectorAll('.logo-d1').forEach(svg => {
+    const inv = svg.classList.contains('inv');
+    const g = ns('g', { transform: 'translate(1.2 2.6) scale(0.094)' }, svg);
+    ns('path', { d: BRAIN_SIDE, fill: 'none', stroke: inv ? '#F3F4F6' : '#14161B', 'stroke-width': 22, 'stroke-linejoin': 'round' }, g);
+    ns('path', { d: BRAIN_LINES[0], fill: 'none', stroke: inv ? '#F3F4F6' : '#14161B', 'stroke-width': 18, 'stroke-linecap': 'round' }, g);
+    ns('circle', { cx: 254, cy: 170, r: 30, fill: '#C8261E' }, g);
+  });
+
+  // 2. Sinal: o cérebro preenchido por linhas de onda (como no topo)
+  document.querySelectorAll('.logo-d2').forEach((svg, i) => {
+    const inv = svg.classList.contains('inv');
+    const id = 'clip-d2-' + i;
+    const defs = ns('defs', {}, svg);
+    const cp = ns('clipPath', { id }, defs);
+    ns('path', { d: BRAIN_SIDE, transform: 'translate(1.2 2.6) scale(0.094)' }, cp);
+    const g = ns('g', { 'clip-path': `url(#${id})` }, svg);
+    for (let k = 0; k < 7; k++) {
+      const y = 7 + k * 3.6;
+      let d = `M0 ${y}`;
+      for (let x = 0; x <= 40; x += 2) d += ` L${x} ${(y + Math.sin(x * 0.55 + k) * (1.1 - Math.abs(k - 3) * 0.2)).toFixed(2)}`;
+      ns('path', { d, fill: 'none', stroke: k === 3 ? '#FFB224' : (inv ? '#121722' : '#EAF0F7'), 'stroke-width': 1.5, 'stroke-linecap': 'round' }, g);
+    }
+  });
+
+  // 3. Hemisférios: duas metades, uma em cada cor = duas línguas
+  document.querySelectorAll('.logo-d3').forEach(svg => {
+    const inv = svg.classList.contains('inv');
+    const g = ns('g', { transform: 'translate(1.5 3.2) scale(0.0925)' }, svg);
+    ns('path', { d: HEMI_L, fill: inv ? '#FFFFFF' : '#0E1330', transform: 'translate(-8 0)' }, g);
+    ns('path', { d: HEMI_R, fill: '#2747F5', transform: 'translate(8 0)' }, g);
+  });
+
+  /* ---------------- 1. ANATOMIA: rede de neurônios ---------------- */
+  (function () {
+    const canvas = document.getElementById('viz-d1');
+    const path = new Path2D(BRAIN_SIDE);
+    const probe = document.createElement('canvas').getContext('2d');
+    // Pontos espalhados dentro do contorno, com um afastamento mínimo
+    const pts = [];
+    let guard = 0;
+    while (pts.length < 150 && guard++ < 20000) {
+      const x = 60 + Math.random() * 300, y = 40 + Math.random() * 250;
+      if (!probe.isPointInPath(path, x, y)) continue;
+      if (pts.some(p => (p.x - x) ** 2 + (p.y - y) ** 2 < 15 * 15)) continue;
+      pts.push({ x, y, glow: 0 });
+    }
+    const edges = [];
+    pts.forEach((p, i) => {
+      pts.map((q, j) => ({ j, d: (p.x - q.x) ** 2 + (p.y - q.y) ** 2 }))
+        .filter(o => o.j !== i).sort((a, b) => a.d - b.d).slice(0, 3)
+        .forEach(o => { if (!edges.some(e => (e[0] === o.j && e[1] === i))) edges.push([i, o.j]); });
+    });
+    const pulses = [];
+    let raf = 0, last = 0, spawn = 0, size;
+
+    function draw(t) {
+      const { ctx } = size;
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.restore();
+      ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(20, 22, 27, 0.16)';
+      ctx.beginPath(); edges.forEach(([a, b]) => { ctx.moveTo(pts[a].x, pts[a].y); ctx.lineTo(pts[b].x, pts[b].y); }); ctx.stroke();
+      ctx.lineWidth = 1.6; ctx.strokeStyle = '#14161B'; ctx.stroke(path);
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(20, 22, 27, 0.45)';
+      BRAIN_LINES.forEach(d => ctx.stroke(new Path2D(d)));
+      pts.forEach(p => {
+        ctx.fillStyle = p.glow > 0.02 ? `rgba(168, 32, 26, ${0.35 + p.glow * 0.65})` : 'rgba(20, 22, 27, 0.55)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.7 + p.glow * 2.2, 0, Math.PI * 2); ctx.fill();
+        p.glow *= 0.94;
+      });
+      pulses.forEach(pu => {
+        const a = pts[pu.a], b = pts[pu.b];
+        const x = a.x + (b.x - a.x) * pu.k, y = a.y + (b.y - a.y) * pu.k;
+        ctx.strokeStyle = 'rgba(168, 32, 26, 0.55)'; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(x, y); ctx.stroke();
+        ctx.fillStyle = '#A8201A'; ctx.beginPath(); ctx.arc(x, y, 2.6, 0, Math.PI * 2); ctx.fill();
+      });
+    }
+    function step(t) {
+      const dt = Math.min(50, t - (last || t)); last = t; spawn += dt;
+      if (spawn > 140) { spawn = 0; const e = edges[(Math.random() * edges.length) | 0]; pulses.push({ a: e[0], b: e[1], k: 0, hops: 0 }); }
+      for (let i = pulses.length - 1; i >= 0; i--) {
+        const pu = pulses[i]; pu.k += dt / 520;
+        if (pu.k >= 1) {
+          pts[pu.b].glow = 1;
+          // O impulso segue para um vizinho, como uma cadeia de neurônios
+          const next = edges.filter(e => e[0] === pu.b || e[1] === pu.b);
+          if (pu.hops < 4 && next.length) { const e = next[(Math.random() * next.length) | 0]; pulses[i] = { a: pu.b, b: e[0] === pu.b ? e[1] : e[0], k: 0, hops: pu.hops + 1 }; }
+          else pulses.splice(i, 1);
+        }
+      }
+      draw(t); raf = requestAnimationFrame(step);
+    }
+    function start() { size = fitCanvas(canvas); if (reduce) { draw(0); return; } cancelAnimationFrame(raf); last = 0; raf = requestAnimationFrame(step); }
+    function stop() { cancelAnimationFrame(raf); }
+    whenVisible(canvas, start, stop);
+    addEventListener('resize', () => { size = fitCanvas(canvas); draw(0); });
+  })();
+
+  /* ---------------- 2. SINAL: cérebro feito de ondas de fala ---------------- */
+  (function () {
+    const canvas = document.getElementById('viz-d2');
+    const path = new Path2D(BRAIN_SIDE);
+    let raf = 0, size;
+    function draw(t) {
+      const { ctx } = size; const time = t / 1000;
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.restore();
+      ctx.save(); ctx.clip(path);
+      // Envelope de "fala": duas rajadas que passam pelo cérebro em ritmos diferentes
+      const c1 = 60 + ((time * 70) % 340), c2 = 60 + ((time * 46 + 170) % 340);
+      for (let k = 0; k < 30; k++) {
+        const y = 44 + k * 8.4;
+        const centerRow = Math.abs(k - 15) < 1;
+        ctx.beginPath();
+        for (let x = 60; x <= 364; x += 3) {
+          const env = Math.exp(-((x - c1) ** 2) / 1800) + 0.7 * Math.exp(-((x - c2) ** 2) / 2600);
+          const amp = 1.2 + env * (7 - Math.abs(k - 15) * 0.25);
+          const yy = y + Math.sin(x * 0.11 + time * 5 + k * 0.6) * amp * (0.6 + 0.4 * Math.sin(time * 2.3 + k));
+          x === 60 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
+        }
+        ctx.lineWidth = centerRow ? 2 : 1.2;
+        ctx.strokeStyle = centerRow ? '#FFB224' : `rgba(234, 240, 247, ${0.28 + 0.5 * Math.exp(-((k - 15) ** 2) / 90)})`;
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(234, 240, 247, 0.35)'; ctx.stroke(path);
+    }
+    function loop(t) { draw(t); raf = requestAnimationFrame(loop); }
+    function start() { size = fitCanvas(canvas); if (reduce) { draw(1200); return; } cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
+    function stop() { cancelAnimationFrame(raf); }
+    whenVisible(canvas, start, stop);
+    addEventListener('resize', () => { size = fitCanvas(canvas); draw(performance.now()); });
+  })();
+
+  /* ---------------- 3. HEMISFÉRIOS: termos atravessando de uma língua para outra ---------------- */
+  (function () {
+    const svg = document.getElementById('viz-d3');
+    const defs = ns('defs', {}, svg);
+    const cl = ns('clipPath', { id: 'hemi-l' }, defs); ns('path', { d: HEMI_L }, cl);
+    const cr = ns('clipPath', { id: 'hemi-r' }, defs); ns('path', { d: HEMI_R }, cr);
+    ns('path', { d: HEMI_L, fill: '#F1F3F9', transform: 'translate(-4 0)' }, svg);
+    ns('path', { d: HEMI_R, fill: '#EDF0FF', transform: 'translate(4 0)' }, svg);
+    // Giros: linhas sinuosas recortadas dentro de cada hemisfério
+    [['hemi-l', '#0E1330', -4], ['hemi-r', '#2747F5', 4]].forEach(([id, color, dx]) => {
+      const g = ns('g', { 'clip-path': `url(#${id})`, transform: `translate(${dx} 0)` }, svg);
+      // Cada giro é uma linha que serpenteia com voltas de tamanhos diferentes
+      for (let k = 0; k < 10; k++) {
+        const y = 48 + k * 25;
+        let d = `M70 ${y}`;
+        for (let x = 70, j = 0; x <= 330; x += 16, j++) {
+          const amp = 7 + 7 * Math.abs(Math.sin(j * 1.7 + k * 2.3));
+          d += ` C${x + 4} ${y - amp} ${x + 12} ${y - amp} ${x + 16} ${y} S${x + 28} ${y + amp * 0.8} ${x + 32} ${y}`;
+          x += 16;
+        }
+        ns('path', { d, fill: 'none', stroke: color, 'stroke-opacity': 0.22, 'stroke-width': 1.6, 'stroke-linecap': 'round' }, g);
+      }
+    });
+    ns('path', { d: HEMI_L, fill: 'none', stroke: '#0E1330', 'stroke-width': 2, transform: 'translate(-4 0)' }, svg);
+    ns('path', { d: HEMI_R, fill: 'none', stroke: '#2747F5', 'stroke-width': 2, transform: 'translate(4 0)' }, svg);
+    // Caminho pelo corpo caloso, de um hemisfério para o outro
+    const route = ns('path', { d: 'M130 150C160 104 240 104 270 150', fill: 'none', stroke: 'none' }, svg);
+    const len = route.getTotalLength();
+    const dots = [];
+    for (let i = 0; i < 9; i++) dots.push(ns('circle', { r: 3.4, fill: '#2747F5', opacity: 0 }, svg));
+    const src = document.getElementById('d3-src'), dst = document.getElementById('d3-dst');
+    const pairs = [['nervo hipogástrico', 'hypogastric nerve'], ['ureter esquerdo', 'left ureter'], ['plano de clivagem', 'cleavage plane'], ['retroperitônio', 'retroperitoneum'], ['dissecção vascular', 'vascular dissection']];
+    let raf = 0, t0 = 0, idx = 0;
+    const CYCLE = 3200;
+
+    function place(t) {
+      const local = (t - t0) % CYCLE, k = local / CYCLE;
+      dots.forEach((c, i) => {
+        const p = k * 1.5 - i * 0.06;
+        if (p < 0 || p > 1) { c.setAttribute('opacity', 0); return; }
+        const pt = route.getPointAtLength(p * len);
+        c.setAttribute('cx', pt.x); c.setAttribute('cy', pt.y);
+        c.setAttribute('opacity', (Math.sin(p * Math.PI) * 0.9).toFixed(2));
+        c.setAttribute('fill', p < 0.5 ? '#0E1330' : '#2747F5');
+      });
+      // Termo de origem aparece no início, a tradução quando os pontos chegam
+      src.style.opacity = k < 0.62 ? 1 : 0.25;
+      dst.style.opacity = k > 0.55 && k < 0.95 ? 1 : 0;
+    }
+    function loop(t) {
+      if (!t0) t0 = t;
+      const cycle = Math.floor((t - t0) / CYCLE);
+      if (cycle !== idx) { idx = cycle; const p = pairs[idx % pairs.length]; src.textContent = p[0]; dst.textContent = p[1]; }
+      place(t); raf = requestAnimationFrame(loop);
+    }
+    function start() { if (reduce) { src.style.opacity = 1; dst.style.opacity = 1; return; } cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
+    function stop() { cancelAnimationFrame(raf); }
+    whenVisible(svg, start, stop);
+  })();
+})();
+</script>
+</body>
+</html>
