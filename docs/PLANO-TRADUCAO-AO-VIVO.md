@@ -46,11 +46,13 @@ Decisão: Hub no site oficial (`brainaudiovisual.com.br`, hospedagem atual) e ca
 - **Instalação na VPS:** `sudo bash deploy/vps/instalar.sh cabine.brainaudiovisual.com.br` (Node 22, serviço que reinicia sozinho, HTTPS automático pelo Caddy). Para atualizar depois, rodar o mesmo comando.
 - **Modo local continua:** `INICIAR_CABINE.bat` abre a mesma tela no PC, sem código de equipe.
 
-#### O que falta para entrar no ar
-1. Phelipe: cadastrar a chave SSH pública do Claude na VPS (hPanel > VPS > Chaves SSH) e passar o IP.
-2. Phelipe: criar no DNS do domínio `brainaudiovisual.com.br` um registro **A** com nome `cabine` apontando para o IP da VPS.
-3. Claude: conferir o que já roda na VPS, instalar com o script e testar.
-4. Phelipe: publicar a main no site oficial (hPanel > Avançado > Git > Deploy), para o botão aparecer no Hub.
+#### No ar (15/10/2026)
+- **VPS:** `76.13.170.102` (Ubuntu 25.04). Serviço `brain-cabine` (Node, porta 8790 interna) atrás do Caddy com HTTPS em `https://cabine.brainaudiovisual.com.br`.
+- **O que foi tirado da VPS:** o robô do WhatsApp (Evolution API, n8n, Postgres, Redis e ferramentas) e o Easypanel/Traefik, que ocupavam as portas 80/443. Os **dados foram mantidos** (volumes do Docker) e as definições dos serviços estão em `/root/backup-antes-cabine/`. A página `pauloreistv` (nginx, porta 8080) continua igual.
+- **Código de acesso da equipe:** guardado no PC em `D:\Projetos\ACESSO-CABINE-BRAIN.txt` (fora do repositório) e na VPS em `/etc/brain-cabine.env`.
+- **Deploy automático:** cada envio para a main roda o workflow `Deploy` no GitHub, que entra na VPS com uma chave que só pode rodar `/usr/local/bin/brain-cabine-atualizar` (baixa a main, `npm ci`, reinicia e confere). **Trava de evento:** se houver cockpit ou saída conectados, a atualização é adiada (o workflow fica vermelho avisando); é só rodar de novo depois do evento (GitHub > Actions > Deploy > Run workflow). Para forçar na VPS: `FORCAR=1 bash /opt/brain-cabine/deploy/vps/atualizar.sh`.
+- **Testado pela internet:** duas salas ao mesmo tempo, 23 blocos, nada perdido, nenhuma mistura.
+- **Falta:** publicação automática do site oficial (Hub). Depende do painel da Hostinger onde está o domínio.
 
 ### Limitações conhecidas desta versão
 
