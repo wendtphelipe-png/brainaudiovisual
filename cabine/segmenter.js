@@ -32,7 +32,10 @@ class Segmenter {
   constructor(opts = {}) {
     this.onBlock = opts.onBlock || (() => {});
     this.now = opts.now || Date.now;
-    this.stableMs = opts.stableMs ?? 600;
+    // Quanto tempo uma palavra precisa ficar igual para ser confirmada. O
+    // Chrome corrige palavras com o contexto que vem depois; com 1,1 s ele
+    // tem tempo de trocar "pum" pela palavra certa antes de ir para tradução.
+    this.stableMs = opts.stableMs ?? 1100;
     this.margin = opts.margin ?? 2;
     this.minWords = opts.minWords ?? 6;
     this.softMax = opts.softMax ?? 16;

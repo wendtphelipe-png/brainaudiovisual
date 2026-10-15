@@ -355,6 +355,17 @@
     .on-night .btn-theme-toggle { background: transparent !important; border-color: #232D40 !important; color: #EAF0F7 !important; }
     .on-night .btn-theme-toggle:hover { background: #131A27 !important; }
 
+    /* Logo 3D: camadas do símbolo com profundidade, giro a cada 9 s */
+    .logo3d { --s: 32px; display: inline-block; width: var(--s); height: var(--s); perspective: calc(var(--s) * 6); flex-shrink: 0; }
+    .logo3d-spin { position: relative; display: block; width: 100%; height: 100%; transform-style: preserve-3d; transform: rotateY(-22deg) rotateX(12deg); animation: logo3dSpin 9s cubic-bezier(.7, 0, .3, 1) infinite; }
+    .logo3d-spin img { position: absolute; inset: 0; width: 100%; height: 100%; opacity: var(--o); transform: translateZ(calc(var(--z) * var(--s) / 34)); }
+    @keyframes logo3dSpin {
+      0%, 78% { transform: rotateY(-22deg) rotateX(12deg); }
+      92% { transform: rotateY(158deg) rotateX(-8deg); }
+      100% { transform: rotateY(338deg) rotateX(12deg); }
+    }
+    @media (prefers-reduced-motion: reduce) { .logo3d-spin { animation: none !important; } }
+
     /* Entrada única e orquestrada do Hub (uma vez por carregamento) */
     @keyframes cabineEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
     .cabine-enter > * { animation: cabineEnter 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
@@ -404,10 +415,19 @@
         + '<g clip-path="url(#' + id + ')">' + BRAND_WAVES.split('LINE').join(line) + '</g></svg>';
     }
 
+    // Logo 3D: o símbolo empilhado em camadas, com profundidade. Fica
+    // inclinado mostrando o volume e dá um giro completo a cada 9 s.
+    function brandMark3D(size, onDark = true) {
+      const src = '/design/logo/' + (onDark ? 'simbolo-escuro.svg' : 'simbolo-claro.svg');
+      const zs = [-6, -4, -2, 0, 2, 4, 6];
+      const layers = zs.map((z, i) => '<img src="' + src + '" alt="" style="--z:' + z + ';--o:' + (z === 6 ? 1 : (0.1 + i * 0.09).toFixed(2)) + '">').join('');
+      return '<span class="logo3d" style="--s:' + size + 'px" aria-hidden="true"><span class="logo3d-spin">' + layers + '</span></span>';
+    }
+
     // Ícone do app: o símbolo sobre o azul-noite (mesmo desenho do favicon)
     function brandTile(size) {
       const inner = Math.round(size * 0.78);
-      return '<span class="inline-flex items-center justify-center shrink-0 bg-[#0C111B]" style="width:' + size + 'px;height:' + size + 'px;border-radius:' + Math.round(size * 0.22) + 'px">' + brandMark(inner, true) + '</span>';
+      return '<span class="inline-flex items-center justify-center shrink-0 bg-[#0C111B]" style="width:' + size + 'px;height:' + size + 'px;border-radius:' + Math.round(size * 0.22) + 'px">' + brandMark3D(inner, true) + '</span>';
     }
 
     // Cérebro de ondas de fala no topo do Hub. Para sozinho fora da tela,
@@ -768,31 +788,262 @@
     // ========================================================
     // TELA 1: PÁGINA PÚBLICA CLEAN (EM CONSTRUÇÃO)
     // ========================================================
+    // ========================================================
+    // PÁGINA INICIAL PÚBLICA (brainaudiovisual.com.br)
+    // Conteúdo da apresentação BR.AIN Audiovisual 2026.
+    // ========================================================
     function renderPublicConstructionPage() {
-      document.title = "Brain Audiovisual — Página em construção";
+      document.title = 'BR.AIN Audiovisual | Transmissões médicas de alta complexidade';
       document.documentElement.classList.remove('dark');
-      document.body.className = "on-night bg-[#0C111B] text-[#EAF0F7] font-sans antialiased m-0 min-h-screen";
+      document.body.className = 'on-night font-sans antialiased m-0 min-h-screen';
       // A regra antiga "body.light-mode" usa !important; aqui o fundo é sempre o azul-noite
       document.body.style.setProperty('background-color', '#0C111B', 'important');
       document.body.style.setProperty('color', '#EAF0F7', 'important');
+
+      const IMG = '/site/img/';
+      const solutions = [
+        { img: 'centro-cirurgico.webp', title: 'Transmissão de cirurgia ao vivo', items: ['Links ponto a ponto dedicados e de baixa latência, do centro cirúrgico à plenária', 'Áudio cirúrgico bidirecional com microfone de campo para interação em tempo real', 'Integração direta com torres de videolaparoscopia, robótica e endoscopia'] },
+        { img: 'mesa-de-operacao.webp', title: 'Gestão de sinal para congressos', items: ['Central técnica de recepção e distribuição de sinal para várias salas', 'Comutação de apresentações e palestrantes locais e remotos', 'Coordenação de vários centros cirúrgicos ligados a centros de convenções'] },
+        { img: 'central-mix-pro.webp', title: 'Educação médica e plataformas digitais', items: ['Gravação contínua em alta definição para acervo cirúrgico e EAD', 'Produção executiva de masterclasses cirúrgicas e simpósios', 'Disponibilização segura em nuvem para uso institucional e educacional'] },
+      ];
+      const pipeline = [
+        ['Captação de imagem', 'Câmeras robóticas PTZ de precisão, câmeras de foco cirúrgico dedicadas e sistemas broadcast para visão de sala e equipe.'],
+        ['Processamento', 'Estações dedicadas com software broadcast homologado (Mix Pro) e switchers digitais de alta performance.'],
+        ['Áudio cirúrgico', 'Sistemas sem fio profissionais, microfone de campo bidirecional e interfaces com supressão de ruído do bloco cirúrgico.'],
+        ['Distribuição e segurança', 'Gravação local redundante em SSD e transmissão de ultrabaixa latência.'],
+      ];
+      const world = [
+        ['Oxford, Reino Unido', 'International Bariatric Club (IBC) World Congress'],
+        ['St. Louis, Estados Unidos', 'Pelvic Anatomy Expo'],
+        ['Temuco, Chile', 'Congreso Internacional de Cirugía Mínimamente Invasiva'],
+      ];
+      const brazil = [
+        ['Sul (PR, SC, RS)', 'Congresso Brasileiro de Coloproctologia, com 6 salas integradas em Balneário Camboriú, Blumenau e Florianópolis; Congresso Sul Brasileiro de Urologia; SBCT; Neuro-Onco; Oeste Sem Sonda'],
+        ['Brasília (DF)', 'Congresso SOBRACIL; Congresso de Cirurgia Videoendoscópica'],
+        ['Sudeste, Nordeste e Norte', 'SP, RJ, RN, PE, PA e MT: SBCT, EndoGineco (Recife) e outros'],
+      ];
+      const specialties = [
+        ['Ginecologia, endometriose e miomas', ['Myoma Academy', 'Endometriose in Brasília', 'EndoGineco', 'HOPE']],
+        ['Cirurgia digestiva e bariátrica', ['Live Surgeries Bariatric Channel', 'BC Amazon Week', 'BEST Bariatric', 'ObesoLap']],
+        ['Hérnia e especialidades', ['HerniaLap', 'Talking to the Wall Hernia', 'EndoCWB', 'Digesul']],
+        ['Neurologia e funcional', ['Simpósio de Neuro-Oncologia', 'Oeste Sem Sonda']],
+      ];
+      const reasons = [
+        ['Timing e sensibilidade médica', 'Operadores que entendem a dinâmica cirúrgica e cortam com precisão entre campo aberto, visão laparoscópica ou robótica e reações da mesa, sem nunca interferir na equipe.'],
+        ['Estabilidade e baixa latência', 'Protocolos desenhados para uma conversa fluida, natural e sem atraso entre a plenária e o cirurgião.'],
+        ['Mobilidade logística', 'Unidades técnicas completas montadas com agilidade em complexos hospitalares de qualquer região do Brasil ou do exterior.'],
+        ['Transparência e acervo digital', 'Gravação redundante organizada de ponta a ponta, entregue com agilidade e segurança em nuvem.'],
+      ];
+      const routeLangs = ['EN', 'ES', 'FR', 'DE', 'IT', 'AR'];
+
       root.innerHTML = `
-        <div class="min-h-screen flex flex-col">
-          <header class="max-w-6xl w-full mx-auto px-6 h-16 flex items-center gap-3">
-            ${brandMark(30, true)}
-            <span class="wordmark text-[15px]">BRAIN AUDIOVISUAL</span>
+        <style>
+          .home { --night: #0C111B; --night-2: #111826; --line: #232D40; --ink: #EAF0F7; --muted: #8592A8; --amber: #FFB224; }
+          .home section { scroll-margin-top: 72px; }
+          .home .eyebrow { display: inline-flex; align-items: center; gap: 8px; color: var(--amber); font-size: .9rem; font-weight: 600; }
+          .home .h-xl { font-variation-settings: "wdth" 125; font-weight: 800; letter-spacing: -.02em; line-height: .98; }
+          .home .h-lg { font-variation-settings: "wdth" 118; font-weight: 800; letter-spacing: -.015em; line-height: 1.04; }
+          .home .lead { color: var(--muted); font-size: 1.12rem; line-height: 1.6; }
+          .home .photo { position: relative; overflow: hidden; border-radius: 10px; background: var(--night-2); }
+          .home .photo img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(.9) contrast(1.02); }
+          .home .photo::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); border-radius: inherit; pointer-events: none; }
+          .home .nav-link { color: var(--muted); font-size: .92rem; font-weight: 500; text-decoration: none; transition: color .15s; }
+          .home .nav-link:hover { color: var(--ink); }
+          .home .timeline { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+          .home .timeline::before { content: ""; position: absolute; left: 0; right: 0; top: 7px; height: 1px; background: linear-gradient(90deg, var(--amber), var(--line) 80%); }
+          .home .tl-dot { width: 15px; height: 15px; border-radius: 50%; background: var(--night); border: 2px solid var(--amber); position: relative; }
+          .home .tl-year { font-variation-settings: "wdth" 125; font-weight: 800; font-size: 1.6rem; margin-top: 18px; }
+          .home .chip-ev { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line); color: var(--ink); font-size: .9rem; background: rgba(255, 255, 255, .02); }
+          .home .light { background: #F2F4F8; color: #121722; }
+          .home .light .lead { color: #5F6B80; }
+          .home .step-n { font-variation-settings: "wdth" 125; font-weight: 800; color: var(--amber); font-size: .95rem; letter-spacing: .04em; }
+          .home .flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+          .home .flow > div { background: var(--night-2); padding: 26px 22px 28px; position: relative; }
+          .home .flow > div:not(:last-child)::after { content: ""; position: absolute; right: -7px; top: 32px; width: 12px; height: 12px; border-top: 1px solid var(--amber); border-right: 1px solid var(--amber); transform: rotate(45deg); background: var(--night-2); z-index: 1; }
+          @media (max-width: 900px) {
+            .home .timeline { grid-template-columns: 1fr 1fr; row-gap: 36px; }
+            .home .timeline::before { display: none; }
+            .home .flow { grid-template-columns: 1fr 1fr; }
+            .home .flow > div::after { display: none; }
+          }
+          @media (max-width: 560px) { .home .flow { grid-template-columns: 1fr; } }
+        </style>
+
+        <div class="home">
+          <!-- Menu -->
+          <header class="sticky top-0 z-50 border-b border-[#232D40] bg-[#0C111B]/90 backdrop-blur-md">
+            <div class="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-6">
+              <a href="/" class="flex items-center gap-3 no-underline text-[#EAF0F7] shrink-0">
+                ${brandMark3D(32, true)}
+                <span class="wordmark text-[15px]">BRAIN AUDIOVISUAL</span>
+              </a>
+              <nav class="hidden lg:flex items-center gap-6" aria-label="Seções">
+                <a class="nav-link" href="#solucoes">Soluções</a>
+                <a class="nav-link" href="#tecnologia">Tecnologia</a>
+                <a class="nav-link" href="#atuacao">Atuação</a>
+                <a class="nav-link" href="#especialidades">Especialidades</a>
+                <a class="nav-link" href="#contato">Contato</a>
+              </nav>
+              <div class="flex items-center gap-2">
+                <a href="/admin" class="nav-link hidden sm:inline px-2">Área da equipe</a>
+                <a href="${CABINE_URL}" class="btn-cut btn-onair h-10 px-4 text-sm inline-flex items-center no-underline">Cabine de tradução</a>
+              </div>
+            </div>
           </header>
-          <main class="flex-1 max-w-6xl w-full mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-            <div>
-              <span class="onair-pill"><span class="live-signal" aria-hidden="true"><i></i><i></i><i></i></span>Em breve</span>
-              <h1 class="font-display mt-6 text-5xl sm:text-7xl font-extrabold leading-[0.95]">Tradução que acompanha a cirurgia</h1>
-              <p class="mt-6 max-w-md text-lg text-[#8592A8] leading-relaxed">Tradução simultânea e dublagem para congressos e transmissões médicas. Esta página está em construção.</p>
+
+          <!-- Abertura -->
+          <section class="max-w-6xl mx-auto px-5 sm:px-8 pt-12 pb-16 lg:pt-20 lg:pb-24 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+            <div class="${window.__cabineEntered ? '' : 'cabine-enter'}">
+              <span class="eyebrow"><span class="live-signal" aria-hidden="true"><i></i><i></i><i></i></span>Transmissões cirúrgicas ao vivo desde 2009</span>
+              <h1 class="h-xl text-[2.6rem] sm:text-6xl mt-6 text-[#EAF0F7]">Engenharia audiovisual para medicina de alta complexidade</h1>
+              <p class="lead mt-6 max-w-xl">Conectamos o campo cirúrgico a auditórios e plataformas no mundo inteiro, com estabilidade técnica, baixa latência e total segurança de sinal. Tecnologia e precisão onde não há margem para erro.</p>
+              <div class="mt-9 flex flex-wrap gap-3">
+                <a href="#contato" class="btn-cut btn-onair h-14 px-7 text-base inline-flex items-center no-underline">Falar com a equipe</a>
+                <a href="#solucoes" class="btn-cut btn-night h-14 px-7 text-base inline-flex items-center no-underline">Conhecer as soluções</a>
+              </div>
             </div>
             <div class="relative w-full max-w-xl mx-auto aspect-[5/4]">
-              <canvas id="hub-brain-canvas" class="absolute inset-0 w-full h-full" role="img" aria-label="Cérebro formado por ondas de fala em movimento"></canvas>
+              <canvas id="hub-brain-canvas" class="absolute inset-0 w-full h-full" role="img" aria-label="Cérebro formado por ondas de sinal em movimento"></canvas>
             </div>
-          </main>
+          </section>
+
+          <!-- Credenciais (linha do tempo) -->
+          <section class="border-y border-[#232D40] bg-[#0F1520]">
+            <div class="max-w-6xl mx-auto px-5 sm:px-8 py-14">
+              <div class="timeline">
+                <div><div class="tl-dot"></div><div class="tl-year">2003</div><p class="lead !text-base mt-2">Início da atuação contínua e dedicada ao ambiente hospitalar.</p></div>
+                <div><div class="tl-dot"></div><div class="tl-year">2009</div><p class="lead !text-base mt-2">Especialização em transmissões cirúrgicas ao vivo (live surgery).</p></div>
+                <div><div class="tl-dot"></div><div class="tl-year">4 países</div><p class="lead !text-base mt-2">Brasil, Estados Unidos, Reino Unido e Chile.</p></div>
+                <div><div class="tl-dot"></div><div class="tl-year">Multicidades</div><p class="lead !text-base mt-2">Vários centros cirúrgicos ligados ao mesmo tempo a centros de convenções distintos.</p></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- DNA -->
+          <section class="max-w-6xl mx-auto px-5 sm:px-8 py-20 lg:py-28 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            <div class="lg:col-span-6 photo aspect-[4/3]"><img src="${IMG}equipe-cirurgica.webp" alt="Equipe cirúrgica em procedimento com câmera de transmissão ao lado" loading="lazy"></div>
+            <div class="lg:col-span-6">
+              <h2 class="h-lg text-3xl sm:text-[2.6rem]">Nascemos dentro do centro cirúrgico</h2>
+              <p class="lead mt-5">A BR.AIN Audiovisual é o ponto de encontro entre a engenharia de transmissão broadcast e o rigor do ambiente hospitalar.</p>
+              <p class="lead mt-4">Conhecemos na prática os fluxos hospitalares, as normas de assepsia, a paramentação, a linguagem anatômica e a dinâmica crítica entre cirurgião, moderador e plateia.</p>
+            </div>
+          </section>
+
+          <!-- Soluções (faixa clara) -->
+          <section id="solucoes" class="light">
+            <div class="max-w-6xl mx-auto px-5 sm:px-8 py-20 lg:py-28">
+              <div class="max-w-2xl">
+                <h2 class="h-lg text-3xl sm:text-[2.6rem]">Soluções</h2>
+                <p class="lead mt-4">Do centro cirúrgico à plateia, do evento ao acervo, e agora também em vários idiomas ao mesmo tempo.</p>
+              </div>
+              <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+                ${solutions.map(s => `
+                  <article class="bg-white rounded-xl overflow-hidden border border-[#D9DEE6] flex flex-col">
+                    <div class="aspect-[16/9] overflow-hidden bg-[#0C111B]"><img src="${IMG}${s.img}" alt="" loading="lazy" class="w-full h-full object-cover"></div>
+                    <div class="p-6 sm:p-7">
+                      <h3 class="text-xl font-bold text-[#121722]">${s.title}</h3>
+                      <ul class="mt-4 space-y-2.5">${s.items.map(i => `<li class="flex gap-3 text-[15px] leading-relaxed text-[#465166]"><span class="mt-2 w-1.5 h-1.5 rounded-full bg-[#C77C00] shrink-0"></span>${i}</li>`).join('')}</ul>
+                    </div>
+                  </article>`).join('')}
+                <article class="bg-[#0C111B] text-[#EAF0F7] rounded-xl overflow-hidden flex flex-col">
+                  <div class="p-6 sm:p-7 flex flex-col h-full">
+                    <span class="eyebrow"><span class="live-signal" aria-hidden="true"><i></i><i></i><i></i></span>Novo</span>
+                    <h3 class="mt-3 text-xl font-bold">Tradução simultânea e dublagem</h3>
+                    <p class="mt-3 text-[15px] leading-relaxed text-[#8592A8]">A fala do palestrante é transcrita, traduzida e dublada ao vivo, com uma saída de voz por idioma para os fones da plateia. Feita para a terminologia cirúrgica.</p>
+                    <div class="mt-6 flex items-center gap-3 flex-wrap">
+                      <span class="inline-flex items-center h-9 px-3 rounded-md bg-[#FFB224] text-[#1A1200] text-sm font-bold tracking-wide">PT</span>
+                      <svg class="w-6 h-6 text-[#8592A8] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+                      <div class="flex flex-wrap gap-1.5">${routeLangs.map(l => `<span class="inline-flex items-center h-9 px-3 rounded-md border border-[#232D40] text-sm font-bold tracking-wide">${l}</span>`).join('')}</div>
+                    </div>
+                    <div class="mt-auto pt-8">
+                      <a href="${CABINE_URL}" class="btn-cut btn-onair h-12 px-6 text-[15px] inline-flex items-center no-underline">Abrir a cabine de tradução</a>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tecnologia -->
+          <section id="tecnologia" class="max-w-6xl mx-auto px-5 sm:px-8 py-20 lg:py-28">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
+              <div class="lg:col-span-7">
+                <h2 class="h-lg text-3xl sm:text-[2.6rem]">Ecossistema de transmissão</h2>
+                <p class="lead mt-4 max-w-xl">Cada etapa do sinal, da câmera no campo cirúrgico à tela da plenária, com equipamento dedicado e redundância.</p>
+              </div>
+              <div class="lg:col-span-5 photo aspect-[16/10]"><img src="${IMG}mission-control.webp" alt="Central de controle com monitores da transmissão" loading="lazy"></div>
+            </div>
+            <div class="flow mt-12">
+              ${pipeline.map((p, i) => `<div><div class="step-n">0${i + 1}</div><h3 class="mt-3 text-lg font-bold">${p[0]}</h3><p class="mt-2 text-[15px] leading-relaxed text-[#8592A8]">${p[1]}</p></div>`).join('')}
+            </div>
+          </section>
+
+          <!-- Atuação -->
+          <section id="atuacao" class="relative border-y border-[#232D40] overflow-hidden">
+            <img src="${IMG}palco-congresso.webp" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-cover opacity-[.12]">
+            <div class="relative max-w-6xl mx-auto px-5 sm:px-8 py-20 lg:py-28">
+              <h2 class="h-lg text-3xl sm:text-[2.6rem] max-w-2xl">Presença nos maiores polos de cirurgia</h2>
+              <p class="lead mt-4 max-w-xl">Operação técnica presencial no Brasil e no exterior em 2025 e 2026.</p>
+              <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div>
+                  <h3 class="text-sm font-semibold text-[#FFB224]">No mundo</h3>
+                  <ul class="mt-4 divide-y divide-[#232D40] border-y border-[#232D40]">${world.map(w => `<li class="py-4"><b class="block font-semibold">${w[0]}</b><span class="text-[15px] text-[#8592A8]">${w[1]}</span></li>`).join('')}</ul>
+                </div>
+                <div>
+                  <h3 class="text-sm font-semibold text-[#FFB224]">No Brasil</h3>
+                  <ul class="mt-4 divide-y divide-[#232D40] border-y border-[#232D40]">${brazil.map(w => `<li class="py-4"><b class="block font-semibold">${w[0]}</b><span class="text-[15px] text-[#8592A8]">${w[1]}</span></li>`).join('')}</ul>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Especialidades -->
+          <section id="especialidades" class="max-w-6xl mx-auto px-5 sm:px-8 py-20 lg:py-28">
+            <h2 class="h-lg text-3xl sm:text-[2.6rem]">Especialidades e eventos</h2>
+            <div class="mt-10 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-9">
+              ${specialties.map(s => `<div><h3 class="text-lg font-bold">${s[0]}</h3><div class="mt-3 flex flex-wrap gap-2">${s[1].map(e => `<span class="chip-ev">${e}</span>`).join('')}</div></div>`).join('')}
+            </div>
+          </section>
+
+          <!-- Por que -->
+          <section class="bg-[#0F1520] border-y border-[#232D40]">
+            <div class="max-w-6xl mx-auto px-5 sm:px-8 py-20 lg:py-28 grid grid-cols-1 lg:grid-cols-12 gap-10">
+              <div class="lg:col-span-4">
+                <h2 class="h-lg text-3xl sm:text-[2.6rem]">Por que a BR.AIN</h2>
+                <div class="photo aspect-[4/5] mt-8 hidden lg:block"><img src="${IMG}auditorio-plateia.webp" alt="Plateia assistindo a uma cirurgia transmitida no telão" loading="lazy"></div>
+              </div>
+              <div class="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-10 content-start">
+                ${reasons.map(r => `<div class="border-t border-[#232D40] pt-5"><h3 class="text-lg font-bold">${r[0]}</h3><p class="mt-2 text-[15px] leading-relaxed text-[#8592A8]">${r[1]}</p></div>`).join('')}
+              </div>
+            </div>
+          </section>
+
+          <!-- Contato -->
+          <section id="contato" class="max-w-6xl mx-auto px-5 sm:px-8 py-20 lg:py-28 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+            <div>
+              <h2 class="h-lg text-3xl sm:text-[2.6rem]">Vamos conversar sobre o seu evento</h2>
+              <p class="lead mt-4">Atendimento nacional e internacional, com sede em Campo Largo, Paraná.</p>
+              <div class="mt-8 border-t border-[#232D40] pt-6">
+                <b class="block text-lg">Thiago Magalhães Bramante</b>
+                <span class="text-[#8592A8]">Diretoria executiva e engenharia de operações</span>
+              </div>
+              <div class="mt-7 flex flex-wrap gap-3">
+                <a href="mailto:bramante@brainaudiovisual.com.br" class="btn-cut btn-onair h-12 px-6 text-[15px] inline-flex items-center no-underline">bramante@brainaudiovisual.com.br</a>
+                <a href="https://www.instagram.com/brain_audiovisual/" target="_blank" rel="noopener" class="btn-cut btn-night h-12 px-6 text-[15px] inline-flex items-center no-underline">Instagram @brain_audiovisual</a>
+              </div>
+            </div>
+            <div class="photo aspect-[16/10]"><img src="${IMG}auditorio-telao.webp" alt="Auditório de congresso com cirurgia transmitida nos telões" loading="lazy"></div>
+          </section>
+
+          <footer class="border-t border-[#232D40]">
+            <div class="max-w-6xl mx-auto px-5 sm:px-8 py-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm text-[#5F6B80]">
+              <div class="flex items-center gap-3">${brandMark3D(24, true)}<span>BRAIN Comércio Varejista e Serviços de Filmagem de Eventos LTDA</span></div>
+              <div class="flex gap-5"><a class="nav-link !text-sm" href="${CABINE_URL}">Cabine de tradução</a><a class="nav-link !text-sm" href="/admin">Área da equipe</a></div>
+            </div>
+          </footer>
         </div>
       `;
+      window.__cabineEntered = true;
       const brainCanvas = document.getElementById('hub-brain-canvas');
       if (brainCanvas) mountBrainWaves(brainCanvas);
     }
@@ -1384,7 +1635,7 @@
           <div class="on-night bg-[#0C111B] text-[#EAF0F7]">
             <div class="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4 border-b border-[#232D40]">
               <div class="flex items-center gap-3 min-w-0">
-                ${brandMark(30, true)}
+                ${brandMark3D(30, true)}
                 <span class="wordmark text-[15px] truncate">BRAIN AUDIOVISUAL</span>
               </div>
               <div class="flex items-center gap-2">

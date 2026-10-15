@@ -77,7 +77,7 @@ const server = http.createServer((req, res) => {
   }
   if (fp.endsWith('/')) fp += 'index.html';
   const ext = path.extname(fp);
-  const mime = {'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.mp3':'audio/mpeg'};
+  const mime = {'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.png':'image/png','.mp3':'audio/mpeg','.svg':'image/svg+xml','.webp':'image/webp','.jpg':'image/jpeg','.jpeg':'image/jpeg','.json':'application/json'};
   const ct = mime[ext] || 'text/plain';
   fs.readFile(fp, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found: ' + fp); return; }
