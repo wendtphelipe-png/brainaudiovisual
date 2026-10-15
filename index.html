@@ -826,7 +826,7 @@
         whyTitle: 'Por que a BR.AIN',
         why: [['Timing e sensibilidade médica', 'Operadores que entendem a dinâmica cirúrgica e cortam com precisão entre campo aberto, visão laparoscópica ou robótica e reações da mesa, sem interferir na equipe.'], ['Estabilidade e baixa latência', 'Protocolos desenhados para uma conversa fluida, natural e sem atraso entre a plenária e o cirurgião.'], ['Mobilidade logística', 'Unidades técnicas completas montadas com agilidade em hospitais de qualquer região do Brasil ou do exterior.'], ['Transparência e acervo digital', 'Gravação redundante organizada de ponta a ponta, entregue com agilidade e segurança em nuvem.']],
         contactTitle: 'Vamos conversar sobre o seu evento', contactLead: 'Atendimento nacional e internacional, com sede em Campo Largo, Paraná.', role: 'Diretoria executiva e engenharia de operações',
-        whatsapp: 'WhatsApp', partnerLabel: 'Parceiro de tecnologia', photoCredit: 'Foto: Unsplash',
+        whatsapp: 'WhatsApp', partnerLabel: 'Parceiro de tecnologia', partnerText: 'Agência de tecnologia e marketing digital que desenvolve este site e a plataforma de tradução simultânea da BR.AIN.', partnerCta: 'Conhecer a Just Go Digital', photoCredit: 'Foto: Unsplash',
         waText: 'Olá! Vim pelo site da BR.AIN Audiovisual e gostaria de falar sobre um evento.',
         langLabel: 'Idioma',
       },
@@ -861,7 +861,7 @@
         whyTitle: 'Why BR.AIN',
         why: [['Medical timing and sensitivity', 'Operators who understand surgical dynamics and cut precisely between open field, laparoscopic or robotic view and table reactions, never interfering with the team.'], ['Stability and low latency', 'Protocols designed for a fluid, natural conversation with no delay between the plenary and the surgeon.'], ['Logistic mobility', 'Complete technical units set up quickly in hospitals anywhere in Brazil or abroad.'], ['Transparency and digital archive', 'Redundant end-to-end recording, delivered quickly and securely in the cloud.']],
         contactTitle: 'Let’s talk about your event', contactLead: 'National and international service, headquartered in Campo Largo, Paraná, Brazil.', role: 'Executive director and operations engineering',
-        whatsapp: 'WhatsApp', partnerLabel: 'Technology partner', photoCredit: 'Photo: Unsplash',
+        whatsapp: 'WhatsApp', partnerLabel: 'Technology partner', partnerText: 'Technology and digital marketing agency that builds this website and the BR.AIN simultaneous translation platform.', partnerCta: 'Visit Just Go Digital', photoCredit: 'Photo: Unsplash',
         waText: 'Hello! I found BR.AIN Audiovisual on your website and would like to talk about an event.',
         langLabel: 'Language',
       },
@@ -896,7 +896,7 @@
         whyTitle: 'Por qué BR.AIN',
         why: [['Timing y sensibilidad médica', 'Operadores que entienden la dinámica quirúrgica y cortan con precisión entre campo abierto, visión laparoscópica o robótica y reacciones de la mesa, sin interferir con el equipo.'], ['Estabilidad y baja latencia', 'Protocolos diseñados para una conversación fluida, natural y sin demora entre el plenario y el cirujano.'], ['Movilidad logística', 'Unidades técnicas completas montadas con agilidad en hospitales de cualquier región de Brasil o del exterior.'], ['Transparencia y archivo digital', 'Grabación redundante organizada de punta a punta, entregada con agilidad y seguridad en la nube.']],
         contactTitle: 'Hablemos de su evento', contactLead: 'Atención nacional e internacional, con sede en Campo Largo, Paraná, Brasil.', role: 'Dirección ejecutiva e ingeniería de operaciones',
-        whatsapp: 'WhatsApp', partnerLabel: 'Socio tecnológico', photoCredit: 'Foto: Unsplash',
+        whatsapp: 'WhatsApp', partnerLabel: 'Socio tecnológico', partnerText: 'Agencia de tecnología y marketing digital que desarrolla este sitio y la plataforma de traducción simultánea de BR.AIN.', partnerCta: 'Conocer Just Go Digital', photoCredit: 'Foto: Unsplash',
         waText: '¡Hola! Encontré BR.AIN Audiovisual en su sitio web y me gustaría hablar sobre un evento.',
         langLabel: 'Idioma',
       },
@@ -976,6 +976,15 @@
           .home .btn-jgd { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; font-weight: 700; font-size: .9rem; text-decoration: none;
             color: #fff; background: var(--jgd); clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px); font-variation-settings: "wdth" 112; transition: filter .2s; }
           .home .btn-jgd:hover { filter: brightness(1.08); }
+          .home .jgd-card { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding: 28px 30px; border-radius: 16px; overflow: hidden; color: var(--ink);
+            background: radial-gradient(80% 140% at 100% 50%, rgba(255,77,18,.22), transparent 60%), linear-gradient(180deg, rgba(255,77,18,.06), rgba(255,255,255,.015)); border: 1px solid rgba(255,77,18,.35); }
+          .home .jgd-card::before { background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(255,77,18,.22), transparent 45%) !important; }
+          .home .jgd-card:hover { box-shadow: 0 30px 60px -30px rgba(255,77,18,.45), 0 0 0 1px rgba(255,77,18,.6) !important; }
+          .home .jgd-label { display: inline-flex; align-items: center; gap: 8px; color: #FF7A47; font-size: .85rem; font-weight: 700; letter-spacing: .02em; }
+          .home .jgd-label::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--jgd); box-shadow: 0 0 12px var(--jgd); }
+          .home .jgd-name { display: block; margin-top: 8px; font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; font-variation-settings: "wdth" 118; letter-spacing: -.01em; }
+          .home .jgd-text { margin: 8px 0 0; max-width: 56ch; color: var(--muted); line-height: 1.55; }
+          .home .jgd-cta { height: 52px !important; padding: 0 22px !important; font-size: 1rem !important; box-shadow: 0 14px 30px -12px rgba(255,77,18,.7); }
           .home .btn-blue { background: var(--blue) !important; color: #06121F !important; }
           .home .btn-wa { background: #25D366 !important; color: #052E16 !important; }
           .home .grad-text { background: linear-gradient(100deg, #EAF0F7 30%, var(--blue) 75%, #8FD3FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -1103,7 +1112,6 @@
                   </div>
                 </div>
                 <a href="/admin" class="nav-link hidden md:inline px-2">${t.team}</a>
-                <a href="${HOME_JGD}" target="_blank" rel="noopener" class="btn-jgd">${t.partner}</a>
               </div>
             </div>
           </header>
@@ -1298,13 +1306,22 @@
           </section>
 
           <footer class="border-t border-[#232D40]">
+            <!-- Parceiro em destaque -->
+            <div class="max-w-6xl mx-auto px-5 sm:px-8 pt-12">
+              <a href="${HOME_JGD}" target="_blank" rel="noopener" class="jgd-card tilt reveal no-underline">
+                <div class="min-w-0">
+                  <span class="jgd-label">${t.partnerLabel}</span>
+                  <b class="jgd-name">Just Go Digital</b>
+                  <p class="jgd-text">${t.partnerText}</p>
+                </div>
+                <span class="btn-jgd jgd-cta">${t.partnerCta}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
+                </span>
+              </a>
+            </div>
             <div class="max-w-6xl mx-auto px-5 sm:px-8 py-8 flex flex-col md:flex-row md:items-center justify-between gap-5 text-sm text-[#5F6B80]">
               <div class="flex items-center gap-3">${brandMark3D(26, true)}<span>BRAIN Comércio Varejista e Serviços de Filmagem de Eventos LTDA · Campo Largo, PR</span></div>
-              <div class="flex items-center gap-4 flex-wrap">
-                <span>${t.partnerLabel}</span>
-                <a href="${HOME_JGD}" target="_blank" rel="noopener" class="btn-jgd !h-9 !text-[13px]">${t.partner}</a>
-                <a class="nav-link !text-sm" href="/admin">${t.team}</a>
-              </div>
+              <a class="nav-link !text-sm" href="/admin">${t.team}</a>
             </div>
           </footer>
 
