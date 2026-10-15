@@ -7,6 +7,8 @@ name: Deploy
 on:
   push:
     branches: [ "main" ]
+    # Só o que roda na VPS; mudanças no site ou no estúdio não reiniciam a cabine
+    paths: [ "cabine/**", "deploy/vps/**", ".github/workflows/deploy.yml" ]
   workflow_dispatch:
 
 concurrency:
