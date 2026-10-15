@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nova cabine</title>
+<link rel="icon" type="image/svg+xml" href="/logo/icone.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/cabine.css">
+<style>
+  body { min-height: 100vh; display: flex; flex-direction: column;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 28px 28px; }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  .wordmark { font-weight: 700; font-variation-settings: "wdth" 125; letter-spacing: .02em; font-size: .95rem; }
+  main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 48px 22px; display: grid; grid-template-columns: 1.15fr 1fr; gap: 28px; align-items: start; }
+  h1 { margin: 0; font-weight: 800; font-variation-settings: "wdth" 125; font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1; letter-spacing: -.02em; }
+  .lead { color: var(--muted); font-size: 1.08rem; line-height: 1.55; margin: 16px 0 0; max-width: 46ch; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px; }
+  .card h2 { margin: 0 0 14px; font-size: 1.05rem; font-weight: 700; font-variation-settings: "wdth" 112; }
+  label { display: block; color: var(--muted); font-size: .86rem; margin: 14px 0 6px; }
+  input[type="text"], input[type="password"] { width: 100%; height: 44px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); font-size: 1rem; }
+  input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px rgba(255, 178, 36, .2); }
+  .code-input { text-transform: uppercase; letter-spacing: .2em; font-weight: 700; font-variation-settings: "wdth" 118; }
+  .row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .error { color: var(--bad); font-size: .9rem; margin-top: 10px; min-height: 1.2em; }
+  .recent { margin-top: 26px; }
+  .recent h3 { margin: 0 0 8px; font-size: .9rem; color: var(--muted); font-weight: 600; }
+  .recent a { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px;
+    color: var(--ink); text-decoration: none; background: var(--panel); }
+  .recent a:hover { border-color: var(--amber); }
+  .recent code { font-family: inherit; font-weight: 700; letter-spacing: .12em; font-variation-settings: "wdth" 118; color: var(--amber); }
+  .steps { margin: 26px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--muted); line-height: 1.45; }
+  .steps li { display: grid; grid-template-columns: 26px 1fr; gap: 8px; }
+  .steps b { color: var(--ink); font-weight: 600; }
+  .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--line); font-size: .78rem; font-weight: 700; color: var(--ink); }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; padding: 28px 16px; } }
+</style>
+</head>
+<body>
+  <header>
+    <img src="/logo/icone.svg" width="30" height="30" alt="">
+    <span class="wordmark">BRAIN AUDIOVISUAL</span>
+  </header>
+  <main>
+    <section>
+      <h1>Nova cabine de tradução</h1>
+      <p class="lead">Cada cabine é uma sala com código próprio. Ela tem o seu cockpit e as suas saídas de idioma, separadas de qualquer outro evento acontecendo ao mesmo tempo.</p>
+      <ol class="steps">
+        <li><span class="n">1</span><span><b>Crie a cabine</b> neste computador, que vai captar o áudio da palestra (Google Chrome).</span></li>
+        <li><span class="n">2</span><span><b>Abra as saídas</b> no Microsoft Edge de cada notebook ligado a um transmissor. Os links aparecem no cockpit.</span></li>
+        <li><span class="n">3</span><span><b>Inicie a captação</b> e acompanhe o atraso de cada idioma no cockpit.</span></li>
+      </ol>
+      <div class="recent" id="recent" hidden><h3>Cabines criadas neste navegador</h3><div id="recentList"></div></div>
+    </section>
+
+    <section style="display:grid;gap:16px">
+      <form class="card" id="createForm">
+        <h2>Criar cabine</h2>
+        <label for="name">Nome do evento (opcional)</label>
+        <input type="text" id="name" maxlength="80" placeholder="Ex.: Congresso Brain, sala 2" autocomplete="off">
+        <div id="keyWrap" hidden>
+          <label for="key">Código de acesso da equipe</label>
+          <input type="password" id="key" autocomplete="current-password">
+        </div>
+        <div class="row"><button class="btn btn-onair btn-cut" type="submit" style="height:48px;padding:0 24px">Criar e abrir o cockpit</button></div>
+        <div class="error" id="createError" role="alert"></div>
+      </form>
+
+      <form class="card" id="joinForm">
+        <h2>Entrar numa cabine</h2>
+        <label for="code">Código da sala</label>
+        <input type="text" id="code" class="code-input" maxlength="8" placeholder="K7P2" autocomplete="off">
+        <div class="row">
+          <button class="btn btn-ghost" type="submit" data-go="cockpit">Abrir cockpit</button>
+          <button class="btn btn-ghost" type="button" id="toOutput">Abrir uma saída</button>
+        </div>
+        <div class="error" id="joinError" role="alert"></div>
+      </form>
+    </section>
+  </main>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (_) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} }
+  };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  fetch('/api/info').then(r => r.json()).then(info => {
+    $('keyWrap').hidden = !info.requiresKey;
+    if (info.requiresKey) $('key').value = store.get('cabine_chave_equipe', '');
+  }).catch(() => {});
+
+  // Cabines criadas aqui (a chave do cockpit fica neste navegador)
+  const recent = store.get('cabine_recentes', []);
+  if (recent.length) {
+    $('recent').hidden = false;
+    $('recentList').innerHTML = recent.slice(0, 6).map(r =>
+      `<a href="/cockpit?sala=${r.code}"><span>${esc(r.name || 'Sem nome')}</span><code>${r.code}</code></a>`).join('');
+  }
+
+  $('createForm').onsubmit = async e => {
+    e.preventDefault();
+    $('createError').textContent = '';
+    const body = { name: $('name').value.trim(), key: $('key').value };
+    try {
+      const res = await fetch('/api/salas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) { $('createError').textContent = data.error || 'Não foi possível criar a cabine.'; return; }
+      if (body.key) store.set('cabine_chave_equipe', body.key);
+      store.set('cabine_chave_' + data.code, data.token);
+      store.set('cabine_recentes', [{ code: data.code, name: data.name, at: Date.now() }, ...recent.filter(r => r.code !== data.code)].slice(0, 20));
+      location.href = '/cockpit?sala=' + data.code;
+    } catch (_) {
+      $('createError').textContent = 'Sem conexão com o servidor da cabine.';
+    }
+  };
+
+  async function checkCode() {
+    const code = $('code').value.trim().toUpperCase();
+    $('joinError').textContent = '';
+    if (!/^[A-Z2-9]{4,8}$/.test(code)) { $('joinError').textContent = 'Digite o código de 4 letras ou números da sala.'; return null; }
+    const res = await fetch('/api/salas/' + code).catch(() => null);
+    if (!res || !res.ok) { $('joinError').textContent = 'Sala não encontrada.'; return null; }
+    return res.json();
+  }
+  $('joinForm').onsubmit = async e => {
+    e.preventDefault();
+    const room = await checkCode();
+    if (!room) return;
+    if (!store.get('cabine_chave_' + room.code, null)) { $('joinError').textContent = 'Este navegador não criou esta sala, então não pode operar o cockpit. Use "Abrir uma saída".'; return; }
+    location.href = '/cockpit?sala=' + room.code;
+  };
+  $('toOutput').onclick = async () => {
+    const room = await checkCode();
+    if (room) location.href = '/saida?sala=' + room.code;
+  };
+})();
+</script>
+</body>
+</html>

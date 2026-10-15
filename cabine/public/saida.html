@@ -67,6 +67,18 @@
     </section>
   </main>
 
+  <div class="gate" id="picker" hidden>
+    <form class="gate-card" id="pickForm">
+      <img src="/logo/icone.svg" width="56" height="56" alt="" style="margin:0 auto 18px;display:block">
+      <h1>Abrir uma saída</h1>
+      <p>Digite o código da sala (aparece no cockpit) e escolha o idioma deste notebook.</p>
+      <input type="text" id="pickCode" maxlength="8" placeholder="K7P2" autocomplete="off"
+        style="width:100%;height:52px;text-align:center;font-size:1.4rem;letter-spacing:.25em;text-transform:uppercase;font-weight:800;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink)">
+      <div id="pickLangs" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0"></div>
+      <p id="pickError" style="color:var(--bad);min-height:1.2em;margin:0"></p>
+    </form>
+  </div>
+
   <div class="gate" id="gate">
     <div class="gate-card">
       <img src="/logo/icone.svg" width="56" height="56" alt="" style="margin:0 auto 18px;display:block">
@@ -80,7 +92,8 @@
 (function () {
   const LANGS = { 'en-US': 'INGLÊS', 'es-ES': 'ESPANHOL', 'pt-BR': 'PORTUGUÊS', 'fr-FR': 'FRANCÊS', 'de-DE': 'ALEMÃO', 'it-IT': 'ITALIANO', 'ar-SA': 'ÁRABE' };
   const params = new URLSearchParams(location.search);
-  const lang = params.get('lang') || 'en-US';
+  const sala = (params.get('sala') || '').toUpperCase();
+  const lang = params.get('lang') || '';
   const base = lang.split('-')[0];
   const $ = id => document.getElementById(id);
   const store = {
@@ -96,14 +109,14 @@
   document.title = 'Saída ' + (LANGS[lang] || lang);
 
   // ---------- Estado ----------
-  let session = store.get('cabine_sessao_' + lang, null);
-  let spokenSeq = store.get('cabine_falado_' + lang, 0);
+  let session = store.get('cabine_sessao_' + sala + lang, null);
+  let spokenSeq = store.get('cabine_falado_' + sala + lang, 0);
   let receivedSeq = spokenSeq;
   let queue = [];            // blocos recebidos e ainda não falados
   let started = false, paused = false, speaking = false, current = null, watchdog = 0;
   let lastLagMs = null;
 
-  function saveProgress() { store.set('cabine_falado_' + lang, spokenSeq); store.set('cabine_sessao_' + lang, session); }
+  function saveProgress() { store.set('cabine_falado_' + sala + lang, spokenSeq); store.set('cabine_sessao_' + sala + lang, session); }
 
   // ---------- Vozes ----------
   // As vozes "Online (Natural)" do Microsoft Edge são as neurais da Microsoft
@@ -207,11 +220,18 @@
     ws.onopen = () => {
       retry = 0;
       setConn('Conectado', 'ok');
-      ws.send(JSON.stringify({ type: 'hello', role: 'saida', lang, id: outputId, session, after: spokenSeq }));
+      ws.send(JSON.stringify({ type: 'hello', role: 'saida', sala, lang, id: outputId, session, after: spokenSeq }));
     };
     ws.onmessage = ev => {
       const msg = JSON.parse(ev.data);
+      if (msg.type === 'error') {
+        ws.onclose = null;
+        $('gate').hidden = true;
+        showPicker(msg.text);
+        return;
+      }
       if (msg.type === 'welcome') {
+        $('langTitle').textContent = 'SAÍDA · ' + (LANGS[lang] || lang) + ' · SALA ' + msg.room;
         if (msg.session !== session) {
           // Sessão nova no servidor: começa do zero
           session = msg.session; spokenSeq = 0; receivedSeq = 0; queue = [];
@@ -275,8 +295,30 @@
     speechSynthesis.speak(u);
   };
 
+  // Sem sala ou idioma no link: pergunta antes de conectar
+  async function showPicker(error) {
+    $('picker').hidden = false;
+    $('gate').hidden = true;
+    $('pickError').textContent = error || '';
+    $('pickCode').value = sala;
+    const load = async () => {
+      const code = $('pickCode').value.trim().toUpperCase();
+      $('pickLangs').innerHTML = '';
+      if (!/^[A-Z2-9]{4,8}$/.test(code)) return;
+      const res = await fetch('/api/salas/' + code).catch(() => null);
+      if (!res || !res.ok) { $('pickError').textContent = 'Sala não encontrada.'; return; }
+      $('pickError').textContent = '';
+      const room = await res.json();
+      $('pickLangs').innerHTML = room.config.targets.map(l => `<a class="btn btn-onair btn-cut" style="text-decoration:none" href="/saida?sala=${code}&lang=${l}">${LANGS[l] || l}</a>`).join('');
+    };
+    $('pickCode').oninput = load;
+    $('pickForm').onsubmit = e => { e.preventDefault(); load(); };
+    load();
+  }
+
   render();
-  connect();
+  if (!sala || !lang) showPicker();
+  else connect();
 })();
 </script>
 </body>

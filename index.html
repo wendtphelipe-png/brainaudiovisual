@@ -466,6 +466,9 @@
       window.__brainWavesStop = () => { stop(); io.disconnect(); window.removeEventListener('resize', onResize); };
     }
 
+    // Endereço da Cabine v2 (servidor na VPS). Rodando no PC, usa o servidor local.
+    var CABINE_URL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:8790/' : 'https://cabine.brainaudiovisual.com.br/';
+
     // Botão principal de ouvir na tela do público (estado desligado / ligado)
     var AUDIENCE_AUDIO_BTN_OFF = 'btn-cut btn-onair flex-1 h-12 px-4 text-[15px] flex items-center justify-center gap-2 cursor-pointer';
     var AUDIENCE_AUDIO_BTN_ON = 'btn-cut btn-night flex-1 h-12 px-4 text-[15px] flex items-center justify-center gap-2 cursor-pointer';
@@ -1395,9 +1398,10 @@
                 <h2 class="font-display text-[2.6rem] sm:text-6xl font-extrabold leading-[0.98] text-[#EAF0F7]">O que vamos operar hoje?</h2>
                 <p class="mt-5 text-lg text-[#8592A8] leading-relaxed max-w-md">Tradução simultânea para o congresso de agora, ou dublagem dos vídeos que já foram gravados.</p>
                 <div class="mt-9 flex flex-wrap gap-3">
-                  <button type="button" onclick="window.navigateToAdminModule('translation')" class="btn-cut btn-onair h-14 px-7 text-base cursor-pointer">Abrir tradução ao vivo</button>
+                  <a href="${CABINE_URL}" class="btn-cut btn-onair h-14 px-7 text-base cursor-pointer inline-flex items-center no-underline">Nova cabine de tradução</a>
                   <button type="button" id="hubAvLaunchBtn" onclick="window.launchAudioVisualStudio(event)" class="btn-cut btn-night h-14 px-7 text-base cursor-pointer"><span>Abrir estúdio</span></button>
                 </div>
+                <button type="button" onclick="window.navigateToAdminModule('translation')" class="mt-5 text-sm text-[#8592A8] hover:text-[#EAF0F7] underline underline-offset-4 decoration-[#333C4E] bg-transparent border-0 p-0 cursor-pointer">Usar o sistema de tradução anterior</button>
               </div>
               <div class="relative w-full max-w-xl mx-auto aspect-[5/4]">
                 <canvas id="hub-brain-canvas" class="absolute inset-0 w-full h-full" role="img" aria-label="Cérebro formado por ondas de fala em movimento"></canvas>

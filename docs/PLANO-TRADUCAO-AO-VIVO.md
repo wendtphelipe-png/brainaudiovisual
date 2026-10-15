@@ -36,6 +36,22 @@ Escrito em 15/10/2026. Objetivo: o que aparece no cockpit chega inteiro na saíd
 
 O que observar: o atraso mostrado em cada saída ("Atraso desde a fala"), a fila para falar (deve ficar abaixo de 6 s na maior parte do tempo) e se algum bloco aparece como "traduzido junto com".
 
+### Salas e servidor na VPS (15/10/2026)
+
+Decisão: Hub no site oficial (`brainaudiovisual.com.br`, hospedagem atual) e cabines na VPS da Hostinger, em `cabine.brainaudiovisual.com.br`.
+
+- **Salas:** cada cabine tem um código (ex.: `UF7L`). O cockpit só abre no navegador que criou a sala (a chave fica guardada nele). As saídas entram pelo link `.../saida?sala=UF7L&lang=en-US`, ou digitando o código. Salas não se misturam (testado com duas salas ao mesmo tempo).
+- **Código de acesso da equipe:** na VPS, só quem souber o código cria salas. Ele é gerado na instalação e fica em `/etc/brain-cabine.env`.
+- **Botão no Hub:** "Nova cabine de tradução" abre `https://cabine.brainaudiovisual.com.br/`. O sistema antigo continua acessível pelo link "Usar o sistema de tradução anterior".
+- **Instalação na VPS:** `sudo bash deploy/vps/instalar.sh cabine.brainaudiovisual.com.br` (Node 22, serviço que reinicia sozinho, HTTPS automático pelo Caddy). Para atualizar depois, rodar o mesmo comando.
+- **Modo local continua:** `INICIAR_CABINE.bat` abre a mesma tela no PC, sem código de equipe.
+
+#### O que falta para entrar no ar
+1. Phelipe: cadastrar a chave SSH pública do Claude na VPS (hPanel > VPS > Chaves SSH) e passar o IP.
+2. Phelipe: criar no DNS do domínio `brainaudiovisual.com.br` um registro **A** com nome `cabine` apontando para o IP da VPS.
+3. Claude: conferir o que já roda na VPS, instalar com o script e testar.
+4. Phelipe: publicar a main no site oficial (hPanel > Avançado > Git > Deploy), para o botão aparecer no Hub.
+
 ### Limitações conhecidas desta versão
 
 - O Google às vezes deixa uma conjunção sem traduzir no começo do bloco (por exemplo, "e identificar" em espanhol). A tradução com contexto (fase de IA) resolve.

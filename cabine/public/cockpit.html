@@ -16,6 +16,12 @@
   .brand { display: flex; align-items: center; gap: 10px; }
   .wordmark { font-weight: 700; font-variation-settings: "wdth" 125; letter-spacing: .02em; font-size: .95rem; }
   .wordmark small { color: var(--muted); font-weight: 500; font-variation-settings: "wdth" 100; letter-spacing: 0; margin-left: 6px; }
+  .room-code { margin-left: 8px; padding: 4px 10px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent); color: var(--amber);
+    font-weight: 800; font-variation-settings: "wdth" 118; letter-spacing: .18em; font-size: .92rem; }
+  .room-name { color: var(--muted); font-size: .9rem; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fatal { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); padding: 24px; z-index: 20; text-align: center; }
+  .fatal h1 { font-weight: 800; font-variation-settings: "wdth" 125; margin: 0 0 10px; }
+  .fatal p { color: var(--muted); max-width: 46ch; line-height: 1.5; margin: 0 auto 20px; }
   .status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .timecode { font-variant-numeric: tabular-nums; font-variation-settings: "wdth" 112; font-weight: 700; font-size: 1.05rem; letter-spacing: .04em; }
   .icon-btn { width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--line); background: transparent; display: grid; place-items: center; cursor: pointer; color: var(--muted); }
@@ -72,6 +78,8 @@
     <div class="brand">
       <img src="/logo/icone.svg" width="30" height="30" alt="">
       <span class="wordmark">BRAIN AUDIOVISUAL<small>Cabine</small></span>
+      <span class="room-code" id="roomCode" title="Código da sala">····</span>
+      <span class="room-name" id="roomName"></span>
     </div>
     <div class="status">
       <span class="timecode" id="timecode" title="Tempo de captação">00:00:00</span>
@@ -122,7 +130,10 @@
 
   // ---------------- Estado ----------------
   let config = { source: 'pt-BR', targets: ['en-US', 'es-ES'] };
-  let session = null, addresses = [], port = location.port;
+  const sala = (new URLSearchParams(location.search).get('sala') || '').toUpperCase();
+  const token = (() => { try { return JSON.parse(localStorage.getItem('cabine_chave_' + sala)); } catch (_) { return null; } })();
+  let session = null, links = { saida: `${location.origin}/saida?sala=${sala}` };
+  if (!sala) location.replace('/');
   let blocks = [];
   let tr = {};          // idioma -> Map(seq -> item)
   let outputs = [];
@@ -206,9 +217,8 @@
       // Marca na faixa o que já foi falado no notebook
       document.querySelectorAll(`#list-${CSS.escape(l)} .blk`).forEach(el => el.classList.toggle('spoken', Number(el.dataset.seq) <= (o.spokenSeq || 0)));
     }
-    const host = addresses[0] || location.hostname;
-    $('outputs').innerHTML = '<span>Links das saídas (abrir no Microsoft Edge de cada notebook, mesma rede)</span>' + config.targets.map(l => {
-      const url = `http://${host}:${port}/saida?lang=${l}`;
+    $('outputs').innerHTML = '<span>Links das saídas (abrir no Microsoft Edge do notebook de cada idioma)</span>' + config.targets.map(l => {
+      const url = `${links.saida}&lang=${l}`;
       return `<span class="out-link"><b>${(LANGS[l] || [l])[0]}</b><code>${esc(url)}</code><button type="button" data-copy="${esc(url)}">Copiar</button></span>`;
     }).join('');
   }
@@ -242,13 +252,15 @@
   function send(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
   function connect() {
     ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-    ws.onopen = () => { retry = 0; chip('chipServer', 'Servidor conectado', 'ok'); send({ type: 'hello', role: 'cockpit' }); };
+    ws.onopen = () => { retry = 0; chip('chipServer', 'Servidor conectado', 'ok'); send({ type: 'hello', role: 'cockpit', sala, token }); };
     ws.onclose = () => { chip('chipServer', 'Servidor desconectado', 'bad'); setTimeout(connect, Math.min(4000, 500 + retry++ * 500)); };
     ws.onmessage = ev => {
       const msg = JSON.parse(ev.data);
       switch (msg.type) {
         case 'welcome':
-          session = msg.session; config = msg.config; addresses = msg.addresses || []; port = msg.port || port;
+          session = msg.session; config = msg.config; links = msg.links || links;
+          $('roomCode').textContent = msg.room; $('roomName').textContent = msg.name || '';
+          document.title = 'Cabine ' + msg.room + (msg.name ? ' · ' + msg.name : '');
           blocks = msg.blocks || [];
           tr = {};
           for (const [l, items] of Object.entries(msg.translations || {})) tr[l] = new Map(items.map(i => [i.seq, i]));
@@ -257,6 +269,9 @@
           break;
         case 'config':
           config = msg.config; renderControls(); buildLanes(); renderOutputs();
+          break;
+        case 'error':
+          fatal(msg.text);
           break;
         case 'block':
           blocks.push(msg.block); addBlock(msg.block); stats();
@@ -277,6 +292,11 @@
           break;
       }
     };
+  }
+  function fatal(text) {
+    retry = 99;
+    ws.onclose = null;
+    document.body.insertAdjacentHTML('beforeend', `<div class="fatal"><div><h1>Não foi possível abrir esta cabine</h1><p>${esc(text)}</p><a class="btn btn-onair btn-cut" href="/" style="text-decoration:none">Criar ou escolher outra cabine</a></div></div>`);
   }
   function chip(id, text, cls) { const c = $(id); c.textContent = text; c.className = 'chip ' + (cls || ''); }
   let toastTimer = 0;
