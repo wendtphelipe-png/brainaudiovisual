@@ -1,0 +1,91 @@
+/* Cabine v2: sistema visual "Sinal".
+   Console de transmissão escuro por padrão (cabine de evento costuma ficar
+   na penumbra); tema claro com data-theme="light". Âmbar = no ar / ação
+   principal; verde = conectado; vermelho = problema. */
+:root {
+  --bg: #0A0E16;
+  --panel: #111723;
+  --panel-2: #161E2C;
+  --line: #222C3D;
+  --ink: #EAF0F7;
+  --muted: #8592A8;
+  --dim: #5F6B80;
+  --amber: #FFB224;
+  --amber-ink: #1A1200;
+  --ok: #34B886;
+  --bad: #F05A6E;
+  --grid: rgba(133, 146, 168, 0.07);
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #F2F4F8;
+  --panel: #FFFFFF;
+  --panel-2: #F6F8FB;
+  --line: #D9DEE6;
+  --ink: #121722;
+  --muted: #5F6B80;
+  --dim: #8592A8;
+  --amber: #C77C00;
+  --amber-ink: #1A1200;
+  --ok: #0B855C;
+  --bad: #C8243B;
+  --grid: rgba(18, 23, 34, 0.05);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Archivo, system-ui, sans-serif;
+  font-variation-settings: "wdth" 100;
+  -webkit-font-smoothing: antialiased;
+}
+button, select, input { font: inherit; color: inherit; }
+::selection { background: rgba(255, 178, 36, 0.3); }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px; padding: 0 16px; border: 0; border-radius: 6px; cursor: pointer;
+  font-weight: 650; font-variation-settings: "wdth" 106; transition: background .15s, filter .15s, color .15s;
+}
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:not(:disabled):active { transform: translateY(1px); }
+.btn-cut { border-radius: 0; clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px); font-weight: 700; font-variation-settings: "wdth" 112; }
+.btn-onair { background: #FFB224; color: var(--amber-ink); }
+.btn-onair:hover { filter: brightness(1.07); }
+.btn-stop { background: var(--bad); color: #fff; }
+.btn-ghost { background: var(--panel-2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.btn-ghost:hover { background: var(--line); }
+
+select, input[type="text"] {
+  height: 40px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--panel-2); color: var(--ink);
+}
+select:focus, input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px rgba(255, 178, 36, .2); }
+
+.chip { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px; border-radius: 999px; font-size: .82rem; font-weight: 600;
+  border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.chip.warn { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+.chip.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+.chip.onair { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, transparent); }
+.chip.onair::before { box-shadow: 0 0 10px var(--amber); }
+
+.live-signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; color: var(--amber); }
+.live-signal i { display: block; width: 3px; border-radius: 1px; background: currentColor; transform-origin: bottom; animation: liveBar 1.1s ease-in-out infinite; }
+.live-signal i:nth-child(1) { height: 45%; animation-delay: -.2s; }
+.live-signal i:nth-child(2) { height: 100%; animation-delay: -.5s; }
+.live-signal i:nth-child(3) { height: 70%; animation-delay: -.8s; }
+@keyframes liveBar { 0%, 100% { transform: scaleY(.45); } 50% { transform: scaleY(1); } }
+
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

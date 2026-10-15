@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saída de idioma</title>
+<link rel="icon" type="image/svg+xml" href="/logo/icone.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/cabine.css">
+<style>
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 22px; border-bottom: 1px solid var(--line); }
+  .bar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .lang-title { font-weight: 800; font-variation-settings: "wdth" 125; font-size: 1.15rem; letter-spacing: 0.01em; white-space: nowrap; }
+  .stage { flex: 1; display: grid; grid-template-rows: 1fr auto; padding: 28px 22px 18px; gap: 18px; max-width: 1100px; width: 100%; margin: 0 auto; }
+  .now { align-self: center; }
+  .now-label { color: var(--muted); font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+  .now-text { margin-top: 10px; font-size: clamp(1.6rem, 4vw, 2.9rem); line-height: 1.25; font-weight: 600; min-height: 3.75em; text-wrap: pretty; }
+  .next { margin-top: 18px; color: var(--muted); font-size: 1.05rem; line-height: 1.5; max-height: 6em; overflow: hidden; mask-image: linear-gradient(#000 40%, transparent); }
+  .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .meter { background: var(--panel); padding: 12px 14px; }
+  .meter b { display: block; font-size: 1.35rem; font-variant-numeric: tabular-nums; font-variation-settings: "wdth" 112; }
+  .meter span { color: var(--muted); font-size: 0.8rem; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .controls select { max-width: 340px; }
+  .banner { padding: 10px 22px; background: rgba(255, 178, 36, .1); color: var(--amber); font-size: 0.92rem; border-bottom: 1px solid rgba(255, 178, 36, .25); }
+  .gate { position: fixed; inset: 0; background: rgba(8, 11, 18, .86); backdrop-filter: blur(6px); display: grid; place-items: center; padding: 24px; z-index: 10; }
+  .gate-card { max-width: 460px; text-align: center; }
+  .gate-card h1 { font-size: 2rem; margin: 0 0 10px; font-weight: 800; font-variation-settings: "wdth" 125; }
+  .gate-card p { color: var(--muted); line-height: 1.55; margin: 0 0 22px; }
+  @media (max-width: 640px) { .meters { grid-template-columns: repeat(2, 1fr); } .bar { padding: 12px 16px; } .stage { padding: 20px 16px; } }
+</style>
+</head>
+<body>
+  <div id="banner" class="banner" hidden></div>
+  <header class="bar">
+    <div class="bar-left">
+      <img src="/logo/icone.svg" width="30" height="30" alt="">
+      <span class="lang-title" id="langTitle">SAÍDA</span>
+    </div>
+    <span id="conn" class="chip">Conectando</span>
+  </header>
+
+  <main class="stage">
+    <section class="now" aria-live="polite">
+      <div class="now-label"><span class="live-signal" id="liveSig" aria-hidden="true"><i></i><i></i><i></i></span><span id="nowLabel">Aguardando o primeiro bloco</span></div>
+      <div class="now-text" id="nowText"></div>
+      <div class="next" id="nextText"></div>
+    </section>
+
+    <section>
+      <div class="meters">
+        <div class="meter"><b id="mBacklog">0 s</b><span>Fila para falar</span></div>
+        <div class="meter"><b id="mRate">1,00x</b><span>Velocidade da voz</span></div>
+        <div class="meter"><b id="mSeq">0 / 0</b><span>Bloco falado / recebido</span></div>
+        <div class="meter"><b id="mLag">–</b><span>Atraso desde a fala</span></div>
+      </div>
+      <div class="controls" style="margin-top:14px">
+        <label class="sr-only" for="voice">Voz</label>
+        <select id="voice"></select>
+        <button class="btn btn-ghost" id="testBtn" type="button">Testar voz</button>
+        <button class="btn btn-ghost" id="pauseBtn" type="button">Pausar</button>
+        <button class="btn btn-onair btn-cut" id="liveBtn" type="button" hidden>Pular para o ao vivo</button>
+      </div>
+    </section>
+  </main>
+
+  <div class="gate" id="gate">
+    <div class="gate-card">
+      <img src="/logo/icone.svg" width="56" height="56" alt="" style="margin:0 auto 18px;display:block">
+      <h1 id="gateTitle">Saída</h1>
+      <p>Conecte a saída de som deste notebook ao transmissor e clique para começar. Deixe a tela ligada durante o evento.</p>
+      <button class="btn btn-onair btn-cut" id="startBtn" type="button" style="height:56px;padding:0 30px;font-size:1.05rem">Iniciar saída</button>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const LANGS = { 'en-US': 'INGLÊS', 'es-ES': 'ESPANHOL', 'pt-BR': 'PORTUGUÊS', 'fr-FR': 'FRANCÊS', 'de-DE': 'ALEMÃO', 'it-IT': 'ITALIANO', 'ar-SA': 'ÁRABE' };
+  const params = new URLSearchParams(location.search);
+  const lang = params.get('lang') || 'en-US';
+  const base = lang.split('-')[0];
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (_) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} }
+  };
+
+  let outputId = store.get('cabine_saida_id', null);
+  if (!outputId) { outputId = 'saida-' + Math.random().toString(36).slice(2, 8); store.set('cabine_saida_id', outputId); }
+
+  $('langTitle').textContent = 'SAÍDA · ' + (LANGS[lang] || lang);
+  $('gateTitle').textContent = 'Saída em ' + (LANGS[lang] || lang).toLowerCase();
+  document.title = 'Saída ' + (LANGS[lang] || lang);
+
+  // ---------- Estado ----------
+  let session = store.get('cabine_sessao_' + lang, null);
+  let spokenSeq = store.get('cabine_falado_' + lang, 0);
+  let receivedSeq = spokenSeq;
+  let queue = [];            // blocos recebidos e ainda não falados
+  let started = false, paused = false, speaking = false, current = null, watchdog = 0;
+  let lastLagMs = null;
+
+  function saveProgress() { store.set('cabine_falado_' + lang, spokenSeq); store.set('cabine_sessao_' + lang, session); }
+
+  // ---------- Vozes ----------
+  // As vozes "Online (Natural)" do Microsoft Edge são as neurais da Microsoft
+  let voices = [];
+  function loadVoices() {
+    voices = speechSynthesis.getVoices().filter(v => v.lang.toLowerCase().startsWith(base));
+    voices.sort((a, b) => score(b) - score(a));
+    const saved = store.get('cabine_voz_' + lang, null);
+    const sel = $('voice');
+    sel.innerHTML = voices.map(v => `<option value="${v.name}">${v.name.replace('Microsoft ', '')}</option>`).join('') || '<option>Nenhuma voz para este idioma</option>';
+    if (saved && voices.some(v => v.name === saved)) sel.value = saved;
+    const natural = voices.some(v => /natural|online|neural/i.test(v.name));
+    const banner = $('banner');
+    banner.hidden = natural || !voices.length;
+    banner.textContent = 'Este navegador não tem as vozes naturais. Para a melhor voz, abra esta página no Microsoft Edge.';
+    if (!voices.length) { banner.hidden = false; banner.textContent = 'Nenhuma voz instalada para este idioma neste navegador. Abra no Microsoft Edge.'; }
+  }
+  function score(v) {
+    let s = 0;
+    if (/natural|neural/i.test(v.name)) s += 10;
+    if (/online/i.test(v.name)) s += 4;
+    if (v.lang === lang) s += 3;
+    if (/multilingual/i.test(v.name)) s -= 1;
+    return s;
+  }
+  speechSynthesis.onvoiceschanged = loadVoices;
+  loadVoices();
+  $('voice').onchange = e => store.set('cabine_voz_' + lang, e.target.value);
+  const selectedVoice = () => voices.find(v => v.name === $('voice').value) || voices[0] || null;
+
+  // ---------- Fila e controle de atraso ----------
+  const words = t => (t ? t.trim().split(/\s+/).length : 0);
+  const backlogWords = () => queue.reduce((s, i) => s + words(i.text), 0);
+  const backlogSeconds = () => backlogWords() / 2.6;
+  // Se a fila cresce, a voz acelera um pouco até alcançar. Nada é cortado.
+  function rateFor() {
+    const s = backlogSeconds();
+    if (s > 16) return 1.35;
+    if (s > 10) return 1.25;
+    if (s > 6) return 1.12;
+    return 1.0;
+  }
+
+  function accept(item) {
+    if (item.seq <= receivedSeq) return;
+    receivedSeq = item.seq;
+    if (item.seq <= spokenSeq) return;
+    queue.push(item);
+    pump();
+  }
+
+  function pump() {
+    render();
+    if (!started || paused || speaking) return;
+    const item = queue.shift();
+    if (!item) return;
+    if (!item.text) { spokenSeq = item.seq; saveProgress(); return pump(); } // traduzido junto com o seguinte
+    speaking = true;
+    current = item;
+    if (item.tClose) lastLagMs = Date.now() - item.tClose;
+    const u = new SpeechSynthesisUtterance(item.text);
+    u.lang = lang;
+    const v = selectedVoice();
+    if (v) u.voice = v;
+    u.rate = rateFor();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(watchdog);
+      spokenSeq = item.seq;
+      saveProgress();
+      speaking = false;
+      current = null;
+      pump();
+    };
+    u.onend = finish;
+    u.onerror = finish;
+    // Segurança: se o navegador não avisar o fim da fala, segue para o próximo
+    watchdog = setTimeout(() => { speechSynthesis.cancel(); finish(); }, (words(item.text) / 2.0 / u.rate) * 1000 + 4000);
+    speechSynthesis.speak(u);
+    render();
+  }
+
+  function render() {
+    $('nowText').textContent = current ? current.text : '';
+    $('nowLabel').textContent = current ? `Falando o bloco ${current.seq}` : (started ? 'Aguardando a próxima fala' : 'Saída parada');
+    $('nextText').textContent = queue.filter(i => i.text).slice(0, 4).map(i => i.text).join('  ·  ');
+    $('mBacklog').textContent = backlogSeconds().toFixed(0) + ' s';
+    $('mRate').textContent = rateFor().toFixed(2).replace('.', ',') + 'x';
+    $('mSeq').textContent = `${spokenSeq} / ${receivedSeq}`;
+    $('mLag').textContent = lastLagMs == null ? '–' : (lastLagMs / 1000).toFixed(1).replace('.', ',') + ' s';
+    $('liveSig').style.visibility = current ? 'visible' : 'hidden';
+    $('liveBtn').hidden = backlogSeconds() <= 20;
+  }
+
+  // ---------- Conexão com o servidor ----------
+  let ws, retry = 0;
+  function connect() {
+    ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    ws.onopen = () => {
+      retry = 0;
+      setConn('Conectado', 'ok');
+      ws.send(JSON.stringify({ type: 'hello', role: 'saida', lang, id: outputId, session, after: spokenSeq }));
+    };
+    ws.onmessage = ev => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'welcome') {
+        if (msg.session !== session) {
+          // Sessão nova no servidor: começa do zero
+          session = msg.session; spokenSeq = 0; receivedSeq = 0; queue = [];
+          if (speaking) { speechSynthesis.cancel(); }
+          saveProgress();
+        }
+        for (const it of msg.items) accept(it);
+      } else if (msg.type === 'tr' && msg.lang === lang) {
+        accept(msg.item);
+      }
+    };
+    ws.onclose = () => {
+      setConn('Reconectando', 'warn');
+      setTimeout(connect, Math.min(4000, 500 + retry++ * 500));
+    };
+  }
+  function setConn(text, cls) { const c = $('conn'); c.textContent = text; c.className = 'chip ' + cls; }
+
+  setInterval(() => {
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'status', id: outputId, lang, voice: (selectedVoice() || {}).name || '',
+      spokenSeq, receivedSeq, backlogWords: backlogWords(), rate: rateFor(), playing: started && !paused }));
+    render();
+  }, 1000);
+
+  // ---------- Controles ----------
+  let wakeLock = null;
+  async function keepAwake() { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (_) {} }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && started) keepAwake(); });
+
+  $('startBtn').onclick = () => {
+    started = true;
+    $('gate').hidden = true;
+    // Uma fala curta e silenciosa destrava o áudio do navegador
+    const unlock = new SpeechSynthesisUtterance(' ');
+    unlock.volume = 0;
+    speechSynthesis.speak(unlock);
+    keepAwake();
+    pump();
+  };
+  $('pauseBtn').onclick = () => {
+    paused = !paused;
+    $('pauseBtn').textContent = paused ? 'Continuar' : 'Pausar';
+    // Pausar termina o bloco atual e segura os próximos (nada é perdido)
+    if (!paused) pump();
+  };
+  // Entrou atrasado (ou ficou sem rede muito tempo): descarta a fila antiga
+  // e fala só os 2 últimos blocos, para voltar a acompanhar o palestrante
+  $('liveBtn').onclick = () => {
+    const keep = queue.filter(i => i.text).slice(-2);
+    const skipped = queue.filter(i => !keep.includes(i));
+    if (skipped.length) spokenSeq = Math.max(spokenSeq, skipped[skipped.length - 1].seq);
+    queue = keep;
+    saveProgress();
+    render();
+  };
+  const SAMPLE = { en: 'Simultaneous translation test. The hypogastric nerve runs medial to this plane.', es: 'Prueba de traducción simultánea. El nervio hipogástrico pasa medial a este plano.',
+    pt: 'Teste de tradução simultânea. O nervo hipogástrico passa medial a este plano.', fr: 'Test de traduction simultanée.', de: 'Test der Simultanübersetzung.', it: 'Prova di traduzione simultanea.', ar: 'اختبار الترجمة الفورية.' };
+  $('testBtn').onclick = () => {
+    const u = new SpeechSynthesisUtterance(SAMPLE[base] || SAMPLE.en);
+    u.lang = lang; const v = selectedVoice(); if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  };
+
+  render();
+  connect();
+})();
+</script>
+</body>
+</html>

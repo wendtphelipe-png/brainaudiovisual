@@ -1,0 +1,16 @@
+{
+  "name": "brain-cabine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cabine v2: tradução simultânea local, sem nuvem, com uma saída por idioma",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/segmenter.test.js",
+    "simular": "node test/simular.js"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
+}
