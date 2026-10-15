@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f2fe' stroke-width='2'><circle cx='12' cy='12' r='10'/><polygon points='10 8 16 12 10 16 10 8'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,10 +25,10 @@
         </div>
         <div>
           <div class="brand-title-wrap">
-            <h1 class="brand-title">BRAIN AUDIOVISUAL</h1>
-            <span class="edition-badge">Lote & Multiprocessamento PRO</span>
+            <h1 class="brand-title">Brain Audiovisual</h1>
+            <span class="edition-badge">Estúdio em lote</span>
           </div>
-          <p class="brand-subtitle">Esteira de Processamento em Lote com Multiprocessamento, Legendas Nativas .VTT e Rastreamento Anti-Queda</p>
+          <p class="brand-subtitle">Vários vídeos na fila, dublagem e legendas .vtt, e retomada automática se a energia cair</p>
         </div>
       </div>
 
@@ -36,7 +36,7 @@
       <div class="system-monitor-bar">
         <!-- CRONÔMETRO CORRIDO -->
         <div class="monitor-card stopwatch-card">
-          <div class="monitor-label">⏱️ TEMPO DE EXECUÇÃO</div>
+          <div class="monitor-label">Tempo de execução</div>
           <div class="stopwatch-display" id="stopwatchVal">00:00:00</div>
           <div class="stopwatch-status" id="stopwatchStatus">Aguardando início</div>
         </div>
@@ -66,7 +66,7 @@
         <!-- RAM USAGE -->
         <div class="monitor-card">
           <div class="monitor-header-row">
-            <span class="monitor-label">MEMÓRIA RAM</span>
+            <span class="monitor-label">Memória RAM</span>
             <span class="monitor-val" id="ramVal">0%</span>
           </div>
           <div class="monitor-bar-track">
@@ -97,12 +97,12 @@
     <section class="destination-config-bar">
       <div class="dest-col-main">
         <label for="destinationFolderInput" class="dest-label">
-          PASTA DE DESTINO AUTOMÁTICO (SALVAMENTO DOS VÍDEOS):
+          Pasta de destino automático (salvamento dos vídeos):
         </label>
         <div class="dest-input-wrap">
           <input type="text" id="destinationFolderInput" value="" placeholder="Caminho da pasta local de destino...">
-          <button type="button" class="btn-dest-choose" onclick="browseDestinationFolder()" title="Abrir janela nativa do Windows Explorer para escolher pasta">📁 Escolher Pasta</button>
-          <button type="button" class="btn-dest-presets" onclick="openFolderPickerModal()" title="Abrir atalhos rápidos e pastas do sistema">⚡ Atalhos</button>
+          <button type="button" class="btn-dest-choose" onclick="browseDestinationFolder()" title="Abrir janela nativa do Windows Explorer para escolher pasta">Escolher Pasta</button>
+          <button type="button" class="btn-dest-presets" onclick="openFolderPickerModal()" title="Abrir atalhos rápidos e pastas do sistema">Atalhos</button>
           <button type="button" class="btn-dest-save" onclick="saveQueueSettings()" title="Salvar pasta selecionada">Salvar</button>
           <button type="button" class="btn-dest-open" onclick="openRootDestinationFolder()" title="Abrir esta pasta no Windows Explorer">Abrir Pasta no Explorer ↗</button>
         </div>
@@ -132,7 +132,7 @@
 
     <!-- RECOVERY BANNER -->
     <div class="persistence-banner" id="persistenceBanner">
-      <div class="banner-icon">🛡️</div>
+      <div class="banner-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z"/></svg></div>
       <div class="banner-text">
         <strong>Histórico & Rastreamento Anti-Queda Ativo:</strong> Se faltar energia ou cair a conexão, todo o histórico e a fila ficam salvos no disco em <code>queue_state.json</code>. Ao reabrir o sistema, você pode continuar exatamente de onde parou.
       </div>
@@ -199,7 +199,7 @@
           </details>
 
           <button type="button" class="btn-primary-glow mt-4" onclick="addBatchLinksToQueue()">
-            <span>ENVIAR LINKS PARA A FILA</span>
+            <span>Enviar links para a fila</span>
           </button>
         </div>
 
@@ -232,11 +232,11 @@
               </div>
             </details>
 
-            <span class="input-hint mt-2">💡 Dica: Para vídeos não-listados, cole o link com o hash ou use a aba 'Links Individuais'. Para cursos restritos, informe a URL no Site de Origem (Referer).</span>
+            <span class="input-hint mt-2">Dica: Para vídeos não-listados, cole o link com o hash ou use a aba 'Links Individuais'. Para cursos restritos, informe a URL no Site de Origem (Referer).</span>
           </div>
 
           <button type="button" id="extractPlaylistBtn" class="btn-extract" onclick="extractPlaylistVideos()">
-            <span>BUSCAR VÍDEOS NA PASTA</span>
+            <span>Buscar vídeos na pasta</span>
           </button>
 
           <!-- EXTRACTED VIDEOS PREVIEW LIST -->
@@ -247,7 +247,7 @@
             </div>
             <div class="extracted-list" id="extractedListContainer"></div>
             <button type="button" class="btn-primary-glow mt-3" onclick="addSelectedExtractedToQueue()">
-              <span>ADICIONAR SELECIONADOS À FILA</span>
+              <span>Adicionar selecionados à fila</span>
             </button>
           </div>
         </div>
@@ -306,10 +306,10 @@
 
           <div class="queue-actions-cluster">
             <button type="button" id="startQueueBtn" class="btn-queue-start" onclick="startQueueExecution()">
-              <span>INICIAR PRODUÇÃO</span>
+              <span>Iniciar produção</span>
             </button>
             <button type="button" id="pauseQueueBtn" class="btn-queue-pause" onclick="pauseQueueExecution()" style="display: none;">
-              <span>PAUSAR PRODUÇÃO</span>
+              <span>Pausar produção</span>
             </button>
             <button type="button" class="btn-secondary-sm" onclick="clearCompletedQueue()">Limpar Concluídos</button>
             <button type="button" class="btn-secondary-sm danger" onclick="clearAllQueue()">Limpar Toda a Fila</button>
@@ -319,7 +319,7 @@
         <!-- QUEUE ITEMS CONTAINER -->
         <div class="queue-list" id="queueItemsList">
           <div class="queue-empty-state" id="queueEmptyState">
-            <div class="empty-icon">📥</div>
+            <div class="empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/></svg></div>
             <h3>Nenhum vídeo na fila no momento</h3>
             <p>Cole links na coluna ao lado ou importe uma playlist para preencher a esteira de processamento.</p>
           </div>
@@ -348,7 +348,7 @@
     <div class="folder-modal-card" onclick="event.stopPropagation()">
       <div class="folder-modal-header">
         <div class="folder-modal-title">
-          <span class="folder-modal-icon">📁</span>
+          <span class="folder-modal-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></span>
           <div>
             <h3>Selecionar Pasta de Destino</h3>
             <p>Escolha onde salvar automaticamente os vídeos, áudios e legendas</p>
@@ -359,18 +359,18 @@
 
       <div class="folder-modal-body">
         <!-- 1. ATALHOS RÁPIDOS DO SISTEMA -->
-        <div class="folder-section-title">⚡ ATALHOS RÁPIDOS DO WINDOWS:</div>
+        <div class="folder-section-title">Atalhos rápidos do Windows:</div>
         <div class="folder-shortcuts-grid" id="folderShortcutsGrid">
           <!-- Preenchido dinamicamente com Downloads, Documentos, Vídeos, Desktop e Discos -->
         </div>
 
         <!-- 2. CAMINHO ATUAL & NAVEGAÇÃO -->
-        <div class="folder-section-title mt-3">📂 NAVEGADOR DE PASTAS:</div>
+        <div class="folder-section-title mt-3">Navegador de pastas:</div>
         <div class="folder-nav-bar">
-          <button type="button" class="btn-folder-nav" id="btnFolderUp" onclick="navigateFolderUp()" title="Subir um nível (Pasta anterior)">⬆ Subir</button>
+          <button type="button" class="btn-folder-nav" id="btnFolderUp" onclick="navigateFolderUp()" title="Subir um nível (Pasta anterior)">Subir</button>
           <input type="text" class="folder-path-input" id="modalPathInput" placeholder="Caminho da pasta...">
-          <button type="button" class="btn-folder-nav" onclick="refreshDirectoryView()" title="Atualizar">🔄</button>
-          <button type="button" class="btn-folder-nav success" onclick="promptNewFolder()" title="Criar nova pasta nesta pasta">➕ Nova Pasta</button>
+          <button type="button" class="btn-folder-nav" onclick="refreshDirectoryView()" title="Atualizar" aria-label="Atualizar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
+          <button type="button" class="btn-folder-nav success" onclick="promptNewFolder()" title="Criar nova pasta nesta pasta">Nova Pasta</button>
         </div>
 
         <!-- 3. LISTA DE SUBPASTAS -->
@@ -381,7 +381,7 @@
         <!-- 4. STATUS / SELETOR NATIVO DO WINDOWS -->
         <div class="folder-native-row">
           <button type="button" class="btn-native-dialog" id="btnNativeDialog" onclick="triggerNativeExplorerPicker()">
-            🖥️ Abrir Janela Nativa do Windows Explorer...
+            Abrir Janela Nativa do Windows Explorer...
           </button>
           <span class="folder-native-hint" id="nativeDialogHint">Se preferir navegar pela janela clássica do Windows.</span>
         </div>

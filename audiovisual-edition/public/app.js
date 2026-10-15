@@ -353,8 +353,8 @@ function renderQueueItems(items) {
 
             <div class="card-footer-row">
                 <div class="card-meta">
-                    ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" class="card-url-link">🔗 Ver link original</a>` : ''}
-                    ${item.outputPath ? `<span class="card-saved-path" title="${escapeHtml(item.outputPath)}">💾 Salvo em: ${escapeHtml(item.outputPath.split('\\').pop())}</span>` : ''}
+                    ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" class="card-url-link">Ver link original</a>` : ''}
+                    ${item.outputPath ? `<span class="card-saved-path" title="${escapeHtml(item.outputPath)}">Salvo em: ${escapeHtml(item.outputPath.split('\\').pop())}</span>` : ''}
                 </div>
                 <div class="card-actions">
                     ${actionsHtml}
@@ -412,7 +412,7 @@ let currentNavPath = '';
 
 async function browseDestinationFolder() {
     const chooseBtn = document.querySelector('.btn-dest-choose');
-    const origText = chooseBtn ? chooseBtn.innerHTML : '📁 Escolher Pasta';
+    const origText = chooseBtn ? chooseBtn.innerHTML : 'Escolher Pasta';
     if (chooseBtn) {
         chooseBtn.innerHTML = 'Abrindo no Windows...';
         chooseBtn.disabled = true;
@@ -500,7 +500,7 @@ async function loadDirectory(targetPath) {
                 });
                 (data.drives || []).forEach(drv => {
                     const safeDrv = escapeHtml(drv).replace(/\\/g, '\\\\');
-                    html += `<button type="button" class="shortcut-btn drive" onclick="selectShortcutPath('${safeDrv}')" title="Disco ${drv}">💽 Disco ${drv}</button>`;
+                    html += `<button type="button" class="shortcut-btn drive" onclick="selectShortcutPath('${safeDrv}')" title="Disco ${drv}">Disco ${drv}</button>`;
                 });
                 shortcutsGrid.innerHTML = html;
             }
@@ -510,8 +510,8 @@ async function loadDirectory(targetPath) {
                 if (!data.subfolders || data.subfolders.length === 0) {
                     treeBox.innerHTML = `
                         <div class="folder-empty-state">
-                            <span style="font-size: 1.6rem;">📂</span>
-                            <div>Nenhuma subpasta aqui. Você pode salvar diretamente nesta pasta clicando em <strong>"✔ Selecionar Esta Pasta"</strong> abaixo, ou criar uma subpasta clicando em <strong>"➕ Nova Pasta"</strong>.</div>
+                            <span style="display:flex;opacity:.6;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></span>
+                            <div>Nenhuma subpasta aqui. Você pode salvar diretamente nesta pasta clicando em <strong>"✔ Selecionar Esta Pasta"</strong> abaixo, ou criar uma subpasta clicando em <strong>"Nova Pasta"</strong>.</div>
                         </div>
                     `;
                 } else {
@@ -520,7 +520,7 @@ async function loadDirectory(targetPath) {
                         const escapedPath = escapeHtml(sub.path).replace(/\\/g, '\\\\');
                         itemsHtml += `
                             <div class="folder-item" onclick="navigateIntoFolder('${escapedPath}')" title="Entrar em: ${escapeHtml(sub.name)}">
-                                <span class="folder-icon">📁</span>
+                                <span class="folder-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></span>
                                 <span class="folder-name">${escapeHtml(sub.name)}</span>
                             </div>
                         `;
@@ -619,9 +619,9 @@ async function confirmCurrentModalFolder() {
 async function triggerNativeExplorerPicker() {
     const btn = document.getElementById('btnNativeDialog');
     const hint = document.getElementById('nativeDialogHint');
-    const origText = btn ? btn.innerHTML : '🖥️ Abrir Janela Nativa...';
+    const origText = btn ? btn.innerHTML : 'Abrir Janela Nativa...';
     if (btn) {
-        btn.innerHTML = '⏳ Aguardando seleção no Windows...';
+        btn.innerHTML = 'Aguardando seleção no Windows...';
         btn.disabled = true;
     }
     if (hint) hint.innerText = 'A janela do Windows foi solicitada. Verifique se apareceu em segundo plano ou na barra de tarefas.';
@@ -855,7 +855,7 @@ async function addBatchLinksToQueue() {
         });
         const data = await res.json();
         if (data.success) {
-            appendLog(`➕ ${data.addedCount} vídeo(s) adicionado(s) à fila com sucesso!`);
+            appendLog(`${data.addedCount} vídeo(s) adicionado(s) à fila com sucesso!`);
             document.getElementById('batchUrlsInput').value = '';
             fetchQueueState();
         } else {
@@ -911,7 +911,7 @@ async function extractPlaylistVideos() {
         extractedVideosCache = data.videos || [];
         appendLog(`Sucesso! ${extractedVideosCache.length} vídeos identificados na pasta.`);
         if (data.partialNotice) {
-            appendLog(`⚠️ ${data.partialNotice}`, 'warn');
+            appendLog(`${data.partialNotice}`, 'warn');
         }
 
         renderExtractedVideosList(extractedVideosCache);
@@ -990,7 +990,7 @@ async function addSelectedExtractedToQueue() {
         });
         const data = await res.json();
         if (data.success) {
-            appendLog(`➕ ${data.addedCount} vídeos da playlist adicionados à fila!`);
+            appendLog(`${data.addedCount} vídeos da playlist adicionados à fila!`);
             document.getElementById('extractedPreviewWrap').style.display = 'none';
             document.getElementById('playlistUrlInput').value = '';
             fetchQueueState();

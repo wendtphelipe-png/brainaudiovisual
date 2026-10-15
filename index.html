@@ -6,11 +6,40 @@
   <title>Brain Audiovisual</title>
   <link rel="icon" type="image/svg+xml" href="frontend/public/favicon.svg">
   <!-- Tailwind CSS & Lucide Icons via CDN -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Atkinson+Hyperlegible+Next:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = {
-      darkMode: 'class'
-    };
+    // ========================================================
+    // SISTEMA VISUAL "CABINE" (out/2026)
+    // Uma paleta só para a interface inteira: índigo de cabine de
+    // intérprete, grafite frio e esmeralda reservada ao sinal "ao vivo".
+    // Azul, roxo, violeta, rosa e céu apontam para o mesmo índigo para
+    // acabar com o arco-íris de gradientes sem tocar no markup.
+    // ========================================================
+    (function () {
+      const indigo = { 50: '#F1F3FB', 100: '#E3E7F6', 200: '#C8CFEC', 300: '#A1ABDA', 400: '#7381C4', 500: '#4E5DB0', 600: '#2F3C8F', 700: '#28337A', 800: '#212A63', 900: '#1B2250', 950: '#11163A' };
+      const graphite = { 50: '#F5F7F9', 100: '#ECEFF3', 200: '#DDE2EA', 300: '#C3CAD5', 400: '#8F99A8', 500: '#667080', 600: '#4B5463', 700: '#363E4C', 800: '#232A36', 900: '#161B26', 950: '#0E121A' };
+      const signal = { 50: '#ECFAF4', 100: '#D1F2E3', 200: '#A5E4C9', 300: '#6DD0A8', 400: '#34B886', 500: '#0E9F6E', 600: '#0B855C', 700: '#0A6B4B', 800: '#0A553D', 900: '#094633', 950: '#05281D' };
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              indigo, blue: indigo, purple: indigo, violet: indigo, sky: indigo, fuchsia: indigo, pink: indigo,
+              slate: graphite, gray: graphite, zinc: graphite,
+              emerald: signal, green: signal, teal: signal, cyan: signal
+            },
+            fontFamily: {
+              sans: ['"Schibsted Grotesk"', 'system-ui', 'sans-serif'],
+              caption: ['"Atkinson Hyperlegible Next"', '"Atkinson Hyperlegible"', 'system-ui', 'sans-serif']
+            },
+            borderRadius: { lg: '0.5rem', xl: '0.625rem', '2xl': '0.875rem', '3xl': '1.125rem' }
+          }
+        }
+      };
+    })();
   </script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -46,8 +75,8 @@
        TEMA CLARO CONFORTÁVEL (Fundo suave anti-reflexo, sem excesso de branco)
        ======================================================== */
     body.light-mode {
-      background-color: #f1f5f9 !important;
-      color: #0f172a !important;
+      background-color: #ECEFF3 !important;
+      color: #161B26 !important;
     }
 
     /* ========================================================
@@ -57,8 +86,8 @@
     html.dark body,
     body.dark,
     body.dark-mode {
-      background-color: #0b0f19 !important;
-      color: #f1f5f9 !important;
+      background-color: #0E121A !important;
+      color: #ECEFF3 !important;
     }
 
     /* Headers, Topos Congelados e Barras */
@@ -66,8 +95,8 @@
     html.dark .sticky,
     html.dark [class*="backdrop-blur"] {
       background-color: rgba(15, 23, 42, 0.96) !important;
-      border-color: #334155 !important;
-      color: #f8fafc !important;
+      border-color: #363E4C !important;
+      color: #F5F7F9 !important;
     }
 
     /* Cards, Seções e Gradients no Dashboard e Cockpit */
@@ -80,9 +109,9 @@
     html.dark [class*="from-blue-50"]:not(button),
     html.dark [class*="from-indigo-50"]:not(button),
     html.dark [class*="from-emerald-50"]:not(button) {
-      background-color: #111827 !important;
-      border-color: #374151 !important;
-      color: #f8fafc !important;
+      background-color: #161C27 !important;
+      border-color: #283142 !important;
+      color: #F5F7F9 !important;
     }
 
     /* Cabeçalhos de Seções e Sub-blocos */
@@ -90,9 +119,9 @@
     html.dark [class*="bg-blue-100"]:not(button):not(span),
     html.dark [class*="bg-indigo-100"]:not(button):not(span),
     html.dark [class*="bg-emerald-100"]:not(button):not(span) {
-      background-color: #1e293b !important;
-      border-color: #374151 !important;
-      color: #f8fafc !important;
+      background-color: #232A36 !important;
+      border-color: #283142 !important;
+      color: #F5F7F9 !important;
     }
 
     /* Tipografia e Títulos */
@@ -100,16 +129,16 @@
     html.dark .text-slate-800,
     html.dark .text-slate-700,
     html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark strong {
-      color: #f8fafc !important;
+      color: #F5F7F9 !important;
     }
 
     html.dark .text-slate-600,
     html.dark .text-slate-500 {
-      color: #cbd5e1 !important;
+      color: #C3CAD5 !important;
     }
 
     html.dark .text-slate-400 {
-      color: #94a3b8 !important;
+      color: #8F99A8 !important;
     }
 
     /* Bordas */
@@ -121,7 +150,7 @@
     html.dark .border-indigo-200,
     html.dark .border-emerald-100,
     html.dark .border-emerald-200 {
-      border-color: #374151 !important;
+      border-color: #283142 !important;
     }
 
     /* CAMPOS DINÂMICOS QUE PODEM SER ALTERADOS (MANTIDOS COM FUNDO BRANCO E TEXTO ESCURO NO DARK MODE) */
@@ -129,48 +158,48 @@
     html.dark select,
     html.dark textarea {
       background-color: #ffffff !important;
-      color: #0f172a !important;
-      border: 1.5px solid #cbd5e1 !important;
+      color: #161B26 !important;
+      border: 1.5px solid #C3CAD5 !important;
       font-weight: 600 !important;
     }
     html.dark select option {
       background-color: #ffffff !important;
-      color: #0f172a !important;
+      color: #161B26 !important;
     }
     html.dark input::placeholder,
     html.dark textarea::placeholder {
-      color: #64748b !important;
+      color: #667080 !important;
     }
 
     /* PRESERVAÇÃO DA BARRA DE PROGRESSO NO DARK MODE (GRADIENTE VIVO) */
     html.dark #meeting-progress-bar {
       opacity: 1 !important;
-      background-image: linear-gradient(to right, #10b981, #2dd4bf, #059669) !important;
+      background-image: linear-gradient(to right, #0E9F6E, #34B886, #0B855C) !important;
       box-shadow: 0 0 12px rgba(16, 185, 129, 0.5) !important;
     }
 
     /* PRESERVAÇÃO DAS CORES VIVAS DE TODOS OS BOTÕES COLORIDOS NO DARK MODE */
     html.dark button[class*="bg-blue-"], html.dark a[class*="bg-blue-"] {
-      background-color: #2563eb !important;
+      background-color: #2F3C8F !important;
       color: #ffffff !important;
     }
     html.dark button[class*="bg-blue-"]:hover, html.dark a[class*="bg-blue-"]:hover {
-      background-color: #1d4ed8 !important;
+      background-color: #28337A !important;
     }
     html.dark button[class*="bg-indigo-"], html.dark a[class*="bg-indigo-"] {
-      background-color: #4f46e5 !important;
+      background-color: #2F3C8F !important;
       color: #ffffff !important;
     }
     html.dark button[class*="bg-indigo-"]:hover, html.dark a[class*="bg-indigo-"]:hover {
-      background-color: #4338ca !important;
+      background-color: #28337A !important;
     }
     html.dark button[class*="bg-emerald-"], html.dark a[class*="bg-emerald-"],
     html.dark button[class*="bg-green-"], html.dark a[class*="bg-green-"] {
-      background-color: #059669 !important;
+      background-color: #0B855C !important;
       color: #ffffff !important;
     }
     html.dark button[class*="bg-emerald-"]:hover, html.dark a[class*="bg-emerald-"]:hover {
-      background-color: #047857 !important;
+      background-color: #0A6B4B !important;
     }
     html.dark button[class*="bg-rose-"], html.dark a[class*="bg-rose-"],
     html.dark button[class*="bg-red-"], html.dark a[class*="bg-red-"] {
@@ -185,7 +214,7 @@
       color: #020617 !important;
     }
     html.dark button[class*="bg-purple-"], html.dark a[class*="bg-purple-"] {
-      background-color: #9333ea !important;
+      background-color: #2F3C8F !important;
       color: #ffffff !important;
     }
     /* Preserva botões de amostra de paleta de cor das legendas e overlay OBS */
@@ -200,9 +229,111 @@
     html.dark #share-telao-modal > div,
     html.dark #finish-meeting-modal > div,
     html.dark #test-lab-modal > div {
-      background-color: #111827 !important;
-      border-color: #374151 !important;
-      color: #f8fafc !important;
+      background-color: #161C27 !important;
+      border-color: #283142 !important;
+      color: #F5F7F9 !important;
+    }
+
+    /* ========================================================
+       SISTEMA VISUAL "CABINE": BASE TIPOGRÁFICA E ACABAMENTO
+       ======================================================== */
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: "Schibsted Grotesk", system-ui, sans-serif;
+      text-rendering: optimizeLegibility;
+    }
+    .font-mono, [id*="Timer"], [id*="Clock"], [id*="Percent"] { font-variant-numeric: tabular-nums; }
+    ::selection { background: rgba(47, 60, 143, 0.18); }
+
+    /* Pesos: o "font-black" (900) em toda parte achatava a hierarquia */
+    .font-black { font-weight: 750 !important; }
+    h1.font-black, h2.font-black { font-weight: 800 !important; letter-spacing: -0.02em; }
+
+    /* Tamanho mínimo legível: nada abaixo de 11px */
+    .text-\[8px\], .text-\[9px\], .text-\[9\.5px\], .text-\[10px\] { font-size: 11px !important; line-height: 1.35; }
+    .text-\[11px\] { font-size: 12px !important; line-height: 1.4; }
+
+    /* Rótulos em caixa-alta espaçada viram caixa normal (exceto overlay de vídeo) */
+    body:not(.bg-black) .uppercase { text-transform: none !important; }
+    body:not(.bg-black) .uppercase.tracking-wider,
+    body:not(.bg-black) .uppercase.tracking-widest,
+    body:not(.bg-black) [class*="uppercase"][class*="tracking-["] { letter-spacing: 0.005em !important; }
+
+    body:not(.bg-black) [style*="text-transform: uppercase"],
+    body:not(.bg-black) [style*="text-transform:uppercase"] { text-transform: none !important; letter-spacing: 0.005em !important; }
+
+    /* Superfícies: sombras discretas e frias no lugar das sombras coloridas */
+    .shadow-lg { box-shadow: 0 1px 2px rgba(22, 27, 38, 0.06), 0 8px 24px -12px rgba(22, 27, 38, 0.18) !important; }
+    .shadow-xl, .shadow-2xl { box-shadow: 0 1px 2px rgba(22, 27, 38, 0.06), 0 16px 40px -18px rgba(22, 27, 38, 0.28) !important; }
+    html.dark .shadow-lg, html.dark .shadow-xl, html.dark .shadow-2xl { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 16px 40px -18px rgba(0, 0, 0, 0.6) !important; }
+
+    /* Botões e campos: resposta ao toque e foco visível pelo teclado */
+    button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
+    button:not(:disabled):active { transform: translateY(1px); }
+    :focus-visible { outline: 2px solid #4E5DB0 !important; outline-offset: 2px; }
+    input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="color"]):focus,
+    select:focus, textarea:focus {
+      border-color: #4E5DB0 !important;
+      box-shadow: 0 0 0 3px rgba(78, 93, 176, 0.18) !important;
+      outline: none !important;
+    }
+
+    /* Campos no tema escuro: superfície escura e texto claro (antes ficavam brancos, às vezes com texto branco) */
+    html.dark body input:not([type="range"]):not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+    html.dark body select,
+    html.dark body textarea {
+      background-color: #121722 !important;
+      color: #F5F7F9 !important;
+      border: 1px solid #363E4C !important;
+      font-weight: 500 !important;
+    }
+    html.dark body select option { background-color: #161C27 !important; color: #F5F7F9 !important; }
+    html.dark body input::placeholder, html.dark body textarea::placeholder { color: #8F99A8 !important; }
+
+    /* Amostras de cor das legendas mostram a cor real que aplicam */
+    button[onclick*="'#38bdf8'"] { background-color: #38bdf8 !important; }
+    button[onclick*="'#4ade80'"] { background-color: #4ade80 !important; }
+    button[onclick*="'#0000ff'"] { background-color: #0000ff !important; }
+    button[onclick*="'#00ff00'"] { background-color: #00ff00 !important; }
+
+    /* Legendas: a fala traduzida é o produto, então ganha a fonte de leitura */
+    #audience-subtitles-feed, #audience-subtitles-feed *,
+    #transmitter-transcription-feed, #transmitter-transcription-feed *,
+    [id^="target-transcription-feed-"], [id^="target-transcription-feed-"] *,
+    [id^="overlay-feed-"], [id^="overlay-feed-"] * {
+      font-family: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif !important;
+    }
+
+    #audience-subtitles-feed > p:not(.placeholder-empty) { font-size: 1.2rem !important; line-height: 1.6 !important; margin-bottom: 0.9rem; }
+    @media (min-width: 640px) { #audience-subtitles-feed > p:not(.placeholder-empty) { font-size: 1.35rem !important; } }
+    #audience-subtitles-feed .audience-para-live { color: #4E5DB0; }
+    html.dark #audience-subtitles-feed .audience-para-live { color: #A1ABDA; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+    /* Checklist do assistente do motor: círculo pendente, check quando pronto */
+    .step-icon { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; flex-shrink: 0; }
+    .step-icon:empty { border: 1.5px solid currentColor; border-radius: 9999px; opacity: 0.6; }
+
+    /* Sinal "ao vivo": barras de nível no lugar do ponto piscando */
+    .live-signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+    .live-signal i { display: block; width: 3px; border-radius: 1px; background: currentColor; transform-origin: bottom; animation: liveBar 1.1s ease-in-out infinite; }
+    .live-signal i:nth-child(1) { height: 45%; animation-delay: -0.2s; }
+    .live-signal i:nth-child(2) { height: 100%; animation-delay: -0.5s; }
+    .live-signal i:nth-child(3) { height: 70%; animation-delay: -0.8s; }
+    @keyframes liveBar { 0%, 100% { transform: scaleY(0.45); } 50% { transform: scaleY(1); } }
+
+    /* Entrada única e orquestrada do painel (uma vez por carregamento) */
+    @keyframes cabineEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    .cabine-enter > * { animation: cabineEnter 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .cabine-enter > *:nth-child(2) { animation-delay: 0.08s; }
+    .cabine-enter > *:nth-child(3) { animation-delay: 0.16s; }
+
+    /* Rolagem fina e discreta */
+    * { scrollbar-width: thin; scrollbar-color: #C3CAD5 transparent; }
+    html.dark * { scrollbar-color: #363E4C transparent; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
     }
   </style>
 </head>
@@ -222,6 +353,10 @@
         return localStorage.getItem('brain_theme') || 'light';
       } catch(e) { return 'light'; }
     }
+
+    // Botão principal de ouvir na tela do público (estado desligado / ligado)
+    var AUDIENCE_AUDIO_BTN_OFF = 'flex-1 h-12 px-4 rounded-2xl font-semibold text-[15px] transition-colors flex items-center justify-center gap-2 cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white';
+    var AUDIENCE_AUDIO_BTN_ON = 'flex-1 h-12 px-4 rounded-2xl font-semibold text-[15px] transition-colors flex items-center justify-center gap-2 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white';
 
     function setGlobalTheme(theme) {
       try {
@@ -251,13 +386,14 @@
     function updateThemeButtonUI() {
       const isDark = getStoredTheme() === 'dark';
       const btns = document.querySelectorAll('.btn-theme-toggle');
+      // Botão só com ícone: funciona igual em qualquer idioma da plateia
+      const sun = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+      const moon = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>';
       btns.forEach(btn => {
-        btn.innerHTML = isDark 
-          ? '<span>Modo Claro</span>' 
-          : '<span>Modo Escuro</span>';
-        btn.className = isDark
-          ? 'btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-amber-400/50 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs'
-          : 'btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs';
+        btn.innerHTML = isDark ? sun : moon;
+        btn.setAttribute('aria-label', isDark ? 'Tema claro' : 'Tema escuro');
+        btn.title = isDark ? 'Tema claro' : 'Tema escuro';
+        btn.className = 'btn-theme-toggle w-9 h-9 shrink-0 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer flex items-center justify-center';
       });
     }
 
@@ -394,7 +530,7 @@
         }
         // 6. ROTA PADRÃO PÚBLICA: PÁGINA EM CONSTRUÇÃO CLEAN E CLARA (/)
         else {
-          document.body.className = "bg-[#f8fafc] text-[#0f172a] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
+          document.body.className = "bg-[#F5F7F9] text-[#161B26] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
           renderPublicConstructionPage();
         }
       } catch(globalRouterErr) {
@@ -519,17 +655,16 @@
     function renderPublicConstructionPage() {
       document.title = "Brain Audiovisual — Página em construção";
       document.documentElement.classList.remove('dark');
-      document.body.className = "bg-[#f8fafc] text-[#0f172a] font-sans antialiased m-0 min-h-screen flex items-center justify-center p-6 text-center";
+      document.body.className = "bg-slate-50 text-slate-900 font-sans antialiased m-0 min-h-screen flex items-center p-6";
       root.innerHTML = `
-        <div class="max-w-xl flex flex-col items-center justify-center" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%; max-width: 36rem;">
-          <h1 class="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-[#0f172a] mb-5 leading-tight" style="font-family: inherit; font-size: 2.75rem; font-weight: 600; letter-spacing: -0.025em; color: #0f172a; margin-bottom: 1.25rem; line-height: 1.15;">
-            Brain Audiovisual
-          </h1>
-          <div class="w-12 h-[1.5px] bg-[#cbd5e1] mb-6" style="width: 3rem; height: 1.5px; background-color: #cbd5e1; margin-bottom: 1.5rem;"></div>
-          <p class="text-xs sm:text-sm font-medium tracking-[0.22em] uppercase text-[#64748b]" style="font-size: 0.85rem; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: #64748b; margin: 0;">
-            Página em construção
+        <main class="w-full max-w-3xl mx-auto">
+          <p class="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+            <span class="live-signal" aria-hidden="true"><i></i><i></i><i></i></span>
+            Em breve
           </p>
-        </div>
+          <h1 class="mt-5 text-5xl sm:text-7xl font-extrabold tracking-tight leading-[0.95] text-slate-900">Brain<br>Audiovisual</h1>
+          <p class="mt-6 max-w-md text-lg text-slate-600 leading-relaxed">Tradução simultânea e dublagem para congressos e transmissões médicas. Esta página está em construção.</p>
+        </main>
       `;
     }
 
@@ -1114,154 +1249,95 @@
     // TELA 2.1: HUB CENTRAL /admin COM OS 2 GRANDES MÓDULOS
     // ========================================================
     function renderAdminHubPage() {
+      const routeLangs = ['EN', 'ES', 'FR', 'DE', 'IT', 'AR'];
       root.innerHTML = `
-        <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col justify-between font-sans selection:bg-indigo-500/30 selection:text-indigo-500 transition-colors duration-200">
-          
-          <!-- HEADER DO HUB ENTERPRISE -->
-          <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 px-6 sm:px-10 py-4 flex items-center justify-between shadow-xs backdrop-blur-md">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center font-black text-white text-lg shadow-md shadow-indigo-500/25">
-                BL
-              </div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <h1 class="text-lg font-black text-slate-900 dark:text-white tracking-tight">BrainLingo</h1>
-                  <span class="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 uppercase tracking-wider">
-                    Enterprise Hub
-                  </span>
-                </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">Plataforma Integrada de Inteligência Artificial Audiovisual</p>
-              </div>
-            </div>
+        <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
 
-            <div class="flex items-center gap-3">
-              <!-- Alternador de Tema Escuro / Claro -->
-              <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs">
-                <span>Tema</span>
-              </button>
-              
-              <button onclick="handleAdminLogout()" class="text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 transition-all flex items-center gap-1 cursor-pointer">
-                <span>Sair</span>
-              </button>
+          <header class="border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-40">
+            <div class="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-extrabold text-sm tracking-tight shrink-0">BA</div>
+                <div class="min-w-0">
+                  <h1 class="text-[15px] font-bold leading-tight text-slate-900 dark:text-white truncate">Brain Audiovisual</h1>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 truncate">Painel de operação</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer flex items-center gap-1.5">
+                  <span>Tema</span>
+                </button>
+                <button onclick="handleAdminLogout()" class="text-xs font-semibold px-3 py-1.5 rounded-xl text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer">
+                  Sair
+                </button>
+              </div>
             </div>
           </header>
 
-          <!-- CONTEÚDO PRINCIPAL: SELEÇÃO DE PLATAFORMA -->
-          <main class="max-w-5xl w-full mx-auto px-6 py-12 sm:py-16 space-y-10 flex-1 flex flex-col justify-center">
-            
-            <div class="text-center max-w-2xl mx-auto space-y-3">
-              <span class="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-3 py-1 rounded-full">
-                Seleção de Ambiente
-              </span>
-              <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                Escolha seu Módulo Operacional
-              </h2>
-              <p class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                Selecione entre a transmissão de tradução simultânea ao vivo para eventos ou a suíte de pós-produção audiovisual inteligente.
-              </p>
+          <main class="${window.__cabineEntered ? '' : 'cabine-enter '}max-w-6xl w-full mx-auto px-5 sm:px-8 py-10 sm:py-16 flex-1">
+
+            <div class="max-w-2xl mb-10 sm:mb-12">
+              <h2 class="text-3xl sm:text-[2.6rem] font-extrabold tracking-tight leading-[1.08] text-slate-900 dark:text-white">O que vamos operar hoje?</h2>
+              <p class="mt-3 text-base text-slate-600 dark:text-slate-400 leading-relaxed">Tradução ao vivo para um evento acontecendo agora, ou dublagem de vídeos já gravados.</p>
             </div>
 
-            <!-- OS DOIS CARDS/BOTÕES PRINCIPAIS -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-              
-              <!-- CARD 1: SIMULTANEOUS TRANSLATION -->
-              <div class="group relative bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-900/60 hover:border-indigo-500 dark:hover:border-indigo-500 rounded-3xl p-8 shadow-lg hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 flex flex-col justify-between space-y-6">
-                <div class="space-y-4">
-                  <div class="flex items-center justify-between">
-                    <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-xs font-black tracking-wider shadow-md shadow-indigo-600/30 group-hover:scale-105 transition-transform">AO VIVO</div>
-                    <span class="text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1.5">
-                      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Ao Vivo / Operacional
-                    </span>
-                  </div>
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-stretch">
 
-                  <div>
-                    <h3 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                      BrainLingo: Simultaneous Translation
-                    </h3>
-                    <p class="text-xs text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-wider mt-0.5">
-                      Live Event Translation & Audience Streaming
-                    </p>
-                  </div>
+              <section class="lg:col-span-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 flex flex-col">
+                <div class="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-sm font-semibold">
+                  <span class="live-signal" aria-hidden="true"><i></i><i></i><i></i></span>
+                  Pronto para transmitir
+                </div>
+                <h3 class="mt-4 text-2xl sm:text-[1.75rem] font-bold tracking-tight text-slate-900 dark:text-white">Tradução simultânea</h3>
+                <p class="mt-2 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed max-w-prose">Capte a fala do palestrante, traduza em até seis idiomas e entregue legenda e voz para o público no celular, pelo QR Code, e no telão pelo OBS.</p>
 
-                  <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                    Plataforma em tempo real para auditórios, conferências e transmissões ao vivo. Transcrição contínua sem interrupções, tradução simultânea multi-idioma, síntese de vozes neurais humanizadas, páginas dedicadas de espectador móvel com QR Code e canal de legenda OBS Studio.
-                  </p>
-
-                  <div class="flex flex-wrap gap-1.5 pt-2">
-                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Fala Contínua Sem Pausas</span>
-                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Múltiplos Locutores</span>
-                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Link Espectador e QR Code</span>
-                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Overlay OBS Studio</span>
+                <div class="mt-7 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 px-4 py-4">
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Rota de idiomas</p>
+                  <div class="flex items-center gap-3 flex-wrap">
+                    <span class="inline-flex items-center h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm font-bold tracking-wide">PT</span>
+                    <svg class="w-6 h-6 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+                    <div class="flex flex-wrap gap-1.5">
+                      ${routeLangs.map(l => `<span class="inline-flex items-center h-9 px-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold tracking-wide">${l}</span>`).join('')}
+                    </div>
                   </div>
                 </div>
 
-                <button 
-                  type="button" 
-                  onclick="window.navigateToAdminModule('translation')" 
-                  class="w-full py-4 px-6 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-md shadow-indigo-600/25 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>Acessar Simultaneous Translation</span>
-                </button>
-              </div>
-
-              <!-- CARD 2: AUDIOVISUAL EDITION -->
-              <div class="group relative bg-white dark:bg-slate-900 border-2 border-purple-200 dark:border-purple-900/60 hover:border-purple-500 dark:hover:border-purple-500 rounded-3xl p-8 shadow-lg hover:shadow-2xl hover:shadow-purple-500/10 transition-all duration-300 flex flex-col justify-between space-y-6">
-                <div class="space-y-4">
-                  <div class="flex items-center justify-between">
-                    <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-600 text-white flex items-center justify-center text-xs font-black tracking-wider shadow-md shadow-purple-600/30 group-hover:scale-105 transition-transform">STUDIO</div>
-                    <span class="text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-700 flex items-center gap-1.5">
-                      <span class="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span> Novo Braço • Estúdio Preparado
-                    </span>
-                  </div>
-
-                  <div>
-                    <h3 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                      BrainLingo: AudioVisual Edition
-                    </h3>
-                    <p class="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase tracking-wider mt-0.5">
-                      Smart Studio & Post-Production AI
-                    </p>
-                  </div>
-
-                  <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                    Ambiente profissional de produção e pós-produção audiovisual inteligente. Dublagem automática multicamadas com clonagem tímbrica, sincronização labial avançada (Lip-Sync AI), mixagem multitrack estéreo/5.1 e renderização master para cinema, TV e streaming.
-                  </p>
-
-                  <div class="flex flex-wrap gap-1.5 pt-2">
-                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Dublagem Neural Studio</span>
-                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Sincronia Labial IA</span>
-                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Masterização Multitrack</span>
-                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Master Broadcast 4K</span>
-                  </div>
-                </div>
-
-                <div class="space-y-2">
-                  <button 
-                    type="button"
-                    id="hubAvLaunchBtn"
-                    onclick="window.launchAudioVisualStudio(event)" 
-                    class="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-md shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer no-underline text-center border-0"
-                  >
-                    <span>Acessar AudioVisual Edition (Mesa de Fila & Produção) ↗</span>
+                <div class="mt-auto pt-8">
+                  <button type="button" onclick="window.navigateToAdminModule('translation')" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-12 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[15px] transition-colors cursor-pointer">
+                    Abrir tradução ao vivo
                   </button>
-                  <div class="flex items-center justify-between text-[11px] px-1 text-slate-400">
-                    <span>Motor Local: <span id="hubEngineStatusBadge" class="font-mono text-purple-400 font-bold">Verificando...</span></span>
-                    <button type="button" onclick="window.showEngineSetupModal()" class="text-indigo-400 hover:text-indigo-300 font-medium bg-transparent border-0 p-0 cursor-pointer">Assistente / Instalar ⚙️</button>
-                  </div>
                 </div>
-              </div>
+              </section>
+
+              <section class="lg:col-span-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 flex flex-col">
+                <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                  Motor local: <span id="hubEngineStatusBadge" class="font-semibold text-slate-700 dark:text-slate-200">verificando</span>
+                </div>
+                <h3 class="mt-4 text-2xl sm:text-[1.75rem] font-bold tracking-tight text-slate-900 dark:text-white">Estúdio de dublagem</h3>
+                <p class="mt-2 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">Envie um vídeo ou um link do YouTube ou Vimeo. O estúdio transcreve, traduz e gera a dublagem com legendas .vtt e .srt, tudo num pacote .zip.</p>
+
+                <ul class="mt-6 space-y-2.5 text-sm text-slate-600 dark:text-slate-300">
+                  <li class="flex gap-2.5"><span class="mt-2 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>Fila de vários vídeos de uma vez</li>
+                  <li class="flex gap-2.5"><span class="mt-2 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>Vozes neurais masculinas e femininas</li>
+                  <li class="flex gap-2.5"><span class="mt-2 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>Roda neste computador, sem custo por minuto</li>
+                </ul>
+
+                <div class="mt-auto pt-8 space-y-3">
+                  <button type="button" id="hubAvLaunchBtn" onclick="window.launchAudioVisualStudio(event)" class="w-full inline-flex items-center justify-center gap-2 h-12 px-6 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-semibold text-[15px] transition-colors cursor-pointer">
+                    <span>Abrir estúdio</span>
+                  </button>
+                  <button type="button" onclick="window.showEngineSetupModal()" class="w-full text-center text-sm text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300 bg-transparent border-0 p-0 cursor-pointer">Instalar ou reparar o motor local</button>
+                </div>
+              </section>
 
             </div>
-
           </main>
 
-          <!-- FOOTER DISCRETO -->
-          <footer class="py-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
-            <p>Brain Audiovisual • BrainLingo Enterprise Ecosystem • Versão 2026</p>
+          <footer class="border-t border-slate-200 dark:border-slate-800">
+            <div class="max-w-6xl mx-auto px-5 sm:px-8 py-5 text-xs text-slate-400">Brain Audiovisual, 2026</div>
           </footer>
-
         </div>
       `;
+      window.__cabineEntered = true;
       setTimeout(() => { if (window.updateHubEngineStatus) window.updateHubEngineStatus(); }, 150);
     }
 
@@ -1300,9 +1376,9 @@
       if (!el) return;
       const isUp = await window.pingAvEngine();
       if (isUp) {
-        el.innerHTML = '<span class="text-emerald-400">🟢 Online (:3050)</span>';
+        el.innerHTML = '<span class="text-emerald-600 dark:text-emerald-400">ligado</span>';
       } else {
-        el.innerHTML = '<span class="text-amber-400">🟡 Desconectado (Configurar)</span>';
+        el.innerHTML = '<span class="text-amber-600 dark:text-amber-400">desligado</span>';
       }
     };
 
@@ -1371,7 +1447,7 @@
         if (btn) {
           const old = btn.innerText;
           btn.innerText = 'Copiado! ✓';
-          btn.style.backgroundColor = '#059669';
+          btn.style.backgroundColor = '#0B855C';
           setTimeout(() => {
             btn.innerText = old;
             btn.style.backgroundColor = '';
@@ -1386,7 +1462,7 @@ chcp 65001 >nul\r
 title Brain Audiovisual - Instalador e Inicializador da Engine\r
 \r
 echo =====================================================================\r
-echo    🎬 BRAIN AUDIOVISUAL - ASSISTENTE DE NOVO COMPUTADOR\r
+echo    BRAIN AUDIOVISUAL - ASSISTENTE DE NOVO COMPUTADOR\r
 echo    Instalador e Inicializador Automatico da Engine Local\r
 echo =====================================================================\r
 echo.\r
@@ -1470,7 +1546,7 @@ start http://127.0.0.1:3050\r
 \r
 echo.\r
 echo =====================================================================\r
-echo  🎉 TUDO PRONTO! O Audiovisual Studio esta pronto para uso neste computador!\r
+echo  TUDO PRONTO! O Audiovisual Studio esta pronto para uso neste computador!\r
 echo =====================================================================\r
 echo.\r
 echo  - Audiovisual Edition:  http://127.0.0.1:3050\r
@@ -1509,7 +1585,7 @@ pause\r
             <div class="flex items-start justify-between relative z-10">
               <div class="flex items-center gap-3.5">
                 <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 via-pink-600 to-indigo-600 flex items-center justify-center text-white text-xl shadow-lg shadow-purple-600/30">
-                  ⚡
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></svg>
                 </div>
                 <div>
                   <div class="flex items-center gap-2">
@@ -1524,7 +1600,7 @@ pause\r
 
             <!-- Explicação clara -->
             <div class="p-3.5 rounded-2xl bg-purple-950/30 border border-purple-800/40 text-xs text-purple-200 leading-relaxed relative z-10 flex items-center gap-3">
-              <span class="text-2xl">💡</span>
+              <span class="shrink-0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
               <span>Para renderizar vídeos em alta definição e sintetizar vozes sem limites de nuvem, o Audiovisual Studio roda diretamente no hardware deste computador. Execute o instalador abaixo para configurar e ligar o motor.</span>
             </div>
 
@@ -1541,7 +1617,7 @@ pause\r
                   <p class="text-[11px] text-slate-400 mt-1 leading-normal">Se o projeto já está nesta máquina, abra o arquivo <code class="text-purple-300 bg-purple-950/60 px-1 py-0.5 rounded font-mono">INSTALAR_E_INICIAR.bat</code> na pasta raiz. Ou baixe agora:</p>
                 </div>
                 <button onclick="window.downloadSetupBatFile()" class="w-full py-2.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-600/30 transition-all cursor-pointer">
-                  <span>📥 Baixar INSTALAR_E_INICIAR.bat</span>
+                  <span>Baixar INSTALAR_E_INICIAR.bat</span>
                 </button>
               </div>
 
@@ -1580,23 +1656,23 @@ pause\r
               <!-- Checklist de Dependências -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
                 <div id="step-node" class="flex items-center gap-2 text-slate-400 p-2 rounded-lg bg-slate-900/50">
-                  <span class="step-icon">⏳</span>
+                  <span class="step-icon"></span>
                   <span>1. Ambiente Node.js LTS</span>
                 </div>
                 <div id="step-ffmpeg" class="flex items-center gap-2 text-slate-400 p-2 rounded-lg bg-slate-900/50">
-                  <span class="step-icon">⏳</span>
+                  <span class="step-icon"></span>
                   <span>2. Motor FFmpeg 7.1 (Hardware)</span>
                 </div>
                 <div id="step-ytdlp" class="flex items-center gap-2 text-slate-400 p-2 rounded-lg bg-slate-900/50">
-                  <span class="step-icon">⏳</span>
+                  <span class="step-icon"></span>
                   <span>3. Ingestão Rápida (yt-dlp)</span>
                 </div>
                 <div id="step-python" class="flex items-center gap-2 text-slate-400 p-2 rounded-lg bg-slate-900/50">
-                  <span class="step-icon">⏳</span>
+                  <span class="step-icon"></span>
                   <span>4. Vozes Neurais AI (Edge-TTS)</span>
                 </div>
                 <div id="step-port" class="flex items-center gap-2 text-slate-400 p-2 rounded-lg bg-slate-900/50 sm:col-span-2">
-                  <span class="step-icon">⏳</span>
+                  <span class="step-icon"></span>
                   <span>5. Conexão com Motor Local (:3050 & :8765)</span>
                 </div>
               </div>
@@ -1675,7 +1751,7 @@ pause\r
       if (pBar) pBar.style.width = '100%';
       if (pText) pText.innerText = '100%';
       if (sBadge) {
-        sBadge.innerText = '🟢 Motor Local Online & Operacional!';
+        sBadge.innerText = 'Motor Local Online & Operacional!';
         sBadge.className = 'text-xs font-bold text-emerald-400';
       }
       if (pDot) {
@@ -1687,7 +1763,7 @@ pause\r
         const el = document.getElementById(id);
         if (el) {
           el.className = 'flex items-center gap-2 text-emerald-300 p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/40 font-semibold';
-          el.innerHTML = `<span class="step-icon">✅</span><span>${label}</span>`;
+          el.innerHTML = `<span class="step-icon is-done"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span>${label}</span>`;
         }
       };
 
@@ -1758,7 +1834,7 @@ pause\r
 
         if (ffmpegEl) {
           if (data.ffmpeg) {
-            ffmpegEl.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span style="color:#047857; font-weight:700;">FFmpeg 7.1 Ativo</span>`;
+            ffmpegEl.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span style="color:#0A6B4B; font-weight:700;">FFmpeg 7.1 Ativo</span>`;
             ffmpegEl.style.backgroundColor = '#ecfdf5';
             ffmpegEl.style.borderColor = '#a7f3d0';
           } else {
@@ -1770,7 +1846,7 @@ pause\r
 
         if (ytdlpEl) {
           if (data.ytdlp) {
-            ytdlpEl.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span style="color:#047857; font-weight:700;">yt-dlp Ativo</span>`;
+            ytdlpEl.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span style="color:#0A6B4B; font-weight:700;">yt-dlp Ativo</span>`;
             ytdlpEl.style.backgroundColor = '#ecfdf5';
             ytdlpEl.style.borderColor = '#a7f3d0';
           } else {
@@ -1804,11 +1880,11 @@ pause\r
       const pulseEl = document.getElementById('avTimerPulse');
       if (statusEl) {
         statusEl.innerText = 'PROCESSANDO...';
-        statusEl.style.color = '#3b82f6';
+        statusEl.style.color = '#4E5DB0';
       }
       if (pulseEl) {
-        pulseEl.style.backgroundColor = '#3b82f6';
-        pulseEl.style.boxShadow = '0 0 8px #3b82f6';
+        pulseEl.style.backgroundColor = '#4E5DB0';
+        pulseEl.style.boxShadow = '0 0 8px #4E5DB0';
       }
 
       avTimerInterval = setInterval(() => {
@@ -1828,10 +1904,10 @@ pause\r
       if (statusEl) {
         if (isSuccess) {
           statusEl.innerText = 'CONCLUÍDO';
-          statusEl.style.color = '#10b981';
+          statusEl.style.color = '#0E9F6E';
           if (pulseEl) {
-            pulseEl.style.backgroundColor = '#10b981';
-            pulseEl.style.boxShadow = '0 0 8px #10b981';
+            pulseEl.style.backgroundColor = '#0E9F6E';
+            pulseEl.style.boxShadow = '0 0 8px #0E9F6E';
           }
         } else {
           statusEl.innerText = 'PAUSADO / ERRO';
@@ -1856,10 +1932,10 @@ pause\r
       if (clockEl) clockEl.innerText = '00:00:00';
       if (statusEl) {
         statusEl.innerText = 'AGUARDANDO';
-        statusEl.style.color = '#94a3b8';
+        statusEl.style.color = '#8F99A8';
       }
       if (pulseEl) {
-        pulseEl.style.backgroundColor = '#94a3b8';
+        pulseEl.style.backgroundColor = '#8F99A8';
         pulseEl.style.boxShadow = 'none';
       }
     };
@@ -1904,7 +1980,7 @@ pause\r
           if (cpuEl) cpuEl.innerText = `${data.cpu.usagePercent}%`;
           if (cpuBar) {
             cpuBar.style.width = `${data.cpu.usagePercent}%`;
-            cpuBar.style.backgroundColor = data.cpu.usagePercent > 80 ? '#ef4444' : data.cpu.usagePercent > 50 ? '#f59e0b' : '#3b82f6';
+            cpuBar.style.backgroundColor = data.cpu.usagePercent > 80 ? '#ef4444' : data.cpu.usagePercent > 50 ? '#f59e0b' : '#4E5DB0';
           }
           if (cpuModel && data.cpu.model) {
             cpuModel.innerText = `${data.cpu.model.replace(/\(R\)|\(TM\)/gi, '').trim().substring(0, 24)} (${data.cpu.cores} Cores)`;
@@ -1919,7 +1995,7 @@ pause\r
           if (gpuEl) gpuEl.innerText = `${data.gpu.usagePercent}%`;
           if (gpuBar) {
             gpuBar.style.width = `${data.gpu.usagePercent}%`;
-            gpuBar.style.backgroundColor = data.gpu.usagePercent > 80 ? '#ef4444' : data.gpu.usagePercent > 50 ? '#f59e0b' : '#10b981';
+            gpuBar.style.backgroundColor = data.gpu.usagePercent > 80 ? '#ef4444' : data.gpu.usagePercent > 50 ? '#f59e0b' : '#0E9F6E';
           }
           if (gpuName) {
             gpuName.innerText = `${data.gpu.name} • VRAM ${(data.gpu.memoryUsedMb/1024).toFixed(1)}/${(data.gpu.memoryTotalMb/1024).toFixed(1)} GB`;
@@ -1937,7 +2013,7 @@ pause\r
           if (ramEl) ramEl.innerText = `${data.ram.usagePercent}%`;
           if (ramBar) {
             ramBar.style.width = `${data.ram.usagePercent}%`;
-            ramBar.style.backgroundColor = data.ram.usagePercent > 85 ? '#ef4444' : data.ram.usagePercent > 70 ? '#f59e0b' : '#8b5cf6';
+            ramBar.style.backgroundColor = data.ram.usagePercent > 85 ? '#ef4444' : data.ram.usagePercent > 70 ? '#f59e0b' : '#4E5DB0';
           }
           if (ramDetail) {
             ramDetail.innerText = `${data.ram.usedGb} / ${data.ram.totalGb} GB (${data.ram.freeGb} GB livres)`;
@@ -1957,19 +2033,19 @@ pause\r
 
       if (tab === 'url') {
         urlBtn.style.backgroundColor = '#ffffff';
-        urlBtn.style.color = '#4338ca';
+        urlBtn.style.color = '#28337A';
         urlBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
         fileBtn.style.backgroundColor = 'transparent';
-        fileBtn.style.color = '#64748b';
+        fileBtn.style.color = '#667080';
         fileBtn.style.boxShadow = 'none';
         urlContent.style.display = 'block';
         fileContent.style.display = 'none';
       } else {
         fileBtn.style.backgroundColor = '#ffffff';
-        fileBtn.style.color = '#4338ca';
+        fileBtn.style.color = '#28337A';
         fileBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
         urlBtn.style.backgroundColor = 'transparent';
-        urlBtn.style.color = '#64748b';
+        urlBtn.style.color = '#667080';
         urlBtn.style.boxShadow = 'none';
         urlContent.style.display = 'none';
         fileContent.style.display = 'block';
@@ -1995,7 +2071,7 @@ pause\r
         dropzone.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); dropzone.style.borderColor = '#6366f1'; });
       });
       ['dragleave', 'drop'].forEach(name => {
-        dropzone.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); dropzone.style.borderColor = '#cbd5e1'; });
+        dropzone.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); dropzone.style.borderColor = '#C3CAD5'; });
       });
       dropzone.addEventListener('drop', e => {
         const dt = e.dataTransfer;
@@ -2033,7 +2109,7 @@ pause\r
       const time = new Date().toLocaleTimeString('pt-BR');
       const div = document.createElement('div');
       div.style.color = color;
-      div.innerHTML = `<span style="color:#64748b; font-family:monospace; margin-right:6px;">[${time}]</span> ${msg}`;
+      div.innerHTML = `<span style="color:#667080; font-family:monospace; margin-right:6px;">[${time}]</span> ${msg}`;
       el.appendChild(div);
       el.scrollTop = el.scrollHeight;
     };
@@ -2199,19 +2275,19 @@ pause\r
         if (!circle) continue;
 
         if (i < data.step) {
-          circle.style.backgroundColor = '#10b981';
+          circle.style.backgroundColor = '#0E9F6E';
           circle.style.color = '#ffffff';
-          circle.style.borderColor = '#10b981';
+          circle.style.borderColor = '#0E9F6E';
           circle.innerText = '✓';
         } else if (i === data.step) {
-          circle.style.backgroundColor = '#4f46e5';
+          circle.style.backgroundColor = '#2F3C8F';
           circle.style.color = '#ffffff';
-          circle.style.borderColor = '#4f46e5';
+          circle.style.borderColor = '#2F3C8F';
           circle.innerText = String(i);
         } else {
-          circle.style.backgroundColor = '#f1f5f9';
-          circle.style.color = '#94a3b8';
-          circle.style.borderColor = '#e2e8f0';
+          circle.style.backgroundColor = '#ECEFF3';
+          circle.style.color = '#8F99A8';
+          circle.style.borderColor = '#DDE2EA';
           circle.innerText = String(i);
         }
       }
@@ -2223,8 +2299,8 @@ pause\r
           term.innerHTML = '';
           data.logs.forEach(l => {
             const div = document.createElement('div');
-            div.style.color = l.type === 'error' ? '#f87171' : '#cbd5e1';
-            div.innerHTML = `<span style="color:#64748b; font-family:monospace; margin-right:6px;">[${l.timestamp}]</span> ${l.message}`;
+            div.style.color = l.type === 'error' ? '#f87171' : '#C3CAD5';
+            div.innerHTML = `<span style="color:#667080; font-family:monospace; margin-right:6px;">[${l.timestamp}]</span> ${l.message}`;
             term.appendChild(div);
           });
           term.scrollTop = term.scrollHeight;
@@ -2284,43 +2360,43 @@ pause\r
         document.body.classList.remove('dark');
         document.body.classList.remove('dark-mode');
         document.body.classList.add('light-mode');
-        document.body.style.backgroundColor = '#f8fafc';
-        document.body.style.color = '#0f172a';
+        document.body.style.backgroundColor = '#F5F7F9';
+        document.body.style.color = '#161B26';
       } else {
         document.documentElement.classList.add('dark');
         document.body.classList.add('dark');
         document.body.classList.add('dark-mode');
         document.body.classList.remove('light-mode');
-        document.body.style.backgroundColor = '#0b0f19';
-        document.body.style.color = '#f8fafc';
+        document.body.style.backgroundColor = '#0E121A';
+        document.body.style.color = '#F5F7F9';
       }
 
-      const pageBg = isWhiteTheme ? '#f8fafc' : '#0b0f19';
-      const cardBg = isWhiteTheme ? '#ffffff' : '#111827';
-      const cardBorder = isWhiteTheme ? '#e2e8f0' : '#1e293b';
-      const textMain = isWhiteTheme ? '#0f172a' : '#f8fafc';
-      const textMuted = isWhiteTheme ? '#64748b' : '#94a3b8';
-      const inputBg = isWhiteTheme ? '#ffffff' : '#1e293b';
-      const inputBorder = isWhiteTheme ? '#cbd5e1' : '#334155';
+      const pageBg = isWhiteTheme ? '#F5F7F9' : '#0E121A';
+      const cardBg = isWhiteTheme ? '#ffffff' : '#161C27';
+      const cardBorder = isWhiteTheme ? '#DDE2EA' : '#232A36';
+      const textMain = isWhiteTheme ? '#161B26' : '#F5F7F9';
+      const textMuted = isWhiteTheme ? '#667080' : '#8F99A8';
+      const inputBg = isWhiteTheme ? '#ffffff' : '#232A36';
+      const inputBorder = isWhiteTheme ? '#C3CAD5' : '#363E4C';
 
       root.innerHTML = `
-        <div id="audiovisual-studio-view" style="min-height: 100vh; background-color: ${pageBg} !important; color: ${textMain} !important; font-family: 'Plus Jakarta Sans', sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
+        <div id="audiovisual-studio-view" style="min-height: 100vh; background-color: ${pageBg} !important; color: ${textMain} !important; font-family: 'Schibsted Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
           
           <!-- HEADER DO ESTÚDIO AUDIOVISUAL -->
           <header style="background-color: ${cardBg} !important; border-bottom: 1px solid ${cardBorder} !important; position: sticky; top: 0; z-index: 40; padding: 16px 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
             <div style="display: flex; align-items: center; gap: 14px;">
-              <button onclick="window.navigateToAdminModule('')" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
-                ← Hub Admin
+              <button onclick="window.navigateToAdminModule('')" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
+                Início
               </button>
               <div style="width: 1px; height: 22px; background: ${cardBorder};"></div>
               <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #4f46e5, #9333ea); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 900; font-size: 14px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">AV</div>
+                <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #2F3C8F, #2F3C8F); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 900; font-size: 14px; box-shadow: 0 4px 12px rgba(47, 60, 143, 0.3);">AV</div>
                 <div>
                   <div style="display: flex; align-items: center; gap: 8px;">
-                    <h1 style="font-size: 16px; font-weight: 900; color: ${textMain}; letter-spacing: -0.02em; margin: 0;">AudioVisual Edition</h1>
-                    <span style="font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 9999px; background: rgba(79, 70, 229, 0.1); color: #4f46e5; border: 1px solid rgba(79, 70, 229, 0.25); text-transform: uppercase;">Workstation PRO</span>
+                    <h1 style="font-size: 16px; font-weight: 900; color: ${textMain}; letter-spacing: -0.02em; margin: 0;">Estúdio de dublagem</h1>
+                    <span style="font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 9999px; background: rgba(47, 60, 143, 0.1); color: #2F3C8F; border: 1px solid rgba(47, 60, 143, 0.25); ">Lote</span>
                   </div>
-                  <p style="font-size: 12px; color: ${textMuted}; margin: 2px 0 0 0;">Dublagem Sincronizada por IA e Pacotes de Legendas (.VTT / .SRT) para YouTube e Vimeo</p>
+                  <p style="font-size: 12px; color: ${textMuted}; margin: 2px 0 0 0;">Vídeo ou link entra, dublagem e legendas .vtt e .srt saem</p>
                 </div>
               </div>
             </div>
@@ -2328,11 +2404,11 @@ pause\r
             <div style="display: flex; align-items: center; gap: 12px;">
               <!-- STATUS SYSTEM PILLS -->
               <div style="display: flex; align-items: center; gap: 8px;">
-                <div id="avFfmpegPill" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; border: 1px solid ${cardBorder}; font-size: 12px; font-weight: 600; color: ${textMuted};">
+                <div id="avFfmpegPill" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; border: 1px solid ${cardBorder}; font-size: 12px; font-weight: 600; color: ${textMuted};">
                   <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span>
                   <span>Verificando FFmpeg...</span>
                 </div>
-                <div id="avYtdlpPill" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; border: 1px solid ${cardBorder}; font-size: 12px; font-weight: 600; color: ${textMuted};">
+                <div id="avYtdlpPill" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; border: 1px solid ${cardBorder}; font-size: 12px; font-weight: 600; color: ${textMuted};">
                   <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span>
                   <span>yt-dlp...</span>
                 </div>
@@ -2341,12 +2417,12 @@ pause\r
               <div style="width: 1px; height: 22px; background: ${cardBorder};"></div>
 
               <!-- BOTÃO DE TEMA (CLARO / ESCURO) -->
-              <button onclick="window.avToggleTheme()" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
-                ${isWhiteTheme ? '🌙 Modo Escuro' : '☀️ Modo Claro (Branco)'}
+              <button onclick="window.avToggleTheme()" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
+                ${isWhiteTheme ? 'Modo Escuro' : 'Modo Claro (Branco)'}
               </button>
 
-              <button onclick="window.navigateToAdminModule('translation')" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
-                Simultaneous Translation
+              <button onclick="window.navigateToAdminModule('translation')" style="padding: 8px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMain}; font-weight: 700; font-size: 12px; border: 1px solid ${cardBorder}; cursor: pointer;">
+                Tradução ao vivo
               </button>
             </div>
           </header>
@@ -2357,13 +2433,13 @@ pause\r
             ${window.location.protocol === 'https:' ? `
               <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 18px; padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                  <span style="font-size: 26px;">⚡</span>
+                  <span style="color: #2F3C8F; display: flex;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg></span>
                   <div>
                     <h4 style="font-size: 13px; font-weight: 800; color: #1e40af; margin: 0;">Motor Local de Alta Performance (FFmpeg 7.1 + yt-dlp)</h4>
-                    <p style="font-size: 12px; color: #3b82f6; margin: 2px 0 0 0;">O processamento pesado dos vídeos roda diretamente no hardware da sua máquina. Para processar sem restrições HTTPS do navegador, use o console local:</p>
+                    <p style="font-size: 12px; color: #4E5DB0; margin: 2px 0 0 0;">O processamento pesado dos vídeos roda diretamente no hardware da sua máquina. Para processar sem restrições HTTPS do navegador, use o console local:</p>
                   </div>
                 </div>
-                <button type="button" onclick="window.launchAudioVisualStudio(event)" style="background: #2563eb; color: #ffffff; padding: 9px 18px; border-radius: 12px; font-weight: 800; font-size: 12px; text-decoration: none; white-space: nowrap; box-shadow: 0 2px 6px rgba(37,99,235,0.25); border: none; cursor: pointer;">
+                <button type="button" onclick="window.launchAudioVisualStudio(event)" style="background: #2F3C8F; color: #ffffff; padding: 9px 18px; border-radius: 12px; font-weight: 800; font-size: 12px; text-decoration: none; white-space: nowrap; box-shadow: 0 2px 6px rgba(37,99,235,0.25); border: none; cursor: pointer;">
                   Abrir Console / Configurar Engine ➔
                 </button>
               </div>
@@ -2379,19 +2455,19 @@ pause\r
                   
                   <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid ${cardBorder};">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                      <div style="width: 32px; height: 32px; border-radius: 10px; background: #e0e7ff; color: #4338ca; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">1</div>
+                      <div style="width: 32px; height: 32px; border-radius: 10px; background: #e0e7ff; color: #28337A; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">1</div>
                       <h2 style="font-size: 16px; font-weight: 800; color: ${textMain}; margin: 0;">Fonte do Vídeo / Aula Gravada</h2>
                     </div>
                     <span style="font-size: 12px; color: ${textMuted}; font-weight: 500;">YouTube, Vimeo ou Arquivo Local</span>
                   </div>
 
                   <!-- TABS SELETORAS -->
-                  <div style="display: flex; background: ${isWhiteTheme ? '#f1f5f9' : '#0f172a'}; padding: 4px; border-radius: 16px; margin-bottom: 20px;">
-                    <button type="button" id="avTabUrlBtn" onclick="window.avSwitchTab('url')" style="flex: 1; padding: 10px 14px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: #ffffff; color: #4338ca; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                      🔗 Link de Vídeo (YouTube / Vimeo)
+                  <div style="display: flex; background: ${isWhiteTheme ? '#ECEFF3' : '#161B26'}; padding: 4px; border-radius: 16px; margin-bottom: 20px;">
+                    <button type="button" id="avTabUrlBtn" onclick="window.avSwitchTab('url')" style="flex: 1; padding: 10px 14px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: #ffffff; color: #28337A; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                      Link de Vídeo (YouTube / Vimeo)
                     </button>
-                    <button type="button" id="avTabFileBtn" onclick="window.avSwitchTab('file')" style="flex: 1; padding: 10px 14px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: transparent; color: #64748b;">
-                      📁 Arquivo Local (Upload do Computador)
+                    <button type="button" id="avTabFileBtn" onclick="window.avSwitchTab('file')" style="flex: 1; padding: 10px 14px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: transparent; color: #667080;">
+                      Arquivo Local (Upload do Computador)
                     </button>
                   </div>
 
@@ -2411,7 +2487,7 @@ pause\r
                         <button 
                           type="button" 
                           onclick="window.avPasteUrl()" 
-                          style="padding: 0 20px; border-radius: 14px; background: #4f46e5; color: #ffffff; font-weight: 800; font-size: 13px; border: none; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);"
+                          style="padding: 0 20px; border-radius: 14px; background: #2F3C8F; color: #ffffff; font-weight: 800; font-size: 13px; border: none; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 6px rgba(47, 60, 143, 0.3);"
                         >
                           Colar Link
                         </button>
@@ -2422,14 +2498,14 @@ pause\r
                     </div>
 
                     <!-- COOKIES OPCIONAIS PARA VÍDEOS PRIVADOS -->
-                    <details style="background: ${isWhiteTheme ? '#f8fafc' : '#1e293b'}; border: 1px solid ${cardBorder}; border-radius: 14px; overflow: hidden; margin-top: 14px;">
+                    <details style="background: ${isWhiteTheme ? '#F5F7F9' : '#232A36'}; border: 1px solid ${cardBorder}; border-radius: 14px; overflow: hidden; margin-top: 14px;">
                       <summary style="padding: 12px 16px; font-size: 12px; font-weight: 700; color: ${textMuted}; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
-                        <span>🔒 Vídeo Privado / Sob Login (Cookies Opcionais)</span>
+                        <span>Vídeo Privado / Sob Login (Cookies Opcionais)</span>
                         <span style="font-size: 10px;">▼</span>
                       </summary>
                       <div style="padding: 14px 16px; border-top: 1px solid ${cardBorder};">
                         <p style="font-size: 11px; color: #dc2626; font-weight: 700; margin-bottom: 6px;">
-                          ⚠️ Não cole o link do vídeo aqui! O link do vídeo deve ser colado no campo superior.
+                          Não cole o link do vídeo aqui! O link do vídeo deve ser colado no campo superior.
                         </p>
                         <p style="font-size: 11px; color: ${textMuted}; margin-bottom: 8px;">
                           Para aulas ou vídeos protegidos por senha/login no Vimeo, cole os cookies Netscape exportados do seu navegador:
@@ -2441,19 +2517,19 @@ pause\r
 
                   <!-- CONTEÚDO DA ABA: ARQUIVO LOCAL (DRAG & DROP) -->
                   <div id="avFileTabContent" style="display: none;">
-                    <div id="avDropzone" onclick="document.getElementById('avFileInput').click()" style="border: 2px dashed ${inputBorder}; border-radius: 18px; padding: 36px 20px; text-align: center; cursor: pointer; background: ${isWhiteTheme ? '#f8fafc' : '#1e293b'}; transition: all 0.2s;">
+                    <div id="avDropzone" onclick="document.getElementById('avFileInput').click()" style="border: 2px dashed ${inputBorder}; border-radius: 18px; padding: 36px 20px; text-align: center; cursor: pointer; background: ${isWhiteTheme ? '#F5F7F9' : '#232A36'}; transition: all 0.2s;">
                       <input type="file" id="avFileInput" accept="video/*,audio/*" style="display: none" onchange="window.avOnFileSelected(this.files)">
-                      <div style="width: 52px; height: 52px; border-radius: 16px; background: rgba(79, 70, 229, 0.1); color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 12px auto;">📁</div>
+                      <div style="width: 52px; height: 52px; border-radius: 16px; background: rgba(47, 60, 143, 0.1); color: #2F3C8F; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 12px auto;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></div>
                       <p style="font-size: 15px; font-weight: 800; color: ${textMain}; margin: 0 0 4px 0;">Arraste e solte seu vídeo ou áudio aqui</p>
                       <p style="font-size: 12px; color: ${textMuted}; margin: 0 0 16px 0;">MP4, MKV, MOV, MP3, WAV (Sem limite de tamanho)</p>
-                      <button type="button" style="padding: 8px 18px; border-radius: 10px; background: ${isWhiteTheme ? '#ffffff' : '#0f172a'}; border: 1px solid ${inputBorder}; color: ${textMain}; font-weight: 700; font-size: 12px; cursor: pointer;">
+                      <button type="button" style="padding: 8px 18px; border-radius: 10px; background: ${isWhiteTheme ? '#ffffff' : '#161B26'}; border: 1px solid ${inputBorder}; color: ${textMain}; font-weight: 700; font-size: 12px; cursor: pointer;">
                         Procurar no Computador
                       </button>
                     </div>
 
-                    <div id="avFileSelectedCard" style="display: none; padding: 16px; border-radius: 14px; background: rgba(79, 70, 229, 0.08); border: 1px solid rgba(79, 70, 229, 0.3); align-items: center; justify-content: space-between; margin-top: 12px;">
+                    <div id="avFileSelectedCard" style="display: none; padding: 16px; border-radius: 14px; background: rgba(47, 60, 143, 0.08); border: 1px solid rgba(47, 60, 143, 0.3); align-items: center; justify-content: space-between; margin-top: 12px;">
                       <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 36px; height: 36px; border-radius: 10px; background: #4f46e5; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">✓</div>
+                        <div style="width: 36px; height: 36px; border-radius: 10px; background: #2F3C8F; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">✓</div>
                         <div>
                           <p id="avFileName" style="font-size: 13px; font-weight: 800; color: ${textMain}; margin: 0;">arquivo.mp4</p>
                           <p id="avFileSize" style="font-size: 11px; color: ${textMuted}; margin: 2px 0 0 0;">0 MB</p>
@@ -2484,13 +2560,13 @@ pause\r
                         Idioma Original do Áudio / Palestra:
                       </label>
                       <select id="avSourceLanguage" style="width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-size: 13px; font-weight: 700; outline: none; cursor: pointer;">
-                        <option value="pt-BR" selected>🇧🇷 Português (Brasil) — Palestrante em Português</option>
-                        <option value="en-US">🇺🇸 Inglês (EUA / Global) — Speaker in English</option>
-                        <option value="es-ES">🇪🇸 Espanhol — Ponente en Español</option>
-                        <option value="fr-FR">🇫🇷 Francês — Orateur en Français</option>
-                        <option value="de-DE">🇩🇪 Alemão — Sprecher auf Deutsch</option>
-                        <option value="it-IT">🇮🇹 Italiano — Relatore in Italiano</option>
-                        <option value="auto">🌐 Detectar Automaticamente pelo Áudio</option>
+                        <option value="pt-BR" selected>Português (Brasil) — Palestrante em Português</option>
+                        <option value="en-US">Inglês (EUA / Global) — Speaker in English</option>
+                        <option value="es-ES">Espanhol — Ponente en Español</option>
+                        <option value="fr-FR">Francês — Orateur en Français</option>
+                        <option value="de-DE">Alemão — Sprecher auf Deutsch</option>
+                        <option value="it-IT">Italiano — Relatore in Italiano</option>
+                        <option value="auto">Detectar Automaticamente pelo Áudio</option>
                       </select>
                       <p style="font-size: 11px; color: ${textMuted}; margin: 6px 0 0 0;">
                         Garante que a IA utilize o modelo acústico correto para transcrever termos técnicos e siglas sem perdas.
@@ -2504,16 +2580,16 @@ pause\r
                       </label>
                       <div style="display: flex; flex-wrap: wrap; gap: 10px;">
                         <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
-                          <input type="checkbox" id="avLangPt" checked style="accent-color: #4f46e5;">
-                          <span>🇧🇷 Português (PT)</span>
+                          <input type="checkbox" id="avLangPt" checked style="accent-color: #2F3C8F;">
+                          <span>Português (PT)</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
-                          <input type="checkbox" id="avLangEn" checked style="accent-color: #4f46e5;">
-                          <span>🇺🇸 Inglês (EN)</span>
+                          <input type="checkbox" id="avLangEn" checked style="accent-color: #2F3C8F;">
+                          <span>Inglês (EN)</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; font-size: 13px; font-weight: 700; color: ${textMain}; cursor: pointer;">
-                          <input type="checkbox" id="avLangEs" checked style="accent-color: #4f46e5;">
-                          <span>🇪🇸 Espanhol (ES)</span>
+                          <input type="checkbox" id="avLangEs" checked style="accent-color: #2F3C8F;">
+                          <span>Espanhol (ES)</span>
                         </label>
                       </div>
                       <p style="font-size: 11px; color: ${textMuted}; margin: 6px 0 0 0;">
@@ -2528,14 +2604,14 @@ pause\r
                       </label>
                       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                         <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; cursor: pointer;">
-                          <input type="radio" name="avAudioMode" value="dubbing" checked style="margin-top: 3px; accent-color: #4f46e5;">
+                          <input type="radio" name="avAudioMode" value="dubbing" checked style="margin-top: 3px; accent-color: #2F3C8F;">
                           <div>
                             <span style="display: block; font-size: 13px; font-weight: 800; color: ${textMain};">Dublagem Limpa</span>
                             <span style="display: block; font-size: 11px; color: ${textMuted}; margin-top: 2px;">100% voz IA sincronizada</span>
                           </div>
                         </label>
                         <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 12px; border: 1px solid ${inputBorder}; background: ${inputBg}; cursor: pointer;">
-                          <input type="radio" name="avAudioMode" value="voiceover" style="margin-top: 3px; accent-color: #4f46e5;">
+                          <input type="radio" name="avAudioMode" value="voiceover" style="margin-top: 3px; accent-color: #2F3C8F;">
                           <div>
                             <span style="display: block; font-size: 13px; font-weight: 800; color: ${textMain};">Voice-Over / Overdub</span>
                             <span style="display: block; font-size: 11px; color: ${textMuted}; margin-top: 2px;">Voz original suave (12%) ao fundo</span>
@@ -2550,13 +2626,13 @@ pause\r
                         Perfil de Voz da Locução (Aplicado Uniformemente a Todos os Idiomas):
                       </label>
                       <select id="avVoiceProfile" style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 1.5px solid ${inputBorder}; background: ${inputBg}; color: ${textMain}; font-size: 13.5px; font-weight: 700; outline: none; cursor: pointer;">
-                        <optgroup label="👩 Vozes Femininas (Gênero Feminino Garantido em Todos os Idiomas)">
-                          <option value="female_studio" selected>👩 Feminina Estúdio / Notícias — Clara & Impecável (Francisca PT • Ava EN • Elvira ES)</option>
-                          <option value="female_expressive">👩 Feminina Expressiva — Conversacional & Natural (Thalita PT • Jenny EN • Dalia ES)</option>
+                        <optgroup label="Vozes Femininas (Gênero Feminino Garantido em Todos os Idiomas)">
+                          <option value="female_studio" selected>Feminina Estúdio / Notícias — Clara & Impecável (Francisca PT • Ava EN • Elvira ES)</option>
+                          <option value="female_expressive">Feminina Expressiva — Conversacional & Natural (Thalita PT • Jenny EN • Dalia ES)</option>
                         </optgroup>
-                        <optgroup label="👨 Vozes Masculinas (Gênero Masculino Garantido em Todos os Idiomas)">
-                          <option value="male_medical">👨 Masculina Médica / Formal — Confiante & Profunda (Antonio PT • Brian EN • Alvaro ES)</option>
-                          <option value="male_speaker">👨 Masculina Palestrante — Expressiva & Dinâmica (Antonio PT • Andrew EN • Jorge ES)</option>
+                        <optgroup label="Vozes Masculinas (Gênero Masculino Garantido em Todos os Idiomas)">
+                          <option value="male_medical">Masculina Médica / Formal — Confiante & Profunda (Antonio PT • Brian EN • Alvaro ES)</option>
+                          <option value="male_speaker">Masculina Palestrante — Expressiva & Dinâmica (Antonio PT • Andrew EN • Jorge ES)</option>
                         </optgroup>
                       </select>
                       <p style="font-size: 11px; color: ${textMuted}; margin: 6px 0 0 0;">
@@ -2570,9 +2646,9 @@ pause\r
                         type="button" 
                         id="avStartBtn" 
                         onclick="window.avStartProcessing()" 
-                        style="width: 100%; padding: 16px; border-radius: 16px; background: linear-gradient(135deg, #4f46e5, #7e22ce); color: #ffffff; font-weight: 900; font-size: 15px; border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(79, 70, 229, 0.35); transition: all 0.2s;"
+                        style="width: 100%; padding: 16px; border-radius: 16px; background: linear-gradient(135deg, #2F3C8F, #7e22ce); color: #ffffff; font-weight: 900; font-size: 15px; border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(47, 60, 143, 0.35); transition: all 0.2s;"
                       >
-                        ⚡ INICIAR PROCESSAMENTO AUDIOVISUAL
+                        INICIAR PROCESSAMENTO AUDIOVISUAL
                       </button>
                     </div>
 
@@ -2589,53 +2665,53 @@ pause\r
                   
                   <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid ${cardBorder};">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                      <span style="width: 10px; height: 10px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+                      <span style="width: 10px; height: 10px; border-radius: 50%; background: #0E9F6E; box-shadow: 0 0 8px #0E9F6E;"></span>
                       <h3 style="font-size: 16px; font-weight: 800; color: ${textMain}; margin: 0;">Console de Produção em Tempo Real</h3>
                     </div>
                     
                     <div style="display: flex; align-items: center; gap: 12px;">
                       <!-- CRONÔMETRO CORRIDO -->
-                      <div id="avTimerContainer" style="display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#f1f5f9' : '#0f172a'}; border: 1.5px solid ${cardBorder};">
-                        <span id="avTimerPulse" style="width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; display: inline-block; transition: all 0.3s ease;"></span>
+                      <div id="avTimerContainer" style="display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 12px; background: ${isWhiteTheme ? '#ECEFF3' : '#161B26'}; border: 1.5px solid ${cardBorder};">
+                        <span id="avTimerPulse" style="width: 8px; height: 8px; border-radius: 50%; background: #8F99A8; display: inline-block; transition: all 0.3s ease;"></span>
                         <span id="avTimerClock" style="font-family: monospace; font-size: 14px; font-weight: 900; color: ${textMain}; letter-spacing: 0.05em;">00:00:00</span>
                         <span id="avTimerStatus" style="font-size: 10px; font-weight: 800; color: ${textMuted}; text-transform: uppercase;">AGUARDANDO</span>
                       </div>
-                      <span id="avPercentLabel" style="font-family: monospace; font-size: 18px; font-weight: 900; color: #4f46e5;">0%</span>
+                      <span id="avPercentLabel" style="font-family: monospace; font-size: 18px; font-weight: 900; color: #2F3C8F;">0%</span>
                     </div>
                   </div>
 
                   <!-- STEPPER DE 6 FASES -->
                   <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; text-align: center; margin-bottom: 20px;">
                     <div id="avStep1" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: #4f46e5; color: #fff; font-weight: 900; font-size: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(79,70,229,0.3);">1</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: #2F3C8F; color: #fff; font-weight: 900; font-size: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(79,70,229,0.3);">1</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Download</span>
                     </div>
                     <div id="avStep2" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">2</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">2</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Silêncios</span>
                     </div>
                     <div id="avStep3" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">3</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">3</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Transcrição</span>
                     </div>
                     <div id="avStep4" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">4</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">4</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Tradução</span>
                     </div>
                     <div id="avStep5" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">5</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">5</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">Dublagem</span>
                     </div>
                     <div id="avStep6" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">6</div>
+                      <div class="av-step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; color: ${textMuted}; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid ${cardBorder};">6</div>
                       <span style="font-size: 10px; font-weight: 700; color: ${textMuted};">ZIP</span>
                     </div>
                   </div>
 
                   <!-- BARRA DE PROGRESSO -->
                   <div style="margin-bottom: 20px;">
-                    <div style="width: 100%; height: 10px; background: ${isWhiteTheme ? '#f1f5f9' : '#1e293b'}; border-radius: 9999px; overflow: hidden; border: 1px solid ${cardBorder};">
-                      <div id="avProgressBarFill" style="height: 100%; width: 0%; background: linear-gradient(90deg, #4f46e5, #9333ea, #10b981); border-radius: 9999px; transition: width 0.3s ease;"></div>
+                    <div style="width: 100%; height: 10px; background: ${isWhiteTheme ? '#ECEFF3' : '#232A36'}; border-radius: 9999px; overflow: hidden; border: 1px solid ${cardBorder};">
+                      <div id="avProgressBarFill" style="height: 100%; width: 0%; background: linear-gradient(90deg, #2F3C8F, #2F3C8F, #0E9F6E); border-radius: 9999px; transition: width 0.3s ease;"></div>
                     </div>
                     <div style="display: flex; justify-content: space-between; font-size: 12px; color: ${textMuted}; font-weight: 600; margin-top: 6px;">
                       <span id="avStatusMessage">Aguardando início do job...</span>
@@ -2644,51 +2720,51 @@ pause\r
                   </div>
 
                   <!-- MONITOR DE RECURSOS DO HARDWARE (CPU, GPU, RAM) -->
-                  <div style="background: ${isWhiteTheme ? '#f8fafc' : '#0b1120'}; border-radius: 18px; padding: 14px 16px; border: 1px solid ${cardBorder}; margin-bottom: 20px;">
+                  <div style="background: ${isWhiteTheme ? '#F5F7F9' : '#0b1120'}; border-radius: 18px; padding: 14px 16px; border: 1px solid ${cardBorder}; margin-bottom: 20px;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                       <div style="display: flex; align-items: center; gap: 6px;">
-                        <span style="font-size: 13px;">⚡</span>
+                        <span style="display: flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg></span>
                         <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: ${textMain};">Telemetria de Recursos do PC (Tempo Real)</span>
                       </div>
-                      <span style="font-size: 10px; font-weight: 800; color: #10b981; display: flex; align-items: center; gap: 5px;">
-                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981; display: inline-block;"></span> AO VIVO
+                      <span style="font-size: 10px; font-weight: 800; color: #0E9F6E; display: flex; align-items: center; gap: 5px;">
+                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #0E9F6E; box-shadow: 0 0 6px #0E9F6E; display: inline-block;"></span> AO VIVO
                       </span>
                     </div>
 
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
                       
                       <!-- CPU WIDGET -->
-                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#1e293b'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
+                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#232A36'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
                           <span style="font-size: 10px; font-weight: 800; color: ${textMuted};">CPU (PROCESSADOR)</span>
-                          <span id="avHwCpuVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #3b82f6;">0%</span>
+                          <span id="avHwCpuVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #4E5DB0;">0%</span>
                         </div>
-                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#e2e8f0' : '#334155'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
-                          <div id="avHwCpuBar" style="height: 100%; width: 0%; background: #3b82f6; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
+                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#DDE2EA' : '#363E4C'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
+                          <div id="avHwCpuBar" style="height: 100%; width: 0%; background: #4E5DB0; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
                         </div>
                         <p id="avHwCpuModel" style="font-size: 10px; color: ${textMuted}; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CPU...</p>
                       </div>
 
                       <!-- GPU WIDGET -->
-                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#1e293b'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
+                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#232A36'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
                           <span style="font-size: 10px; font-weight: 800; color: ${textMuted};">GPU (PLACA DE VÍDEO)</span>
-                          <span id="avHwGpuVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #10b981;">0%</span>
+                          <span id="avHwGpuVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #0E9F6E;">0%</span>
                         </div>
-                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#e2e8f0' : '#334155'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
-                          <div id="avHwGpuBar" style="height: 100%; width: 0%; background: #10b981; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
+                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#DDE2EA' : '#363E4C'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
+                          <div id="avHwGpuBar" style="height: 100%; width: 0%; background: #0E9F6E; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
                         </div>
                         <p id="avHwGpuName" style="font-size: 10px; color: ${textMuted}; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">GPU...</p>
                       </div>
 
                       <!-- RAM WIDGET -->
-                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#1e293b'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
+                      <div style="background: ${isWhiteTheme ? '#ffffff' : '#232A36'}; border-radius: 12px; padding: 10px; border: 1px solid ${cardBorder};">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
                           <span style="font-size: 10px; font-weight: 800; color: ${textMuted};">MEMÓRIA RAM</span>
-                          <span id="avHwRamVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #8b5cf6;">0%</span>
+                          <span id="avHwRamVal" style="font-family: monospace; font-size: 13px; font-weight: 900; color: #4E5DB0;">0%</span>
                         </div>
-                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#e2e8f0' : '#334155'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
-                          <div id="avHwRamBar" style="height: 100%; width: 0%; background: #8b5cf6; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
+                        <div style="width: 100%; height: 5px; background: ${isWhiteTheme ? '#DDE2EA' : '#363E4C'}; border-radius: 9999px; overflow: hidden; margin-bottom: 4px;">
+                          <div id="avHwRamBar" style="height: 100%; width: 0%; background: #4E5DB0; border-radius: 9999px; transition: width 0.4s ease, background-color 0.4s ease;"></div>
                         </div>
                         <p id="avHwRamDetail" style="font-size: 10px; color: ${textMuted}; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">RAM...</p>
                       </div>
@@ -2697,30 +2773,30 @@ pause\r
                   </div>
 
                   <!-- TERMINAL DE LOGS -->
-                  <div style="background: #090e17; border-radius: 16px; overflow: hidden; border: 1px solid #1e293b; margin-bottom: 20px;">
-                    <div style="background: #0f172a; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1e293b;">
+                  <div style="background: #090e17; border-radius: 16px; overflow: hidden; border: 1px solid #232A36; margin-bottom: 20px;">
+                    <div style="background: #161B26; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #232A36;">
                       <div style="display: flex; gap: 6px;">
                         <span style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span>
                         <span style="width: 10px; height: 10px; border-radius: 50%; background: #f59e0b;"></span>
-                        <span style="width: 10px; height: 10px; border-radius: 50%; background: #10b981;"></span>
+                        <span style="width: 10px; height: 10px; border-radius: 50%; background: #0E9F6E;"></span>
                       </div>
-                      <span style="font-family: monospace; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.05em;">ENGINE TERMINAL LOGS</span>
-                      <button onclick="document.getElementById('avTerminalLogs').innerHTML = ''" style="background: transparent; border: none; font-size: 11px; color: #64748b; cursor: pointer;">Limpar</button>
+                      <span style="font-family: monospace; font-size: 11px; font-weight: 700; color: #8F99A8; letter-spacing: 0.05em;">ENGINE TERMINAL LOGS</span>
+                      <button onclick="document.getElementById('avTerminalLogs').innerHTML = ''" style="background: transparent; border: none; font-size: 11px; color: #667080; cursor: pointer;">Limpar</button>
                     </div>
                     <div id="avTerminalLogs" style="padding: 14px; font-family: monospace; font-size: 12px; line-height: 1.6; height: 190px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
-                      <div style="color: #38bdf8;"><span style="color:#64748b; margin-right:6px;">[00:00:00]</span> AudioVisual Edition Engine inicializada. Aguardando comando.</div>
+                      <div style="color: #38bdf8;"><span style="color:#667080; margin-right:6px;">[00:00:00]</span> AudioVisual Edition Engine inicializada. Aguardando comando.</div>
                     </div>
                   </div>
 
                   <!-- AUDIO PREVIEW PLAYER -->
-                  <div id="avPreviewCard" style="display: none; padding: 16px; border-radius: 16px; background: ${isWhiteTheme ? '#f8fafc' : '#1e293b'}; border: 1px solid ${cardBorder}; margin-bottom: 20px;">
+                  <div id="avPreviewCard" style="display: none; padding: 16px; border-radius: 16px; background: ${isWhiteTheme ? '#F5F7F9' : '#232A36'}; border: 1px solid ${cardBorder}; margin-bottom: 20px;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                      <h4 style="font-size: 13px; font-weight: 800; color: ${textMain}; margin: 0;">🎧 Pré-escuta de Faixas Dubladas</h4>
+                      <h4 style="font-size: 13px; font-weight: 800; color: ${textMain}; margin: 0;">Pré-escuta de Faixas Dubladas</h4>
                       <div style="display: flex; gap: 6px;">
-                        <button type="button" onclick="window.avSwitchAudioTrack('original')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: #4f46e5; color: #fff; border: none; cursor: pointer;">Original</button>
-                        <button type="button" onclick="window.avSwitchAudioTrack('pt')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#0f172a'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">PT 🇧🇷</button>
-                        <button type="button" onclick="window.avSwitchAudioTrack('en')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#0f172a'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">EN 🇺🇸</button>
-                        <button type="button" onclick="window.avSwitchAudioTrack('es')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#0f172a'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">ES 🇪🇸</button>
+                        <button type="button" onclick="window.avSwitchAudioTrack('original')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: #2F3C8F; color: #fff; border: none; cursor: pointer;">Original</button>
+                        <button type="button" onclick="window.avSwitchAudioTrack('pt')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#161B26'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">PT </button>
+                        <button type="button" onclick="window.avSwitchAudioTrack('en')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#161B26'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">EN </button>
+                        <button type="button" onclick="window.avSwitchAudioTrack('es')" style="padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; background: ${isWhiteTheme ? '#fff' : '#161B26'}; color: ${textMain}; border: 1px solid ${cardBorder}; cursor: pointer;">ES </button>
                       </div>
                     </div>
                     <audio id="avAudioPlayer" controls style="width: 100%; height: 36px;"></audio>
@@ -2728,11 +2804,11 @@ pause\r
 
                   <!-- DOWNLOAD CARD -->
                   <div id="avDownloadCard" style="display: none; padding: 20px; border-radius: 18px; background: rgba(16, 185, 129, 0.1); border: 2px solid rgba(16, 185, 129, 0.4); text-align: center;">
-                    <div style="width: 44px; height: 44px; border-radius: 50%; background: #10b981; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; margin: 0 auto 10px auto; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">✓</div>
-                    <h4 style="font-size: 15px; font-weight: 900; color: #047857; margin: 0 0 4px 0;">Pacote Audiovisual Pronto!</h4>
+                    <div style="width: 44px; height: 44px; border-radius: 50%; background: #0E9F6E; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; margin: 0 auto 10px auto; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">✓</div>
+                    <h4 style="font-size: 15px; font-weight: 900; color: #0A6B4B; margin: 0 0 4px 0;">Pacote Audiovisual Pronto!</h4>
                     <p style="font-size: 12px; color: ${textMuted}; margin: 0 0 16px 0;">Faixas MP3 sincronizadas + Legendas .VTT e .SRT prontas para subir no YouTube e Vimeo.</p>
-                    <a id="avDownloadZipLink" href="#" download style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; border-radius: 14px; background: #10b981; color: #ffffff; font-weight: 900; font-size: 14px; text-decoration: none; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);">
-                      <span>📥 BAIXAR PACOTE COMPLETO (.ZIP)</span>
+                    <a id="avDownloadZipLink" href="#" download style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; border-radius: 14px; background: #0E9F6E; color: #ffffff; font-weight: 900; font-size: 14px; text-decoration: none; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);">
+                      <span>BAIXAR PACOTE COMPLETO (.ZIP)</span>
                     </a>
                   </div>
 
@@ -2782,13 +2858,13 @@ pause\r
           <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 px-6 sm:px-10 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs backdrop-blur-md">
             <div class="flex items-center gap-3.5">
               <button onclick="window.navigateToAdminModule('translation')" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer">
-                <span>Voltar para Salas Ativas</span>
+                <span>Voltar às salas</span>
               </button>
               <div>
                 <h1 class="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                  Histórico de Reuniões e Sessões Anteriores
+                  Histórico de salas
                 </h1>
-                <p class="text-xs text-slate-500 dark:text-slate-400">Todas as reuniões encerradas e sessões arquivadas do BrainLingo</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Salas encerradas, para consultar, reabrir ou apagar</p>
               </div>
             </div>
 
@@ -2805,7 +2881,7 @@ pause\r
                 Tema
               </button>
               <button onclick="window.navigateToAdminModule('')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer">
-                Hub Central
+                Início
               </button>
             </div>
           </header>
@@ -2813,15 +2889,15 @@ pause\r
           <main class="max-w-7xl w-full mx-auto px-6 sm:px-10 py-8 space-y-6 flex-1">
             ${historyMeetings.length === 0 ? `
               <div class="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-3xl p-12 text-center space-y-4 max-w-xl mx-auto shadow-xs">
-                <div class="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs font-black mx-auto border border-indigo-200 dark:border-indigo-800">ARQUIVO</div>
+                <div class="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 flex items-center justify-center mx-auto"><svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg></div>
                 <div class="space-y-1">
-                  <h3 class="text-base font-bold text-slate-900 dark:text-white">Nenhuma reunião arquivada no histórico</h3>
+                  <h3 class="text-base font-bold text-slate-900 dark:text-white">Nenhuma sala encerrada ainda</h3>
                   <p class="text-xs text-slate-500 dark:text-slate-400">
-                    Quando você encerrar uma reunião no monitor principal com o botão de arquivamento ("Encerrar Reunião"), ela será exibida aqui para consulta, restauração ou exclusão.
+                    Quando você encerrar uma sala no cockpit, ela aparece aqui.
                   </p>
                 </div>
                 <button onclick="window.navigateToAdminModule('translation')" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer">
-                  Ver Salas Ativas no Momento
+                  Ver salas no ar
                 </button>
               </div>
             ` : `
@@ -2867,7 +2943,7 @@ pause\r
           </main>
 
           <footer class="py-5 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
-            <p>Brain Audiovisual • Arquivo Histórico de Transmissões</p>
+            <p>Brain Audiovisual</p>
           </footer>
 
         </div>
@@ -3132,19 +3208,19 @@ pause\r
             const currentVal = selectEl.value;
             let optionsHtml = `
               <optgroup label="Captura Digital de Aplicativos e Sistema (VLC / YouTube / Aulas)">
-                <option value="display_media_tab" ${currentVal === 'display_media_tab' ? 'selected' : ''}>🌐 Guia do Chrome (YouTube, Videoaulas, Podcast)</option>
-                <option value="display_media_window" ${currentVal === 'display_media_window' ? 'selected' : ''}>🎬 Janela de Aplicativo (VLC Media Player, reprodutor)</option>
-                <option value="display_media_desktop" ${currentVal === 'display_media_desktop' ? 'selected' : ''}>🖥️ Áudio do Desktop / Computador Inteiro</option>
+                <option value="display_media_tab" ${currentVal === 'display_media_tab' ? 'selected' : ''}>Guia do Chrome (YouTube, Videoaulas, Podcast)</option>
+                <option value="display_media_window" ${currentVal === 'display_media_window' ? 'selected' : ''}>Janela de um aplicativo (VLC ou outro player)</option>
+                <option value="display_media_desktop" ${currentVal === 'display_media_desktop' ? 'selected' : ''}>Todo o áudio do computador</option>
               </optgroup>
               <optgroup label="Microfones e Placas Físicas">
-                <option value="default" ${currentVal === 'default' ? 'selected' : ''}>Microfone Padrão do Sistema (Windows Default)</option>
+                <option value="default" ${currentVal === 'default' ? 'selected' : ''}>Microfone padrão do Windows</option>
             `;
             inputs.forEach((d, i) => {
               if (d.deviceId === 'default') return;
               let label = d.label || ("Placa / Entrada de Áudio " + (i + 1));
               const lower = label.toLowerCase();
               if (lower.includes('mix') || lower.includes('estéreo') || lower.includes('stereo') || lower.includes('cable') || lower.includes('virtual') || lower.includes('loopback')) {
-                label = "🔊 " + label + " [Áudio do Sistema / VLC / YouTube]";
+                label = "" + label + " [Áudio do Sistema / VLC / YouTube]";
               }
               const isSel = (currentVal === d.deviceId);
               optionsHtml += `<option value="${d.deviceId}" ${isSel ? 'selected' : ''}>${label}</option>`;
@@ -3321,27 +3397,23 @@ pause\r
           <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 px-6 sm:px-10 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs backdrop-blur-md">
             <div class="flex items-center gap-3.5">
               <button onclick="window.navigateToAdminModule('')" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all font-bold text-xs flex items-center gap-1.5 cursor-pointer">
-                <span>Hub Central</span>
+                <span>Início</span>
               </button>
-              <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20 text-white font-black text-lg">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-500/20 text-white font-black text-lg">
                 BA
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <h1 class="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">BrainLingo: Simultaneous Translation</h1>
-                  <span class="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 uppercase tracking-wider flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Autônomo & Multilíngue
-                  </span>
+                  <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white">Tradução simultânea</h1>
                 </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">Tradução Simultânea em Tempo Real sem dependência de plataformas externas</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Crie uma sala, abra o cockpit e compartilhe o QR Code com o público</p>
               </div>
             </div>
 
             <div class="flex items-center gap-3">
               <div class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3.5 py-1.5 rounded-xl flex items-center gap-2.5 text-xs">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span class="text-slate-600 dark:text-slate-300">Salas Ativas:</span>
+                <span class="live-signal text-emerald-600 dark:text-emerald-400" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="text-slate-600 dark:text-slate-300">Salas no ar</span>
                 <strong class="text-slate-900 dark:text-white font-bold">${activeCount}</strong>
               </div>
 
@@ -3355,7 +3427,7 @@ pause\r
               </button>
 
               <a href="#section-create-meeting" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5">
-                <span>Nova Sala</span>
+                <span>Nova sala</span>
               </a>
             </div>
           </header>
@@ -3369,16 +3441,15 @@ pause\r
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 class="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Monitor de Reuniões & Palcos Ativos
+                    Salas no ar
                   </h2>
                   <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Aparecem apenas as salas ativas naquele momento. Consulte as sessões encerradas no Histórico.
+                    Só aparecem as salas transmitindo agora. As encerradas ficam no histórico.
                   </p>
                 </div>
                 <div class="flex items-center gap-2">
                   <button onclick="window.navigateToAdminModule('history')" class="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-3 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer">
-                    <span>Ver Histórico (${historyMeetings.length})</span>
+                    <span>Ver histórico (${historyMeetings.length})</span>
                   </button>
                   <span class="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-3 py-1 rounded-xl">
                     ${activeMeetings.length} ${activeMeetings.length === 1 ? 'sala ativa agora' : 'salas ativas agora'}
@@ -3389,19 +3460,19 @@ pause\r
               ${activeMeetings.length === 0 ? `
                 <!-- Estado Vazio Amigável -->
                 <div class="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-3xl p-10 text-center space-y-4 shadow-xs">
-                  <div class="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs font-black tracking-wider mx-auto shadow-inner border border-indigo-200 dark:border-indigo-800">SALAS</div>
+                  <div class="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 flex items-center justify-center mx-auto"><svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg></div>
                   <div class="max-w-md mx-auto space-y-1">
-                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Nenhuma reunião ativa no momento</h3>
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Nenhuma sala no ar</h3>
                     <p class="text-xs text-slate-500 dark:text-slate-400">
-                      Crie sua sala de tradução no formulário abaixo. Caso deseje consultar sessões anteriores que já foram encerradas, acesse o Histórico de Reuniões.
+                      Crie uma sala no formulário abaixo para começar a transmitir.
                     </p>
                   </div>
                   <div class="flex items-center justify-center gap-3">
                     <a href="#section-create-meeting" class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition-all">
-                      <span>Criar Nova Reunião Agora</span>
+                      <span>Criar sala</span>
                     </a>
                     <button onclick="window.navigateToAdminModule('history')" class="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all cursor-pointer">
-                      <span>Abrir Histórico (${historyMeetings.length})</span>
+                      <span>Ver histórico (${historyMeetings.length})</span>
                     </button>
                   </div>
                 </div>
@@ -3486,10 +3557,10 @@ pause\r
                           </button>
                           <div class="grid grid-cols-2 gap-2">
                             <a href="${getMeetingCockpitUrl(m.id, m.isRemote)}&overlay=subtitles" target="_blank" class="py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-semibold text-center transition-all flex items-center justify-center gap-1">
-                              <span>Janela OBS</span>
+                              <span>Janela do OBS</span>
                             </a>
                             <button onclick="copyMeetingCockpitUrl('${m.id}')" id="btn-copy-cockpit-${m.id}" class="py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-semibold text-center transition-all flex items-center justify-center gap-1 cursor-pointer">
-                              <span>Copiar Link</span>
+                              <span>Copiar link</span>
                             </button>
                           </div>
                           <button onclick="openDashboardShareModal('${m.id}')" class="py-1.5 px-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-xl text-[11px] font-bold text-center transition-all flex items-center justify-center gap-1 cursor-pointer">
@@ -3510,7 +3581,7 @@ pause\r
               <div class="border-b border-indigo-100 dark:border-slate-800 pb-4">
                 <div class="flex items-center gap-2">
                   <span class="w-3 h-3 rounded-full bg-indigo-600"></span>
-                  <h2 class="text-base sm:text-lg font-black text-slate-900 dark:text-white">Criar Nova Sala / Reunião de Tradução</h2>
+                  <h2 class="text-base sm:text-lg font-black text-slate-900 dark:text-white">Nova sala de tradução</h2>
                 </div>
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Configure o áudio do palestrante, entrada e ative os idiomas de saída para os participantes.
@@ -3523,7 +3594,7 @@ pause\r
                   <!-- Nome do Evento -->
                   <div>
                     <label class="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
-                      Título do Evento ou Auditório *
+                      Nome do evento ou auditório *
                     </label>
                     <input 
                       type="text" 
@@ -3538,7 +3609,7 @@ pause\r
                   <!-- Identificador da Sala (Slug) -->
                   <div>
                     <label class="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
-                      Identificador da Sala (Link de Acesso) *
+                      Código da sala (vai no link) *
                     </label>
                     <input 
                       type="text" 
@@ -3558,7 +3629,7 @@ pause\r
                   <div class="p-4 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2">
                     <div class="flex items-center justify-between">
                       <label class="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Entrada de Áudio do Palestrante (Microfone / Interface)
+                        Entrada de áudio do palestrante
                       </label>
                       <button type="button" onclick="requestMicPermissionForDashboard()" class="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold cursor-pointer">
                         Carregar Dispositivos
@@ -3578,7 +3649,7 @@ pause\r
                   <!-- Idioma de Entrada do Palestrante -->
                   <div class="p-4 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2">
                     <label class="block text-xs font-bold text-slate-800 dark:text-slate-200">
-                      Idioma do Palestrante (Origem)
+                      Idioma do palestrante
                     </label>
                     <select id="new-m-source-lang" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 font-bold outline-none shadow-2xs">
                       <option value="pt-BR" ${state.sourceLanguage === 'pt-BR' ? 'selected' : ''}>Português (Brasil)</option>
@@ -3594,7 +3665,7 @@ pause\r
 
                     <label class="flex items-center gap-2 pt-1 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
                       <input type="checkbox" id="new-m-auto-detect" ${state.autoDetectLanguage ? 'checked' : ''} class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4">
-                      <span class="font-semibold">Ativar Detecção Automática e Contínua de Idioma</span>
+                      <span class="font-semibold">Detectar o idioma automaticamente</span>
                     </label>
                     <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
                       Permite troca fluida se entrar um palestrante brasileiro, seguido por um americano ou latino, sem travar o reconhecimento.
@@ -3607,9 +3678,9 @@ pause\r
                   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <h3 class="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <span>Idiomas de Saída (Transcrições e Áudio para Espectadores)</span>
+                        <span>Idiomas para o público</span>
                         <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-                          Inglês e Espanhol como Padrão
+                          Inglês e espanhol já marcados
                         </span>
                       </h3>
                       <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
@@ -3644,7 +3715,7 @@ pause\r
                 <!-- Botão de Criação -->
                 <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <span class="text-xs text-slate-500 dark:text-slate-400">
-                    A sala operará de forma autônoma e imediata no navegador.
+                    A sala roda direto no navegador, sem instalar nada.
                   </span>
 
                   <button
@@ -3652,7 +3723,7 @@ pause\r
                     onclick="handleCreateMeetingSubmit(event)"
                     class="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <span>Iniciar Reunião e Abrir Cockpit</span>
+                    <span>Criar sala e abrir cockpit</span>
                   </button>
                 </div>
               </form>
@@ -3726,7 +3797,7 @@ pause\r
         { key: 'french', name: 'Francês', tag: 'FR', defaultColor: '#c084fc' },
         { key: 'german', name: 'Alemão', tag: 'DE', defaultColor: '#fb923c' },
         { key: 'italian', name: 'Italiano', tag: 'IT', defaultColor: '#4ade80' },
-        { key: 'arabic', name: 'Árabe Padrão Moderno (Fusha)', tag: 'AR', defaultColor: '#2dd4bf' }
+        { key: 'arabic', name: 'Árabe Padrão Moderno (Fusha)', tag: 'AR', defaultColor: '#34B886' }
       ];
 
       // Colunas ativas carregadas do localStorage (Padrão: trans, rec, spanish)
@@ -4035,7 +4106,7 @@ pause\r
                   <span class="text-xs uppercase tracking-widest text-teal-400 font-bold opacity-80 flex items-center gap-1.5" dir="rtl">
                     <span class="w-2 h-2 rounded-full bg-teal-500"></span> [AR] العربية (ar-SA):
                   </span>
-                  <div id="overlay-feed-arabic" dir="rtl" class="space-y-3 font-bold drop-shadow-md leading-relaxed overflow-y-auto max-h-[78vh] flex flex-col justify-end" style="font-size: ${overlayColConfigs.arabic ? overlayColConfigs.arabic.fontSize : 28}px; color: ${overlayColConfigs.arabic ? overlayColConfigs.arabic.textColor : '#2dd4bf'};">
+                  <div id="overlay-feed-arabic" dir="rtl" class="space-y-3 font-bold drop-shadow-md leading-relaxed overflow-y-auto max-h-[78vh] flex flex-col justify-end" style="font-size: ${overlayColConfigs.arabic ? overlayColConfigs.arabic.fontSize : 28}px; color: ${overlayColConfigs.arabic ? overlayColConfigs.arabic.textColor : '#34B886'};">
                     <p class="text-slate-500 italic text-base">بانتظار الترجمة العربية...</p>
                   </div>
                 </div>
@@ -4330,104 +4401,61 @@ pause\r
       };
 
       root.innerHTML = `
-        <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col justify-between font-sans selection:bg-indigo-500/30 selection:text-indigo-600 transition-colors duration-200">
-          
-          <!-- HEADER DO PORTAL -->
-          <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 px-4 py-3 sm:px-6 shadow-xs backdrop-blur-md">
-            <div class="max-w-xl mx-auto flex items-center justify-between gap-3">
-              <div class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center font-black text-white text-base shadow-sm">
-                  B
-                </div>
-                <div>
-                  <div class="flex items-center gap-1.5">
-                    <h1 class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white tracking-tight">BrainLingo Live</h1>
-                    <span class="px-2 py-0.2 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-[9px] font-black rounded-full flex items-center gap-1">
-                      <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> AO VIVO
-                    </span>
-                  </div>
-                  <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[210px] sm:max-w-none">${meeting.title || 'Evento ao Vivo'}</p>
+        <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col font-sans">
+
+          <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 backdrop-blur-md">
+            <div class="max-w-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center font-extrabold text-white text-sm shrink-0">B</div>
+                <div class="min-w-0">
+                  <h1 class="text-[15px] font-bold text-slate-900 dark:text-white leading-tight truncate">${meeting.title || 'Evento ao vivo'}</h1>
+                  <p class="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                    <span class="live-signal" aria-hidden="true"><i></i><i></i><i></i></span> Ao vivo · Live
+                  </p>
                 </div>
               </div>
-
-              <!-- Alternador de Tema Escuro / Claro -->
-              <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-[11px] font-bold px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
+              <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-xs font-semibold px-3 h-9 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer flex items-center gap-1 shrink-0">
                 <span>Tema</span>
               </button>
             </div>
           </header>
 
-          <!-- CONTEÚDO PRINCIPAL (SELETOR DE IDIOMAS) -->
-          <main class="max-w-xl w-full mx-auto p-4 sm:p-6 space-y-4 flex-1 flex flex-col justify-center">
-            
-            <!-- CARD DE BOAS-VINDAS MULTILÍNGUE -->
-            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm text-center space-y-2.5">
-              <div class="w-10 h-10 mx-auto rounded-xl bg-indigo-600 dark:bg-indigo-500 text-white flex items-center justify-center font-bold text-xs uppercase tracking-wider shadow-sm">
-                AI
-              </div>
-              <h2 class="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
-                Portal de Tradução Simultânea
-              </h2>
-              <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
-                Escolha o idioma que deseja acompanhar. A tradução e locução com voz neural humanizada serão reproduzidas ao vivo no seu celular.
-              </p>
-              <div class="pt-1 text-[11px] text-slate-500 dark:text-slate-400 font-normal space-y-0.5 border-t border-slate-100 dark:border-slate-800/80">
-                <p><em>Select your language below to listen to live simultaneous translation.</em></p>
-                <p><em>Elige tu idioma abajo para escuchar la traducción simultánea en vivo.</em></p>
-                <p dir="rtl"><em>اختر لغتك المفضلة أدناه للاستماع إلى الترجمة الفورية المباشرة.</em></p>
-              </div>
+          <main class="max-w-xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex-1">
+
+            <div class="mb-7">
+              <h2 class="text-[1.75rem] sm:text-3xl font-extrabold tracking-tight leading-tight text-slate-900 dark:text-white">Escolha seu idioma</h2>
+              <p class="mt-1.5 text-lg text-slate-500 dark:text-slate-400 leading-snug">Choose your language<br>Elige tu idioma</p>
+              <p class="mt-1 text-lg text-slate-500 dark:text-slate-400 leading-snug" dir="rtl">اختر لغتك</p>
             </div>
 
-            <!-- AVISO DE FONE DE OUVIDO -->
-            <div class="bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-3 flex items-center gap-3 text-indigo-950 dark:text-indigo-200 shadow-2xs">
-              <div class="text-xs font-medium leading-snug">
-                <strong>Recomendação:</strong> Utilize fones de ouvido para melhor nitidez sonora e para não ecoar no ambiente do auditório.
-              </div>
+            <div class="grid grid-cols-1 gap-2.5">
+              ${activeTargets.map(langCode => {
+                const info = LANG_META[langCode] || { name: langCode, native: langCode, tag: langCode.substring(0,2).toUpperCase(), desc: 'Tradução Simultânea' };
+                const langParam = langCode.split('-')[0].toLowerCase();
+                const targetAudienceUrl = (window.getCleanBaseUrl ? window.getCleanBaseUrl() : (window.location.origin + '/')) + '?meeting=' + encodeURIComponent(id) + '&view=audience&lang=' + langParam;
+
+                return `
+                  <a href="${targetAudienceUrl}" class="group flex items-center gap-4 px-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-400 rounded-2xl transition-colors cursor-pointer">
+                    <span class="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 font-bold text-sm tracking-wide flex items-center justify-center shrink-0">${info.tag}</span>
+                    <span class="min-w-0 flex-1">
+                      <strong class="block text-lg font-bold text-slate-900 dark:text-white leading-tight">${info.native}</strong>
+                      <span class="block text-sm text-slate-500 dark:text-slate-400 truncate">${info.desc}</span>
+                    </span>
+                    <svg class="w-5 h-5 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                  </a>
+                `;
+              }).join('')}
             </div>
 
-            <!-- LISTA DE BOTÕES DOS IDIOMAS ATIVOS -->
-            <div class="space-y-2.5">
-              <h3 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-                Idiomas Disponíveis neste Evento:
-              </h3>
-              
-              <div class="grid grid-cols-1 gap-2.5">
-                ${activeTargets.map(langCode => {
-                  const info = LANG_META[langCode] || { name: langCode, native: langCode, tag: langCode.substring(0,2).toUpperCase(), desc: 'Tradução Simultânea' };
-                  const langParam = langCode.split('-')[0].toLowerCase();
-                  const targetAudienceUrl = (window.getCleanBaseUrl ? window.getCleanBaseUrl() : (window.location.origin + '/')) + '?meeting=' + encodeURIComponent(id) + '&view=audience&lang=' + langParam;
-                  
-                  return `
-                    <a href="${targetAudienceUrl}" class="group block p-4 bg-white dark:bg-slate-900 hover:bg-indigo-50/60 dark:hover:bg-slate-800/80 border-2 border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 rounded-2xl transition-all duration-200 shadow-xs hover:shadow-md cursor-pointer">
-                      <div class="flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-3.5">
-                          <div class="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-800 text-indigo-800 dark:text-indigo-300 font-mono font-black text-xs flex items-center justify-center shrink-0">
-                            ${info.tag}
-                          </div>
-                          <div>
-                            <strong class="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors block">${info.native}</strong>
-                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">${info.desc}</p>
-                          </div>
-                        </div>
-                        <div class="text-xs font-bold text-indigo-600 dark:text-indigo-400 group-hover:underline">
-                          <span>Acessar</span>
-                        </div>
-                      </div>
-                    </a>
-                  `;
-                }).join('')}
-              </div>
+            <div class="mt-7 flex gap-3 items-start text-sm text-slate-600 dark:text-slate-300 leading-snug">
+              <svg class="w-5 h-5 mt-0.5 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></svg>
+              <p>Use fones de ouvido para ouvir melhor e não ecoar no auditório.<br><span class="text-slate-500 dark:text-slate-400">Please use headphones.</span></p>
             </div>
-
           </main>
 
-          <!-- FOOTER -->
-          <footer class="py-4 px-6 text-center border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xs">
-            <p class="text-[11px] text-slate-500 dark:text-slate-400">
-              Brain Audiovisual • Tradução Simultânea e Acessibilidade para Eventos
-            </p>
+          <footer class="py-4 px-6 text-center text-xs text-slate-400 dark:text-slate-500">
+            Brain Audiovisual
           </footer>
-
         </div>
       `;
     }
@@ -4892,41 +4920,26 @@ pause\r
       function renderAudienceUI() {
         const t = getI18n();
 
+        // Layout do público: a legenda é a protagonista; o botão de ouvir fica
+        // sempre ao alcance do polegar numa barra fixa embaixo. Todos os ids e
+        // classes usados pela lógica (VU, status, feed) continuam iguais.
         root.innerHTML = `
-          <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col justify-between font-sans selection:bg-indigo-500/30 selection:text-indigo-600 transition-colors duration-200">
-            
-            <!-- HEADER DA PÁGINA DO ESPECTADOR -->
-            <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 px-4 py-3 sm:px-6 shadow-xs backdrop-blur-md">
-              <div class="max-w-2xl mx-auto flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center font-black text-white text-base shadow-sm">
-                    B
-                  </div>
-                  <div>
-                    <div class="flex items-center gap-1.5">
-                      <h1 class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white tracking-tight">${t.title}</h1>
-                      <span class="px-2 py-0.2 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-[9px] font-black rounded-full flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> ${t.liveBadge}
-                      </span>
-                    </div>
-                    <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">${meeting.title || 'Evento ao Vivo'}</p>
+          <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col font-sans">
+
+            <header class="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 backdrop-blur-md">
+              <div class="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center font-extrabold text-white text-sm shrink-0">B</div>
+                  <div class="min-w-0">
+                    <h1 class="text-[15px] font-bold text-slate-900 dark:text-white leading-tight truncate">${meeting.title || t.title}</h1>
+                    <p class="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      <span class="live-signal" aria-hidden="true"><i></i><i></i><i></i></span> ${t.liveBadge}
+                    </p>
                   </div>
                 </div>
-
-                <div class="flex items-center gap-2">
-                  <!-- Botão de Manter Tela do Celular Ligada (Screen Wake Lock) -->
-                  <button type="button" id="btn-toggle-wake-lock" onclick="toggleWakeLockManual()" class="text-[11px] font-bold px-2.5 py-1.5 rounded-xl border border-amber-400/80 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 transition-all cursor-pointer flex items-center gap-1 shadow-2xs" title="${t.screenAwakeHelp || 'Impede a tela de apagar automaticamente'}">
-                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                    <span id="wake-lock-label">${isWakeLockEnabled ? (t.screenAwakeBtn || 'Tela Ativa') : (t.screenAwakeOff || 'Tela Normal')}</span>
-                  </button>
-
-                  <!-- Alternador de Tema Escuro / Claro -->
-                  <button onclick="toggleGlobalTheme()" class="btn-theme-toggle text-[11px] font-bold px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
-                    <span>${t.themeBtn}</span>
-                  </button>
-
-                  <!-- Seletor de Idioma do Espectador -->
-                  <select id="audience-lang-select" onchange="changeAudienceLanguage(this.value)" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs border border-indigo-400/50 rounded-xl px-2.5 py-1.5 outline-none shadow-2xs cursor-pointer">
+                <label class="shrink-0">
+                  <span class="sr-only">Idioma</span>
+                  <select id="audience-lang-select" onchange="changeAudienceLanguage(this.value)" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold text-sm border border-slate-300 dark:border-slate-700 rounded-xl pl-3 pr-8 h-10 cursor-pointer">
                     <option value="en-US" ${currentAudienceLang === 'en-US' ? 'selected' : ''}>English</option>
                     <option value="es-ES" ${currentAudienceLang === 'es-ES' ? 'selected' : ''}>Español</option>
                     <option value="pt-BR" ${currentAudienceLang === 'pt-BR' ? 'selected' : ''}>Português</option>
@@ -4935,61 +4948,35 @@ pause\r
                     <option value="it-IT" ${currentAudienceLang === 'it-IT' ? 'selected' : ''}>Italiano</option>
                     <option value="ar-SA" ${currentAudienceLang === 'ar-SA' ? 'selected' : ''}>العربية (الفصحى)</option>
                   </select>
-                </div>
+                </label>
               </div>
             </header>
 
-            <!-- CONTEÚDO PRINCIPAL (CARD DE ÁUDIO + TRANSCRIÇÃO) -->
-            <main class="max-w-2xl w-full mx-auto p-4 sm:p-6 space-y-4 flex-1 flex flex-col">
-              
-              <!-- CARD AVISO DE FONE DE OUVIDO (SEM BOTÃO DE CONFIRMAÇÃO) -->
-              <div class="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-3 flex items-center gap-3 text-indigo-950 dark:text-indigo-200 shadow-2xs">
-                <span class="text-[10px] font-bold px-2 py-1 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200">${t.headphonesBadge}</span>
-                <p class="text-xs font-medium leading-snug">
-                  ${t.headphoneAlert}
-                </p>
-              </div>
+            <main class="max-w-2xl w-full mx-auto px-4 sm:px-6 pt-4 pb-40 flex-1 flex flex-col gap-4">
 
-              <!-- CARD DE ÁUDIO TRADUZIDO COM VOZ IA -->
-              <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5">
-                <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-                  <div class="flex items-center gap-2">
-                    <span id="audience-audio-status-dot" class="w-2.5 h-2.5 rounded-full ${isAudioPlaybackActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}"></span>
-                    <div>
-                      <h2 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight">${t.audioChannelTitle}</h2>
-                      <p class="text-[11px] text-slate-500 dark:text-slate-400">${t.audioChannelSub}</p>
-                    </div>
-                  </div>
-
-                  <!-- VU METER DISCRETO -->
-                  <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
-                    <div class="flex items-end gap-1 h-5">
-                      <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
-                      <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
-                      <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
-                      <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
-                      <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
-                      <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
-                    </div>
-                    <span class="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 ml-1">VU</span>
-                  </div>
+              <section class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl flex flex-col min-h-[52vh]">
+                <div class="flex items-center justify-between gap-2 px-5 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <h2 class="text-sm font-semibold text-slate-500 dark:text-slate-400">${t.transcriptTitle}</h2>
+                  <span id="audience-cloud-status-badge" class="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> ${t.connected}
+                  </span>
                 </div>
+                <div id="audience-subtitles-feed" class="flex-1 overflow-y-auto max-h-[58vh] px-5 py-4 flex flex-col justify-end text-lg sm:text-xl leading-relaxed text-slate-900 dark:text-slate-50 select-text" ${currentAudienceLang.startsWith('ar') ? 'dir="rtl"' : ''}>
+                  <p class="placeholder-empty text-slate-400 text-base text-center py-10">
+                    ${t.waitingSpeech}
+                  </p>
+                </div>
+              </section>
 
-                <!-- SELETOR DE VOZ COM DROPDOWN RICO (PERSONAS COM NOME FICTÍCIO E ENTONAÇÃO) -->
-                <div class="p-3.5 bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div class="flex items-center gap-2 shrink-0">
-                    
-                    <div>
-                      <h4 class="font-bold text-slate-800 dark:text-slate-200 leading-tight">${t.voiceSelectorLabel}</h4>
-                      <p class="text-[10px] text-slate-500 dark:text-slate-400">${t.voiceSelectorSub}</p>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-2 flex-1 max-w-sm w-full sm:justify-end">
-                    <select 
-                      id="audience-voice-persona-select" 
-                      onchange="setAudienceVoicePersona(this.value)" 
-                      class="w-full bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold text-xs border border-indigo-400/50 rounded-xl px-3 py-2 outline-none shadow-2xs cursor-pointer"
-                    >
+              <details class="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl">
+                <summary class="list-none cursor-pointer px-5 py-4 flex items-center justify-between gap-3 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  <span>${t.voiceSelectorLabel}</span>
+                  <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </summary>
+                <div class="px-5 pb-5 space-y-4">
+                  <div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">${t.voiceSelectorSub}</p>
+                    <select id="audience-voice-persona-select" onchange="setAudienceVoicePersona(this.value)" class="w-full bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-sm border border-slate-300 dark:border-slate-700 rounded-xl px-3 h-11 cursor-pointer">
                       ${getAudienceVoicePersonasCurrent().map(p => `
                         <option value="${p.id}" ${selectedVoicePersonaId === p.id ? 'selected' : ''}>
                           ${p.name} — ${p.toneLabel}
@@ -4997,69 +4984,53 @@ pause\r
                       `).join('')}
                     </select>
                   </div>
-                </div>
-
-                <!-- BOTÃO PRINCIPAL DE ATIVAÇÃO DE ÁUDIO -->
-                <div>
-                  <button 
-                    type="button" 
-                    id="btn-toggle-audience-audio" 
-                    onclick="toggleAudienceAudioPlayback()" 
-                    class="w-full py-4 px-4 rounded-2xl font-black text-sm sm:text-base transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer shadow-md ${
-                      isAudioPlaybackActive 
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20' 
-                        : 'bg-gradient-to-r from-emerald-500 via-indigo-600 to-purple-600 hover:from-emerald-600 hover:to-indigo-500 text-white shadow-indigo-600/25 ring-2 ring-emerald-400/40'
-                    }"
-                  >
-                    <span>${isAudioPlaybackActive ? t.audioActive : t.startAudio}</span>
-                  </button>
-                  <p class="text-[11px] text-slate-500 dark:text-slate-400 text-center mt-2 font-medium">${t.audioHelp}</p>
-                </div>
-
-                <!-- CONTROLE DE VOLUME + TESTE DE ÁUDIO -->
-                <div class="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3">
-                  <div class="flex items-center gap-2.5 flex-1 min-w-[180px]">
-                    
-                    <div class="flex-1 flex flex-col gap-1">
-                      <div class="flex justify-between text-[11px] text-slate-500 dark:text-slate-400 font-bold">
-                        <span>${t.volume}:</span>
-                        <span id="audience-vol-value" class="font-mono text-slate-900 dark:text-white">${Math.round(currentVolume * 100)}%</span>
-                      </div>
-                      <input type="range" min="0" max="1" step="0.05" value="${currentVolume}" oninput="setAudienceVolume(this.value)" class="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg">
-                    </div>
+                  <div class="flex flex-wrap gap-2">
+                    <button type="button" onclick="testAudienceAudioOutput()" class="h-10 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors cursor-pointer">${t.testAudioBtn}</button>
+                    <button type="button" id="btn-toggle-wake-lock" onclick="toggleWakeLockManual()" class="h-10 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors cursor-pointer flex items-center gap-2" title="${t.screenAwakeHelp || 'Impede a tela de apagar automaticamente'}">
+                      <span id="wake-lock-label">${isWakeLockEnabled ? (t.screenAwakeBtn || 'Tela Ativa') : (t.screenAwakeOff || 'Tela Normal')}</span>
+                    </button>
+                    <button onclick="toggleGlobalTheme()" class="btn-theme-toggle h-10 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors cursor-pointer flex items-center gap-1">
+                      <span>${t.themeBtn}</span>
+                    </button>
                   </div>
-                  <button type="button" onclick="testAudienceAudioOutput()" class="px-3 py-1.5 bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-600 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs whitespace-nowrap">
-                    ${t.testAudioBtn}
-                  </button>
+                  <p class="text-sm text-slate-600 dark:text-slate-300 leading-snug"><strong class="font-semibold">${t.headphonesBadge}.</strong> ${t.headphoneAlert}</p>
                 </div>
+              </details>
 
-              </div>
-
-              <!-- CARD DE TRANSCRIÇÃO / LEGENDAS EM TEMPO REAL -->
-              <div class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between space-y-3 min-h-[320px]">
-                <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <h3 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <span>${t.transcriptTitle}</span>
-                  </h3>
-                  <span id="audience-cloud-status-badge" class="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 rounded-full">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> ${t.connected}
-                  </span>
-                </div>
-
-                <!-- FEED DINÂMICO DE LEGENDAS TRADUZIDAS -->
-                <div id="audience-subtitles-feed" class="flex-1 overflow-y-auto max-h-[46vh] space-y-3 p-2 flex flex-col justify-end text-sm sm:text-base leading-relaxed text-slate-800 dark:text-slate-100 font-medium select-text" ${currentAudienceLang.startsWith('ar') ? 'dir="rtl"' : ''}>
-                  <p class="placeholder-empty text-slate-400 italic text-xs text-center py-10">
-                    ${t.waitingSpeech}
-                  </p>
-                </div>
-              </div>
-
+              <footer class="text-center text-xs text-slate-400 dark:text-slate-500 pt-2">
+                ${t.footerText}
+              </footer>
             </main>
 
-            <!-- FOOTER -->
-            <footer class="p-3 text-center text-[11px] text-slate-400 dark:text-slate-500 border-t border-slate-200 dark:border-slate-900">
-              ${t.footerText}
-            </footer>
+            <div class="fixed inset-x-0 bottom-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800" style="padding-bottom: env(safe-area-inset-bottom);">
+              <div class="max-w-2xl mx-auto px-4 sm:px-6 pt-3 pb-3 space-y-2.5">
+                <div class="flex items-center gap-3">
+                  <span id="audience-audio-status-dot" class="w-2.5 h-2.5 rounded-full shrink-0 ${isAudioPlaybackActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}"></span>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-semibold text-slate-900 dark:text-white leading-tight truncate">${t.audioChannelTitle}</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 truncate">${t.audioHelp}</p>
+                  </div>
+                  <div class="flex items-end gap-[3px] h-5 shrink-0" aria-hidden="true">
+                    <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
+                    <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
+                    <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
+                    <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
+                    <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
+                    <span class="audience-vu-bar w-1.5 h-1 bg-slate-300 dark:bg-slate-700 rounded-full transition-all"></span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <button type="button" id="btn-toggle-audience-audio" onclick="toggleAudienceAudioPlayback()" class="${isAudioPlaybackActive ? AUDIENCE_AUDIO_BTN_ON : AUDIENCE_AUDIO_BTN_OFF}">
+                    <span>${isAudioPlaybackActive ? t.audioActive : t.startAudio}</span>
+                  </button>
+                  <label class="flex items-center gap-2 w-28 shrink-0">
+                    <span class="sr-only">${t.volume}</span>
+                    <input type="range" min="0" max="1" step="0.05" value="${currentVolume}" oninput="setAudienceVolume(this.value)" class="w-full accent-indigo-600 cursor-pointer">
+                    <span id="audience-vol-value" class="font-mono text-xs text-slate-500 dark:text-slate-400 w-8 text-right">${Math.round(currentVolume * 100)}%</span>
+                  </label>
+                </div>
+              </div>
+            </div>
           </div>
         `;
       }
@@ -5229,8 +5200,8 @@ pause\r
 
         if (btn) {
           btn.className = isAudioPlaybackActive
-            ? 'w-full py-4 px-4 rounded-2xl font-black text-sm sm:text-base transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer shadow-md bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-            : 'w-full py-4 px-4 rounded-2xl font-black text-sm sm:text-base transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer shadow-md bg-gradient-to-r from-emerald-500 via-indigo-600 to-purple-600 hover:from-emerald-600 hover:to-indigo-500 text-white shadow-indigo-600/25 ring-2 ring-emerald-400/40';
+            ? AUDIENCE_AUDIO_BTN_ON
+            : AUDIENCE_AUDIO_BTN_OFF;
           btn.innerHTML = '<span>' + (isAudioPlaybackActive ? t.audioActive : t.startAudio) + '</span>';
         }
 
@@ -5910,7 +5881,7 @@ pause\r
 
       let targetColumnConfigs = {};
       activeTargetLanguages.forEach(lang => {
-        const defaultColor = lang === 'en-US' ? '#fde047' : (lang === 'es-ES' ? '#38bdf8' : (lang === 'ar-SA' ? '#2dd4bf' : '#c084fc'));
+        const defaultColor = lang === 'en-US' ? '#fde047' : (lang === 'es-ES' ? '#38bdf8' : (lang === 'ar-SA' ? '#34B886' : '#c084fc'));
         targetColumnConfigs[lang] = {
           bgColor: '#000000',
           textColor: defaultColor,
@@ -6439,15 +6410,15 @@ pause\r
 
               <!-- BOTÃO DE QR CODE GERAL DO EVENTO (POOL DE IDIOMAS) -->
               <button onclick="openAudiencePortalModal()" class="text-xs font-bold text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 border border-emerald-400/50 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm" title="Abrir QR Code geral único que leva a plateia para escolher o idioma">
-                <span>QR Code Geral (Todos os Idiomas)</span>
+                <span>QR Code do evento</span>
               </button>
 
               <button onclick="openDedicatedSubtitleOverlay()" class="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 border border-indigo-500 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
-                <span>Janela OBS</span>
+                <span>Janela do OBS</span>
               </button>
 
               <button onclick="copyTelaoShareLink()" class="text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
-                <span>Copiar Link OBS</span>
+                <span>Copiar link do OBS</span>
               </button>
 
               <button onclick="confirmAndExitMeeting()" class="text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
@@ -6460,7 +6431,7 @@ pause\r
                 </button>
               ` : `
                 <button onclick="prepareAndOpenFinishModal()" class="text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 border border-rose-500 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs">
-                  <span>Encerrar Reunião & Salvar ZIP</span>
+                  <span>Encerrar e salvar</span>
                 </button>
               `}
             </div>
@@ -6498,9 +6469,9 @@ pause\r
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
                           <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          <span class="text-xs font-black text-purple-950 dark:text-purple-200 uppercase tracking-wide">Transmissão Remota do Palestrante</span>
+                          <span class="text-xs font-black text-purple-950 dark:text-purple-200 uppercase tracking-wide">Palestrante transmitindo de outro computador</span>
                         </div>
-                        <span class="text-[9.5px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-200 dark:bg-purple-900 text-purple-900 dark:text-purple-100">ESPELHO CO-HOST</span>
+                        <span class="text-[9.5px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-200 dark:bg-purple-900 text-purple-900 dark:text-purple-100">Espelho</span>
                       </div>
                       <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-tight">
                         O áudio e as transcrições estão sendo captados pelo computador transmissor. Os controles de microfone estão travados para evitar alterações acidentais na palestra.
@@ -6563,12 +6534,12 @@ pause\r
                       <!-- Dropdown completo agrupado -->
                       <select id="transmitter-mic-select" onchange="onTransmitterMicDeviceSelected(this.value)" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-semibold outline-none shadow-2xs">
                         <optgroup label="Captura Digital de Aplicativos e Sistema (VLC / YouTube / Aulas)">
-                          <option value="display_media_tab">🌐 Guia do Chrome (YouTube, Videoaulas, Podcast)</option>
-                          <option value="display_media_window">🎬 Janela de Aplicativo (VLC Media Player, reprodutor)</option>
-                          <option value="display_media_desktop">🖥️ Áudio do Desktop / Computador Inteiro</option>
+                          <option value="display_media_tab">Guia do Chrome (YouTube, Videoaulas, Podcast)</option>
+                          <option value="display_media_window">Janela de um aplicativo (VLC ou outro player)</option>
+                          <option value="display_media_desktop">Todo o áudio do computador</option>
                         </optgroup>
                         <optgroup label="Microfones e Placas de Áudio Físicas">
-                          <option value="default" selected>Microfone Padrão do Sistema (Windows Default)</option>
+                          <option value="default" selected>Microfone padrão do Windows</option>
                         </optgroup>
                       </select>
 
@@ -6683,7 +6654,7 @@ pause\r
                       <div class="placeholder-empty text-slate-500 italic text-xs py-10 text-center space-y-2">
                         <p>Aguardando fala do palestrante... O texto será commitado em tempo real de baixo para cima.</p>
                         <button type="button" onclick="toggleMasterMicCapture()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/90 hover:bg-blue-600 text-white font-bold text-[11px] shadow-sm cursor-pointer not-italic transition-all">
-                          <span>Clique aqui para Iniciar Microfone</span>
+                          <span>Ligar o microfone</span>
                         </button>
                       </div>
                     </div>
@@ -6696,7 +6667,7 @@ pause\r
                   <div class="flex items-center gap-1">
                     <span class="text-[10px] text-slate-400">Fundo:</span>
                     <button onclick="setTransSubtitleBg('#000000')" title="Preto" class="w-3.5 h-3.5 rounded-full bg-black border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
-                    <button onclick="setTransSubtitleBg('#0f172a')" title="Azul Noite" class="w-3.5 h-3.5 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
+                    <button onclick="setTransSubtitleBg('#161B26')" title="Azul Noite" class="w-3.5 h-3.5 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                     <button onclick="setTransSubtitleBg('#ffffff')" title="Branco" class="w-3.5 h-3.5 rounded-full bg-white border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                   </div>
 
@@ -6751,16 +6722,16 @@ pause\r
 
                       <div class="flex items-center gap-2">
                         <a href="${audienceUrlPt}" target="_blank" class="px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1 shadow-2xs">
-                          <span>Link Espectador PT</span>
+                          <span>Abrir tela do público</span>
                         </a>
                         <button type="button" onclick="navigator.clipboard.writeText('${audienceUrlPt}'); alert('Link copiado!');" class="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer">
-                          <span>Copiar Link</span>
+                          <span>Copiar link</span>
                         </button>
                         <button type="button" onclick="openChannelQrCodeModal('pt-BR')" class="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs">
-                          <span>QR Code PT</span>
+                          <span>QR Code</span>
                         </button>
                         <button type="button" onclick="togglePtColumnExpansion()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-1 cursor-pointer">
-                          <span>Expandir Coluna Português</span>
+                          <span>Mostrar coluna em português</span>
                         </button>
                       </div>
                     </div>
@@ -6788,11 +6759,11 @@ pause\r
                         <!-- Barra de ações do Português -->
                         <div class="p-2.5 bg-emerald-50/60 dark:bg-slate-800/80 border border-emerald-200 dark:border-slate-700 rounded-2xl flex flex-wrap items-center justify-between gap-2">
                           <a href="${audienceUrlPt}" target="_blank" class="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1">
-                            <span>Abrir Tela Espectador</span>
+                            <span>Abrir tela do público</span>
                           </a>
                           <div class="flex items-center gap-1.5">
                             <button type="button" onclick="navigator.clipboard.writeText('${audienceUrlPt}'); alert('Link copiado!');" class="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer">
-                              <span>Copiar Link</span>
+                              <span>Copiar link</span>
                             </button>
                             <button type="button" onclick="openChannelQrCodeModal('pt-BR')" class="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer">
                               <span>QR Code</span>
@@ -6805,7 +6776,7 @@ pause\r
                           <div class="flex items-center gap-2">
                             <span id="target-vu-led-pt-BR" class="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 transition-colors"></span>
                             <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                              <span>Áudio Traduzido:</span>
+                              <span>Voz traduzida:</span>
                               <span id="target-vu-status-pt-BR" class="text-[10px] font-semibold text-slate-400">Em espera</span>
                             </span>
                           </div>
@@ -6868,12 +6839,12 @@ pause\r
                       <!-- BARRA DE AÇÕES: ABRIR ESPECTADOR, COPIAR LINK E QR CODE -->
                       <div class="p-2.5 bg-indigo-50/70 dark:bg-slate-800/80 border border-indigo-100 dark:border-slate-700 rounded-2xl flex flex-wrap items-center justify-between gap-2">
                         <a href="${audienceUrl}" target="_blank" class="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1">
-                          <span>Abrir Tela Espectador</span>
+                          <span>Abrir tela do público</span>
                         </a>
 
                         <div class="flex items-center gap-1.5">
                           <button onclick="navigator.clipboard.writeText('${audienceUrl}'); alert('Link copiado!');" title="Copiar Link do Espectador" class="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer">
-                            <span>Copiar Link</span>
+                            <span>Copiar link</span>
                           </button>
 
                           <button onclick="openChannelQrCodeModal('${langCode}')" title="Gerar QR Code desta língua para a plateia" class="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer">
@@ -6887,7 +6858,7 @@ pause\r
                         <div class="flex items-center gap-2">
                           <span id="target-vu-led-${langCode}" class="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 transition-colors"></span>
                           <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                            <span>Áudio Traduzido:</span>
+                            <span>Voz traduzida:</span>
                             <span id="target-vu-status-${langCode}" class="text-[10px] font-semibold text-slate-400">Em espera</span>
                           </span>
                         </div>
@@ -6917,7 +6888,7 @@ pause\r
                       <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400">Fundo:</span>
                         <button onclick="setTargetSubtitleBg('${langCode}', '#000000')" title="Preto" class="w-3.5 h-3.5 rounded-full bg-black border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
-                        <button onclick="setTargetSubtitleBg('${langCode}', '#0f172a')" title="Azul Noite" class="w-3.5 h-3.5 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
+                        <button onclick="setTargetSubtitleBg('${langCode}', '#161B26')" title="Azul Noite" class="w-3.5 h-3.5 rounded-full bg-slate-900 border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                         <button onclick="setTargetSubtitleBg('${langCode}', '#ffffff')" title="Branco" class="w-3.5 h-3.5 rounded-full bg-white border border-slate-300 cursor-pointer shadow-2xs hover:scale-110"></button>
                       </div>
 
@@ -6936,7 +6907,7 @@ pause\r
                       </div>
 
                       <button type="button" onclick="testTargetAudioVoice('${langCode}')" class="px-2 py-0.5 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/60 dark:hover:bg-indigo-800 text-indigo-800 dark:text-indigo-200 rounded text-[10px] font-bold cursor-pointer flex items-center gap-1">
-                        <span>Testar Voz</span>
+                        <span>Testar voz</span>
                       </button>
                     </div>
                   </div>
@@ -6953,9 +6924,9 @@ pause\r
               <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div class="text-left">
                   <div class="flex items-center gap-1.5">
-                    <h3 class="text-base font-extrabold text-slate-900 dark:text-white">QR Code Geral do Evento</h3>
+                    <h3 class="text-base font-extrabold text-slate-900 dark:text-white">QR Code do evento</h3>
                   </div>
-                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Portal Pool com todos os botões de idiomas ativos</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Uma tela onde cada pessoa escolhe o próprio idioma</p>
                 </div>
                 <button type="button" onclick="closeAudiencePortalModal()" class="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white text-xs font-bold px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">Fechar</button>
               </div>
@@ -6980,10 +6951,10 @@ pause\r
 
                 <div class="grid grid-cols-2 gap-2 pt-1">
                   <button type="button" onclick="openAudiencePortalTab()" class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
-                    <span>Abrir Portal</span>
+                    <span>Abrir portal</span>
                   </button>
                   <button type="button" onclick="copyAudiencePortalUrl()" class="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
-                    <span>Copiar Link</span>
+                    <span>Copiar link</span>
                   </button>
                 </div>
 
@@ -6992,7 +6963,7 @@ pause\r
                   onclick="downloadPortalQrCodeAsPng()" 
                   class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Salvar Imagem do QR Code (PNG)</span>
+                  <span>Baixar QR Code (PNG)</span>
                 </button>
               </div>
 
@@ -7007,7 +6978,7 @@ pause\r
                 <div class="flex items-center gap-2 text-left">
                   <span id="qr-modal-flag" class="text-xs font-mono font-bold px-2 py-1 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300">QR</span>
                   <div>
-                    <h3 class="text-sm font-bold text-slate-900 dark:text-white" id="qr-modal-title">QR Code do Canal</h3>
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white" id="qr-modal-title">QR Code do canal</h3>
                     <p class="text-[11px] text-slate-500 dark:text-slate-400">Aponte a câmera do celular para ouvir</p>
                   </div>
                 </div>
@@ -7030,7 +7001,7 @@ pause\r
                   onclick="downloadCurrentQrCodeAsPng()" 
                   class="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Salvar Imagem do QR Code (PNG)</span>
+                  <span>Baixar QR Code (PNG)</span>
                 </button>
 
                 <div class="grid grid-cols-2 gap-2">
@@ -7117,7 +7088,7 @@ pause\r
                   onclick="saveZipFileWithExplorer()" 
                   class="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Baixar Pacote Completo (ZIP com Áudios e Legendas)</span>
+                  <span>Baixar tudo (.zip com áudios e legendas)</span>
                 </button>
 
                 <div class="flex items-center justify-between gap-3 pt-1">
@@ -7183,12 +7154,12 @@ pause\r
 
             let html = `
               <optgroup label="Captura Digital de Aplicativos e Sistema (VLC / YouTube / Aulas)">
-                <option value="display_media_tab" ${curVal === 'display_media_tab' ? 'selected' : ''}>🌐 Guia do Chrome (YouTube, Videoaulas, Podcast)</option>
-                <option value="display_media_window" ${curVal === 'display_media_window' ? 'selected' : ''}>🎬 Janela de Aplicativo (VLC Media Player, reprodutor)</option>
-                <option value="display_media_desktop" ${curVal === 'display_media_desktop' ? 'selected' : ''}>🖥️ Áudio do Desktop / Computador Inteiro</option>
+                <option value="display_media_tab" ${curVal === 'display_media_tab' ? 'selected' : ''}>Guia do Chrome (YouTube, Videoaulas, Podcast)</option>
+                <option value="display_media_window" ${curVal === 'display_media_window' ? 'selected' : ''}>Janela de um aplicativo (VLC ou outro player)</option>
+                <option value="display_media_desktop" ${curVal === 'display_media_desktop' ? 'selected' : ''}>Todo o áudio do computador</option>
               </optgroup>
               <optgroup label="Microfones e Placas de Áudio Físicas">
-                <option value="default" ${curVal === 'default' ? 'selected' : ''}>Microfone Padrão do Sistema (Windows Default)</option>
+                <option value="default" ${curVal === 'default' ? 'selected' : ''}>Microfone padrão do Windows</option>
             `;
             
             // Adiciona todas as placas e entradas de áudio detectadas
@@ -7197,7 +7168,7 @@ pause\r
               let label = d.label || ("Placa / Entrada de Áudio " + (i + 1));
               const lower = label.toLowerCase();
               if (lower.includes('mix') || lower.includes('estéreo') || lower.includes('stereo') || lower.includes('cable') || lower.includes('virtual') || lower.includes('loopback')) {
-                label = "🔊 " + label + " [Áudio do Sistema / VLC / YouTube]";
+                label = "" + label + " [Áudio do Sistema / VLC / YouTube]";
               }
               const isSelected = (curVal === d.deviceId);
               html += `<option value="${d.deviceId}" ${isSelected ? 'selected' : ''}>${label}</option>`;
@@ -8795,7 +8766,7 @@ pause\r
               text: currentActiveQrModalUrl,
               width: 220,
               height: 220,
-              colorDark: '#0f172a',
+              colorDark: '#161B26',
               colorLight: '#ffffff',
               correctLevel: QRCode.CorrectLevel.H
             });
@@ -8862,7 +8833,7 @@ pause\r
               text: portalUrl,
               width: 240,
               height: 240,
-              colorDark: '#0f172a',
+              colorDark: '#161B26',
               colorLight: '#ffffff',
               correctLevel: QRCode.CorrectLevel.H
             });
