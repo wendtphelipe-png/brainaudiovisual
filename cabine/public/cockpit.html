@@ -19,6 +19,9 @@
   .room-code { margin-left: 8px; padding: 4px 10px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent); color: var(--amber);
     font-weight: 800; font-variation-settings: "wdth" 118; letter-spacing: .18em; font-size: .92rem; }
   .room-name { color: var(--muted); font-size: .9rem; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Só acompanhamento: sem botões que mudam a sala */
+  body.readonly #startBtn, body.readonly #newBtn { display: none; }
+  body.readonly #source, body.readonly .lang-toggle { pointer-events: none; opacity: .75; }
   .fatal { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); padding: 24px; z-index: 20; text-align: center; }
   .fatal h1 { font-weight: 800; font-variation-settings: "wdth" 125; margin: 0 0 10px; }
   .fatal p { color: var(--muted); max-width: 46ch; line-height: 1.5; margin: 0 auto 20px; }
@@ -83,7 +86,7 @@
   <header>
     <div class="brand">
       <span class="logo3d" style="--s:30px" aria-hidden="true"><span class="logo3d-spin"><img src="/logo/simbolo-escuro.svg" alt="" style="--z:-5;--o:0.16"><img src="/logo/simbolo-escuro.svg" alt="" style="--z:-2.5;--o:0.32"><img src="/logo/simbolo-escuro.svg" alt="" style="--z:0;--o:1"></span></span>
-      <span class="wordmark">BRAIN AUDIOVISUAL<small>Cabine</small></span>
+      <span class="wordmark"><img src="/logo/wordmark-claro.png" alt="BRAIN Audiovisual" class="wm wm-claro"><img src="/logo/wordmark-original.png" alt="BRAIN Audiovisual" class="wm wm-original"><small>Cabine</small></span>
       <span class="room-code" id="roomCode" title="Código da sala">····</span>
       <span class="room-name" id="roomName"></span>
     </div>
@@ -309,12 +312,14 @@
       .map(([code, m]) => `<button type="button" class="lang-toggle" data-lang="${code}" aria-pressed="${config.targets.includes(code)}" title="${m[1]}">${m[0]}</button>`).join('');
   }
   $('targets').addEventListener('click', e => {
+    if (readOnly) return;
     const code = e.target.dataset && e.target.dataset.lang;
     if (!code) return;
     const targets = config.targets.includes(code) ? config.targets.filter(c => c !== code) : [...config.targets, code];
     send({ type: 'config', source: config.source, targets });
   });
   $('source').onchange = e => {
+    if (readOnly) { e.target.value = config.source; return; }
     if (recognizing) { alert('Pare a captação antes de trocar o idioma do palestrante.'); e.target.value = config.source; return; }
     send({ type: 'config', source: e.target.value, targets: config.targets.filter(t => t !== e.target.value) });
   };
@@ -324,13 +329,14 @@
   function send(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
   function connect() {
     ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-    ws.onopen = () => { retry = 0; chip('chipServer', 'Servidor conectado', 'ok'); send({ type: 'hello', role: 'cockpit', sala, token }); };
+    ws.onopen = () => { retry = 0; chip('chipServer', 'Servidor conectado', 'ok'); send({ type: 'hello', role: 'cockpit', sala, token, monitor: !token }); };
     ws.onclose = () => { chip('chipServer', 'Servidor desconectado', 'bad'); setTimeout(connect, Math.min(4000, 500 + retry++ * 500)); };
     ws.onmessage = ev => {
       const msg = JSON.parse(ev.data);
       switch (msg.type) {
         case 'welcome':
           session = msg.session; config = msg.config; links = msg.links || links;
+          if (msg.readOnly) enterReadOnly();
           $('roomCode').textContent = msg.room; $('roomName').textContent = msg.name || '';
           document.title = 'Cabine ' + msg.room + (msg.name ? ' · ' + msg.name : '');
           blocks = msg.blocks || [];
@@ -365,6 +371,15 @@
       }
     };
   }
+  // Acompanhamento: outro computador vê o cockpit ao vivo, sem poder mudar nada
+  let readOnly = false;
+  function enterReadOnly() {
+    if (readOnly) return;
+    readOnly = true;
+    document.body.classList.add('readonly');
+    chip('chipStt', 'Só acompanhamento', 'warn');
+  }
+
   function fatal(text) {
     retry = 99;
     ws.onclose = null;

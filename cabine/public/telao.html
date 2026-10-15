@@ -37,10 +37,7 @@
   .text { font-size: calc(var(--row-h) * .175); line-height: 1.3; color: #6F7D96; text-wrap: pretty; will-change: transform; }
   .seg { transition: color .5s; }
   .seg.current { color: #FFFFFF; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(255, 178, 36, .85); text-decoration-thickness: .08em; text-underline-offset: .18em; }
-  .seg.fresh { animation: segIn .6s ease-out; }
-  @keyframes segIn { from { opacity: 0; } }
   .msg { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; color: #8592A8; font-size: 22px; padding: 30px; }
-  @media (prefers-reduced-motion: reduce) { .seg.fresh { animation: none; } }
 </style>
 </head>
 <body>
@@ -63,13 +60,20 @@
   let items = {};      // idioma -> Map(seq -> item)
   let outputs = [];
 
+  // Cada linha guarda a fila de palavras ainda não mostradas
+  let rows = {};       // idioma -> { text, queue: [{ span, words, i }], have: Set, last }
+
   function build() {
     $('rows').innerHTML = config.targets.map(l => `
       <section class="row" data-lang="${l}" ${l.startsWith('ar') ? 'dir="rtl"' : ''}>
         <div class="tag"><b></b>${NAMES[l] || l}</div>
         <div class="viewport"><div class="text" id="text-${l}"></div></div>
       </section>`).join('');
-    for (const l of config.targets) render(l, false);
+    rows = {};
+    for (const l of config.targets) {
+      rows[l] = { text: $('text-' + l), queue: [], have: new Set(), last: 0 };
+      render(l, true); // o que já existia aparece de uma vez
+    }
   }
 
   // O que mostrar: com uma saída de voz ligada, só o que já foi (ou está
@@ -84,36 +88,56 @@
     return { shown: all.filter(i => i.seq <= upto), current: cur };
   }
 
-  function render(lang, animate = true) {
-    const text = $('text-' + lang);
-    if (!text) return;
+  // Frases novas entram na fila; as palavras aparecem uma a uma no relógio
+  // abaixo. Assim o texto cresce aos poucos e a linha só sobe quando o
+  // texto passa para a linha de baixo (antes, a frase inteira entrava de
+  // uma vez e a linha toda "piscava").
+  function render(lang, instant = false) {
+    const row = rows[lang];
+    if (!row) return;
     const { shown, current } = visible(lang);
-    const have = new Set([...text.children].map(el => Number(el.dataset.seq)));
-    const before = text.offsetHeight;
-    let added = false;
     for (const it of shown) {
-      if (have.has(it.seq)) continue;
-      const s = document.createElement('span');
-      s.className = 'seg' + (animate ? ' fresh' : '');
-      s.dataset.seq = it.seq;
-      s.textContent = it.text + ' ';
-      text.appendChild(s);
-      added = true;
+      if (row.have.has(it.seq)) continue;
+      row.have.add(it.seq);
+      const span = document.createElement('span');
+      span.className = 'seg';
+      span.dataset.seq = it.seq;
+      row.text.appendChild(span);
+      if (instant || reduce) span.textContent = it.text + ' ';
+      else row.queue.push({ span, words: it.text.split(/\s+/), i: 0 });
     }
     // Guarda só o fim do texto (o começo já saiu da tela pelo topo)
-    while (text.children.length > MAX_SEGS) text.firstChild.remove();
-    for (const el of text.children) el.classList.toggle('current', Number(el.dataset.seq) === current);
-    // Subida suave: o texto cresceu e empurraria tudo para cima de uma vez;
-    // começa deslocado para baixo pela diferença e desliza até o lugar.
-    const grow = text.offsetHeight - before;
-    if (added && animate && grow > 0 && !reduce) {
-      text.style.transition = 'none';
-      text.style.transform = `translateY(${grow}px)`;
-      text.getBoundingClientRect();
-      text.style.transition = 'transform .9s cubic-bezier(.2, .7, .2, 1)';
-      text.style.transform = 'translateY(0)';
-    }
+    while (row.text.children.length > MAX_SEGS && !row.queue.some(q => q.span === row.text.firstChild)) row.text.firstChild.remove();
+    for (const el of row.text.children) el.classList.toggle('current', Number(el.dataset.seq) === current);
   }
+
+  function slideUp(el, grow) {
+    el.style.transition = 'none';
+    el.style.transform = `translateY(${grow}px)`;
+    el.getBoundingClientRect();
+    el.style.transition = 'transform .5s cubic-bezier(.2, .7, .2, 1)';
+    el.style.transform = 'translateY(0)';
+  }
+
+  // Relógio das palavras: ritmo de fala (uns 300 ms por palavra) e mais
+  // rápido se acumular texto, para nunca ficar para trás da voz.
+  setInterval(() => {
+    const now = performance.now();
+    for (const lang of Object.keys(rows)) {
+      const row = rows[lang];
+      if (!row.queue.length) continue;
+      const pending = row.queue.reduce((s, q) => s + q.words.length - q.i, 0);
+      const interval = pending > 40 ? 60 : pending > 20 ? 130 : 300;
+      if (now - row.last < interval) continue;
+      row.last = now;
+      const q = row.queue[0];
+      const before = row.text.offsetHeight;
+      q.span.textContent += q.words[q.i++] + ' ';
+      if (q.i >= q.words.length) row.queue.shift();
+      const grow = row.text.offsetHeight - before;
+      if (grow > 0) slideUp(row.text, grow);
+    }
+  }, 40);
 
   let ws, retry = 0;
   function connect() {

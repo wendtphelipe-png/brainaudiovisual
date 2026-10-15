@@ -28,15 +28,30 @@ async function googleFree(text, from, to) {
   try {
     const res = await fetch(ep.url(encodeURIComponent(text), base(from), base(to)), { signal: ctrl.signal });
     if (!res.ok) {
-      if (res.status === 429 || res.status === 403) current = (current + 1) % ENDPOINTS.length;
+      // Bloqueio ou erro do servidor do Google: passa para o próximo endereço
+      if (res.status === 429 || res.status === 403 || res.status >= 500) current = (current + 1) % ENDPOINTS.length;
       throw new Error(`HTTP ${res.status} (${ep.name})`);
     }
     const out = ep.parse(await res.json()).trim();
     if (!out) throw new Error(`resposta vazia (${ep.name})`);
+    // O serviço gratuito às vezes devolve inglês no lugar do idioma pedido
+    // (visto em 15/10/2026 depois de erros 500). Nesse caso tenta de novo.
+    if (base(to) !== 'en' && base(from) !== 'en' && looksEnglish(out)) {
+      current = (current + 1) % ENDPOINTS.length;
+      throw new Error(`veio em inglês em vez de ${to} (${ep.name})`);
+    }
     return out;
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Palavras muito comuns do inglês: se forem mais de 1/4 do texto, é inglês
+const EN_WORDS = new Set(['the', 'and', 'to', 'of', 'is', 'we', 'this', 'that', 'it', 'in', 'are', 'with', 'you', 'very', 'so', 'be', 'for', 'on', 'have', 'has', 'was', 'will', 'can', 'what', 'they', 'there', 'which', 'because', 'going']);
+function looksEnglish(text) {
+  const words = text.toLowerCase().match(/[a-z']+/g) || [];
+  if (words.length < 5) return false;
+  return words.filter(w => EN_WORDS.has(w)).length / words.length > 0.25;
 }
 
 // Tenta de novo com espera crescente. Se mesmo assim falhar, quem chamou
@@ -55,4 +70,4 @@ async function translate(text, from, to) {
   throw lastErr;
 }
 
-module.exports = { translate };
+module.exports = { translate, looksEnglish };

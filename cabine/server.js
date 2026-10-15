@@ -87,7 +87,7 @@ class Room {
     this.blocks.push(block);
     if (this.blocks.length > 5000) this.blocks.splice(0, 1000);
     this.log({ type: 'block', ...block });
-    this.broadcast({ type: 'block', block }, c => c.role === 'cockpit');
+    this.broadcast({ type: 'block', block }, c => isViewer(c));
     for (const lang of this.config.targets) this.enqueue(lang, block);
   }
 
@@ -125,7 +125,7 @@ class Room {
       console.warn(`[${this.code}] tradução ${lang} bloco ${block.seq} falhou (${err && err.message}); vai junto com o próximo`);
       this.log({ type: 'tr-fail', lang, seq: block.seq, error: String(err && err.message) });
       this.carry[lang] = [...pending, block, ...this.carry[lang]];
-      this.broadcast({ type: 'alert', text: `Tradução para ${lang} atrasada no bloco ${block.seq}; será enviada com o próximo.` }, c => c.role === 'cockpit');
+      this.broadcast({ type: 'alert', text: `Tradução para ${lang} atrasada no bloco ${block.seq}; será enviada com o próximo.` }, c => isViewer(c));
     } finally {
       this.busy[lang] = false;
     }
@@ -136,7 +136,7 @@ class Room {
     map.set(item.seq, item);
     if (map.size > 5000) map.delete(map.keys().next().value);
     this.log({ type: 'tr', lang, ...item });
-    this.broadcast({ type: 'tr', lang, item }, c => c.role === 'cockpit' || c.role === 'telao' || (c.role === 'saida' && c.lang === lang));
+    this.broadcast({ type: 'tr', lang, item }, c => isViewer(c) || c.role === 'telao' || (c.role === 'saida' && c.lang === lang));
   }
 
   // Se o fim da fala ficou sem tradução (internet caiu), tenta de novo sozinho
@@ -294,6 +294,8 @@ const server = http.createServer(async (req, res) => {
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
 const clients = new Set();
 const send = (ws, msg) => { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); };
+// Operador do cockpit ou alguém só acompanhando (sem poder mudar nada)
+const isViewer = c => c.role === 'cockpit' || c.role === 'monitor';
 
 wss.on('connection', ws => {
   clients.add(ws);
@@ -308,10 +310,17 @@ wss.on('connection', ws => {
       const room = loadRoom(msg.sala);
       if (!room) return send(ws, { type: 'error', code: 'sala', text: 'Sala não encontrada. Confira o código ou crie uma cabine nova.' });
       if (msg.role === 'cockpit') {
-        if (msg.token !== room.token) return send(ws, { type: 'error', code: 'chave', text: 'Este navegador não tem a chave desta sala. Abra o cockpit pelo navegador que criou a sala.' });
-        ws.role = 'cockpit'; ws.room = room;
-        room.lastUsed = Date.now();
-        return send(ws, room.cockpitWelcome());
+        if (msg.token === room.token) {
+          ws.role = 'cockpit'; ws.room = room;
+          room.lastUsed = Date.now();
+          return send(ws, room.cockpitWelcome());
+        }
+        // Sem a chave: só acompanha. Recebe tudo, mas nada do que mandar é aceito.
+        if (msg.monitor) {
+          ws.role = 'monitor'; ws.room = room;
+          return send(ws, { ...room.cockpitWelcome(), readOnly: true });
+        }
+        return send(ws, { type: 'error', code: 'chave', text: 'Este navegador não tem a chave desta sala. Abra o cockpit pelo navegador que criou a sala.' });
       }
       if (msg.role === 'telao') {
         ws.role = 'telao'; ws.room = room;
@@ -334,7 +343,7 @@ wss.on('connection', ws => {
       switch (msg.type) {
         case 'stt':
           room.segmenter.update(msg.utt, msg.text, !!msg.final);
-          if (!msg.final) room.broadcast({ type: 'interim', text: msg.text }, c => c.role === 'cockpit' && c !== ws);
+          if (!msg.final) room.broadcast({ type: 'interim', text: msg.text }, c => isViewer(c) && c !== ws);
           break;
         case 'stt-end': room.segmenter.finishUtterance(); break;
         case 'flush': room.segmenter.flush(); break;
@@ -349,7 +358,7 @@ wss.on('connection', ws => {
           room.segmenter.flush();
           room.newSession();
           for (const c of room.clients(() => true)) {
-            if (c.role === 'cockpit') send(c, room.cockpitWelcome());
+            if (isViewer(c)) send(c, { ...room.cockpitWelcome(), readOnly: c.role === 'monitor' });
             if (c.role === 'telao') send(c, room.telaoWelcome());
             if (c.role === 'saida') send(c, { type: 'welcome', room: room.code, name: room.name, session: room.session, config: room.config, items: [] });
           }
@@ -373,7 +382,7 @@ setInterval(() => { for (const r of rooms.values()) r.retryCarry(); }, 5000);
 setInterval(() => {
   for (const r of rooms.values()) {
     for (const [id, o] of r.outputs) if (Date.now() - o.lastSeen > 15000) r.outputs.delete(id);
-    r.broadcast({ type: 'outputs', outputs: r.outputsList() }, c => c.role === 'cockpit' || c.role === 'telao');
+    r.broadcast({ type: 'outputs', outputs: r.outputsList() }, c => isViewer(c) || c.role === 'telao');
   }
 }, 1000);
 setInterval(() => { for (const r of rooms.values()) r.save(); cleanupRooms(); }, 10 * 60 * 1000);

@@ -1,66 +1,59 @@
-// Gera os arquivos do logo da Brain Audiovisual.
+// Gera os arquivos do logo da Brain Audiovisual a partir do logo ORIGINAL
+// (o "B" de circuito, escolhido pelo Thiago), redesenhado em vetor para ficar
+// nítido em qualquer tamanho e permitir as camadas de profundidade.
 //
-// Versão 2 (out/2026): cérebro visto de cima, dois hemisférios. O esquerdo
-// leva os traços de circuito com pontos do "B" da apresentação original
-// (azul); o direito leva as ondas de fala do sistema "Sinal", com a linha
-// do meio em âmbar. Junta a identidade antiga com a nova e deixa claro que
-// o desenho é um cérebro.
+// - simbolo.svg ............ o "B" de circuito com o degradê original
+// - simbolo-escuro.svg ..... igual (o degradê funciona em fundo escuro e claro)
+// - simbolo-claro.svg ...... igual
+// - icone.svg / favicon .... símbolo sobre o azul-noite
+// - wordmark-claro.png ..... "BRAIN AUDIOVISUAL" claro, para fundo escuro
+// - wordmark-original.png .. as cores originais, para fundo claro
 //
-// Uso: node design/gerar-logo.js
+// O desenho segue o logo original na escala 600x700 (o símbolo de 500 px
+// ampliado 4 vezes). Uso: node design/gerar-logo.js
 const fs = require('fs');
 const path = require('path');
 
-const BLUE = '#3FA9F5';
-const AMBER = '#FFB224';
+const THICK = 22, MID = 18, THIN = 12;
+const BIG = 38, NODE = 40, SMALL = 22;
 
-// Hemisférios no espaço 400x320 (os mesmos do quadro de direções)
-const HEMI_L = 'M194 30C140 28 92 62 82 120C72 180 92 250 150 282C168 292 186 292 194 284C197 230 197 90 194 30Z';
-const HEMI_R = 'M206 30C260 28 308 62 318 120C328 180 308 250 250 282C232 292 214 292 206 284C203 230 203 90 206 30Z';
-// Traços de circuito saindo da linha do meio para a esquerda, terminando em pontos
-const TRACES = [
-  { d: 'M182 78H146L126 58', node: [126, 58] },
-  { d: 'M182 128H108', node: [108, 128] },
-  { d: 'M182 176H152L132 196H104', node: [104, 196] },
-  { d: 'M182 232H146L128 250', node: [128, 250] },
+// Espinha do "B": nó grande do topo, três nós da esquerda e nó grande de baixo
+const SPINE = 'M437 68H232C186 68 152 98 140 155C70 182 30 250 58 312C66 330 78 342 95 350C40 380 30 455 88 494C104 505 120 512 140 515C156 572 190 625 232 625H437';
+// Traços de circuito (linhas finas) e ramos médios
+const THIN_LINES = [
+  'M140 175V270H355',          // do 1º nó: desce e vai até o ponto do meio
+  'M95 350H437V165',           // do nó do meio: vai à direita e sobe
+  'M437 270H520',              // ramo para a direita
+  'M140 500V425H485',          // do 3º nó: sobe e vai à direita
+  'M395 425V530H520',          // ramo que desce até o ponto de baixo
 ];
-const NODE_R = 13;
+const MID_LINES = ['M140 158H295', 'M140 530H295'];
+const NODES = [
+  [437, 68, BIG], [437, 625, BIG],
+  [140, 155, NODE], [95, 350, NODE], [140, 515, NODE],
+  [295, 160, SMALL], [355, 270, SMALL], [437, 165, SMALL], [520, 270, SMALL],
+  [485, 425, SMALL], [520, 530, SMALL], [295, 530, SMALL],
+];
 
-function wavePath(y, amp, phase) {
-  let d = `M200 ${y}`;
-  for (let x = 200; x <= 330; x += 6) d += ` L${x} ${(y + Math.sin(x * 0.075 + phase) * amp).toFixed(1)}`;
-  return d;
-}
-
-// Desenho no espaço 400x320; o transform encaixa no quadrado 40x40
-function art(line, bg, id) {
-  const waves = [90, 128, 166, 204, 242].map((y, i) => {
-    const mid = i === 2;
-    return `<path d="${wavePath(y, mid ? 14 : 8 - Math.abs(i - 2) * 1.5, i * 1.3)}" fill="none" stroke="${mid ? AMBER : line}" stroke-width="${mid ? 15 : 12}" stroke-linecap="round"/>`;
-  }).join('');
-  const traces = TRACES.map(t => `<path d="${t.d}" fill="none" stroke="${BLUE}" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>`
-    + `<circle cx="${t.node[0]}" cy="${t.node[1]}" r="${NODE_R}" fill="${bg}" stroke="${BLUE}" stroke-width="10"/>`).join('');
-  return `<g transform="translate(-4 0.6) scale(0.12)">`
-    + `<defs><clipPath id="${id}"><path d="${HEMI_R}" transform="translate(8 0)"/></clipPath></defs>`
-    + `<g clip-path="url(#${id})">${waves}</g>`
-    + traces
-    + `<path d="${HEMI_L}" transform="translate(-8 0)" fill="none" stroke="${BLUE}" stroke-width="15" stroke-linejoin="round"/>`
-    + `<path d="${HEMI_R}" transform="translate(8 0)" fill="none" stroke="${line}" stroke-width="15" stroke-linejoin="round"/>`
+function art(id) {
+  return `<defs><linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="160" y1="40" x2="380" y2="660"><stop offset="0" stop-color="#46C3EE"/><stop offset="1" stop-color="#3576C2"/></linearGradient></defs>`
+    + `<g fill="none" stroke="url(#${id})" stroke-linecap="round" stroke-linejoin="round">`
+    + `<path d="${SPINE}" stroke-width="${THICK}"/>`
+    + MID_LINES.map(d => `<path d="${d}" stroke-width="${MID}"/>`).join('')
+    + THIN_LINES.map(d => `<path d="${d}" stroke-width="${THIN}" stroke-linecap="butt"/>`).join('')
+    + `</g><g fill="url(#${id})">`
+    + NODES.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}"/>`).join('')
     + `</g>`;
 }
 
+// Quadrado 700x700 com o símbolo centralizado (para caber em ícones redondos)
+const symbol = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 700 700">${art('g')}</svg>`;
+const icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#0C111B"/><svg x="5" y="5" width="30" height="30" viewBox="-30 0 700 700">${art('g')}</svg></svg>`;
+
 const out = path.join(__dirname, 'logo');
 fs.mkdirSync(out, { recursive: true });
-
-const files = {
-  // Para fundo escuro (traços claros)
-  'simbolo-escuro.svg': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">${art('#EAF0F7', '#0C111B', 'h')}</svg>`,
-  // Para fundo claro (traços escuros)
-  'simbolo-claro.svg': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">${art('#131A27', '#FFFFFF', 'h')}</svg>`,
-  // Ícone de app / favicon: símbolo sobre o azul-noite
-  'icone.svg': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#0C111B"/><g transform="translate(3 3) scale(0.85)">${art('#EAF0F7', '#0C111B', 'h')}</g></svg>`,
-};
-
-for (const [name, svg] of Object.entries(files)) fs.writeFileSync(path.join(out, name), svg + '\n');
-fs.writeFileSync(path.join(__dirname, '..', 'frontend', 'public', 'favicon.svg'), files['icone.svg'] + '\n');
-fs.writeFileSync(path.join(__dirname, '..', 'audiovisual-edition', 'public', 'favicon.svg'), files['icone.svg'] + '\n');
-console.log('ok', Object.keys(files).join(', '));
+for (const name of ['simbolo.svg', 'simbolo-escuro.svg', 'simbolo-claro.svg']) fs.writeFileSync(path.join(out, name), symbol + '\n');
+fs.writeFileSync(path.join(out, 'icone.svg'), icon + '\n');
+fs.writeFileSync(path.join(__dirname, '..', 'frontend', 'public', 'favicon.svg'), icon + '\n');
+fs.writeFileSync(path.join(__dirname, '..', 'audiovisual-edition', 'public', 'favicon.svg'), icon + '\n');
+console.log('ok símbolo e ícone');

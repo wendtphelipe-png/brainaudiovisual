@@ -79,6 +79,7 @@
         <select id="voice"></select>
         <button class="btn btn-ghost" id="testBtn" type="button">Testar voz</button>
         <button class="btn btn-ghost" id="pauseBtn" type="button">Pausar</button>
+        <button class="btn btn-ghost" id="switchBtn" type="button">Trocar idioma ou sala</button>
         <button class="btn btn-onair btn-cut" id="liveBtn" type="button" hidden>Pular para o ao vivo</button>
       </div>
     </section>
@@ -104,6 +105,7 @@
         style="width:100%;height:52px;text-align:center;font-size:1.4rem;letter-spacing:.25em;text-transform:uppercase;font-weight:800;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink)">
       <div id="pickLangs" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0"></div>
       <p id="pickError" style="color:var(--bad);min-height:1.2em;margin:0"></p>
+      <button class="btn btn-ghost" id="pickClose" type="button" hidden style="margin-top:14px">Voltar para esta saída</button>
     </form>
   </div>
 
@@ -398,6 +400,8 @@
   async function showPicker(error) {
     $('picker').hidden = false;
     $('gate').hidden = true;
+    // Já numa saída: dá para voltar sem trocar nada
+    $('pickClose').hidden = !(sala && lang && !error);
     $('pickError').textContent = error || '';
     $('pickCode').value = sala;
     const load = async () => {
@@ -408,12 +412,18 @@
       if (!res || !res.ok) { $('pickError').textContent = 'Sala não encontrada.'; return; }
       $('pickError').textContent = '';
       const room = await res.json();
-      $('pickLangs').innerHTML = room.config.targets.map(l => `<a class="btn btn-onair btn-cut" style="text-decoration:none" href="/saida?sala=${code}&lang=${l}">${LANGS[l] || l}</a>`).join('');
+      $('pickLangs').innerHTML = room.config.targets.map(l => (code === sala && l === lang)
+        ? `<span class="btn btn-ghost" aria-current="true">${LANGS[l] || l} (atual)</span>`
+        : `<a class="btn btn-onair btn-cut" style="text-decoration:none" href="/saida?sala=${code}&lang=${l}">${LANGS[l] || l}</a>`).join('');
     };
     $('pickCode').oninput = load;
     $('pickForm').onsubmit = e => { e.preventDefault(); load(); };
     load();
   }
+
+  // Trocar de idioma ou de sala: abre a escolha com os idiomas desta reunião
+  $('switchBtn').onclick = () => showPicker();
+  $('pickClose').onclick = () => { $('picker').hidden = true; if (!started) $('gate').hidden = false; };
 
   render();
   if (!sala || !lang) showPicker();
