@@ -112,6 +112,7 @@
     </div>
     <div class="actions">
       <button class="btn btn-onair btn-cut" id="startBtn" type="button">Iniciar captação</button>
+      <button class="btn btn-ghost" id="telaoBtn" type="button" title="Abre uma página com todos os idiomas lado a lado, para projetar">Telão</button>
       <button class="btn btn-ghost" id="newBtn" type="button">Nova sessão</button>
     </div>
   </div>
@@ -451,6 +452,8 @@
       try { rec.abort(); } catch (_) {}
     }
   }, 2000);
+  // Telão: todos os idiomas da sala lado a lado (o operador recorta a faixa)
+  $('telaoBtn').onclick = () => window.open(`/telao?sala=${sala}`, 'telao-' + sala);
   $('newBtn').onclick = () => {
     if (!confirm('Começar uma sessão nova? As saídas também recomeçam do zero.')) return;
     if (recognizing) stopRecognition();

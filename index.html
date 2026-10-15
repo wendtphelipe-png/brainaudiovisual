@@ -992,8 +992,9 @@
           /* Rolagem: elementos entram ao aparecer na tela */
           .home .reveal { opacity: 0; transform: translateY(28px); transition: opacity .8s cubic-bezier(.2,.7,.2,1), transform .8s cubic-bezier(.2,.7,.2,1); transition-delay: var(--d, 0s); }
           .home .reveal.in { opacity: 1; transform: none; }
-          .home .reveal-img { clip-path: inset(0 0 100% 0); transition: clip-path 1.1s cubic-bezier(.7,0,.2,1); transition-delay: var(--d, 0s); }
-          .home .reveal-img.in { clip-path: inset(0 0 0 0); }
+          /* A revelação fica na imagem de dentro: a caixa precisa continuar visível para o navegador detectar que entrou na tela */
+          .home .reveal-img img { clip-path: inset(0 0 100% 0); transition: clip-path 1.1s cubic-bezier(.7,0,.2,1), transform 1.2s cubic-bezier(.2,.7,.2,1); transition-delay: var(--d, 0s), 0s; }
+          .home .reveal-img.in img { clip-path: inset(0 0 0 0); }
 
           /* Cartões que reagem ao mouse: inclinam e acendem onde o cursor está */
           .home .tilt { position: relative; transform-style: preserve-3d; transition: transform .25s ease-out, box-shadow .3s; will-change: transform; }
@@ -1001,7 +1002,7 @@
             background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(63, 169, 245, .22), transparent 45%); }
           .home .tilt:hover::before { opacity: 1; }
           .home .tilt.amber-glow::before { background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 178, 36, .2), transparent 45%); }
-          .home .tilt.reveal, .home .tilt.reveal-img { transition: opacity .8s cubic-bezier(.2,.7,.2,1), clip-path 1.1s cubic-bezier(.7,0,.2,1), transform .25s ease-out, box-shadow .3s; transition-delay: var(--d, 0s), var(--d, 0s), 0s, 0s; }
+          .home .tilt.reveal { transition: opacity .8s cubic-bezier(.2,.7,.2,1), transform .25s ease-out, box-shadow .3s; transition-delay: var(--d, 0s), 0s, 0s; }
           .home .tilt:hover { box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .8), 0 0 0 1px rgba(63, 169, 245, .35); }
 
           /* Linha do tempo com traço que se desenha */
@@ -1072,7 +1073,7 @@
           }
           @media (max-width: 560px) { .home .flow { grid-template-columns: 1fr; } }
           @media (prefers-reduced-motion: reduce) {
-            .home .reveal, .home .reveal-img { opacity: 1 !important; transform: none !important; clip-path: none !important; transition: none !important; }
+            .home .reveal, .home .reveal-img img { opacity: 1 !important; transform: none !important; clip-path: none !important; transition: none !important; }
             .home .tilt { transform: none !important; }
           }
         </style>
@@ -1111,8 +1112,9 @@
                 <a href="#solucoes" class="btn-cut btn-night h-14 px-7 text-base inline-flex items-center no-underline">${t.heroCta[1]}</a>
               </div>
             </div>
-            <div class="relative w-full max-w-xl mx-auto aspect-[5/4]" id="heroBrain">
-              <canvas id="hub-brain-canvas" class="absolute inset-0 w-full h-full" role="img" aria-label="Brain"></canvas>
+            <div class="relative w-full max-w-xl mx-auto" id="heroBrain">
+              <div class="photo aspect-[4/3] reveal-img tilt" style="--d:.2s"><img src="${IMG}palco-congresso.webp" alt="" fetchpriority="high"></div>
+              <div class="photo aspect-[4/3] w-[46%] absolute -left-8 -bottom-10 hidden sm:block reveal-img tilt shadow-2xl border border-[#232D40]" style="--d:.45s"><img src="${IMG}auditorio-plateia.webp" alt=""></div>
             </div>
           </section>
 
@@ -1276,7 +1278,7 @@
                 <span class="text-[#8592A8]">${t.role}</span>
               </div>
               <div class="mt-7 flex flex-wrap gap-3 reveal" style="--d:.2s">
-                <a href="${wa}" target="_blank" rel="noopener" class="btn-cut btn-wa h-12 px-5 text-[15px] inline-flex items-center gap-2 no-underline">${WA_ICON}${t.whatsapp} +55 11 99752-8523</a>
+                <a href="${wa}" target="_blank" rel="noopener" class="btn-cut btn-wa h-12 px-5 text-[15px] inline-flex items-center gap-2 no-underline">${WA_ICON}${t.whatsapp}</a>
                 <a href="mailto:bramante@brainaudiovisual.com.br" class="btn-cut btn-blue h-12 px-5 text-[15px] inline-flex items-center no-underline">bramante@brainaudiovisual.com.br</a>
                 <a href="https://www.instagram.com/brain_audiovisual/" target="_blank" rel="noopener" class="btn-cut btn-night h-12 px-5 text-[15px] inline-flex items-center no-underline">@brain_audiovisual</a>
               </div>
@@ -1299,8 +1301,7 @@
         </div>
       `;
       window.__cabineEntered = true;
-      const brainCanvas = document.getElementById('hub-brain-canvas');
-      if (brainCanvas) mountBrainWaves(brainCanvas);
+      if (window.__brainWavesStop) window.__brainWavesStop();
       mountHomeInteractions();
     }
 

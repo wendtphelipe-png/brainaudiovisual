@@ -10,7 +10,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/cabine.css">
 <style>
-  body { min-height: 100vh; display: flex; flex-direction: column; }
+  body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
+  .history { border-left: 1px solid var(--line); display: grid; grid-template-rows: auto auto 1fr; min-height: 0; background: color-mix(in srgb, var(--panel) 70%, transparent); }
+  .hist-head { display: flex; align-items: baseline; justify-content: space-between; padding: 16px 18px 10px; }
+  .hist-head h2 { margin: 0; font-size: 1rem; font-weight: 700; font-variation-settings: "wdth" 112; }
+  .hist-head span { color: var(--dim); font-size: .82rem; }
+  .hist-search { margin: 0 18px 10px; position: relative; }
+  .hist-search input { width: 100%; height: 40px; padding: 0 12px 0 36px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); font-size: .95rem; }
+  .hist-search input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px rgba(255, 178, 36, .2); }
+  .hist-search svg { position: absolute; left: 11px; top: 12px; color: var(--dim); }
+  .hist-list { overflow-y: auto; padding: 4px 18px 18px; display: flex; flex-direction: column; }
+  .hist-feed { margin-top: auto; }
+  .hist-item { margin: 0; padding: 9px 0; border-bottom: 1px dashed color-mix(in srgb, var(--line) 70%, transparent); color: var(--muted); line-height: 1.5; font-size: .98rem; }
+  .hist-item.current { color: var(--ink); border-left: 3px solid var(--amber); padding-left: 10px; }
+  .hist-item mark { background: rgba(255, 178, 36, .35); color: var(--ink); border-radius: 2px; padding: 0 1px; }
+  .hist-empty { color: var(--dim); font-size: .9rem; padding: 12px 0; }
+  @media (max-width: 1000px) { body { height: auto; overflow: auto; } .layout { grid-template-columns: 1fr; } .history { border-left: 0; border-top: 1px solid var(--line); max-height: 60vh; } }
   .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 22px; border-bottom: 1px solid var(--line); }
   .bar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
   .lang-title { font-weight: 800; font-variation-settings: "wdth" 125; font-size: 1.15rem; letter-spacing: 0.01em; white-space: nowrap; }
@@ -43,6 +59,7 @@
     <span id="conn" class="chip">Conectando</span>
   </header>
 
+  <div class="layout">
   <main class="stage">
     <section class="now" aria-live="polite">
       <div class="now-label"><span class="live-signal" id="liveSig" aria-hidden="true"><i></i><i></i><i></i></span><span id="nowLabel">Aguardando o primeiro bloco</span></div>
@@ -66,6 +83,17 @@
       </div>
     </section>
   </main>
+
+  <aside class="history" aria-label="Histórico do que já foi falado">
+    <div class="hist-head"><h2>Histórico</h2><span id="histCount">0 trechos</span></div>
+    <label class="hist-search">
+      <span class="sr-only">Buscar no histórico</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" id="histSearch" placeholder="Buscar no que já foi falado" autocomplete="off">
+    </label>
+    <div class="hist-list" id="histBody"><div class="hist-feed" id="histFeed"><p class="hist-empty" id="histEmpty">O que for falado aparece aqui, o mais recente embaixo.</p></div></div>
+  </aside>
+  </div>
 
   <div class="gate" id="picker" hidden>
     <form class="gate-card" id="pickForm">
@@ -111,7 +139,7 @@
   // ---------- Estado ----------
   let session = store.get('cabine_sessao_' + sala + lang, null);
   let spokenSeq = store.get('cabine_falado_' + sala + lang, 0);
-  let receivedSeq = spokenSeq;
+  let receivedSeq = 0;
   let queue = [];            // blocos recebidos e ainda não falados
   let started = false, paused = false, speaking = false, current = null, watchdog = 0;
   let lastLagMs = null;
@@ -126,7 +154,7 @@
     voices.sort((a, b) => score(b) - score(a));
     const saved = store.get('cabine_voz_' + lang, null);
     const sel = $('voice');
-    sel.innerHTML = voices.map(v => `<option value="${v.name}">${v.name.replace('Microsoft ', '')}</option>`).join('') || '<option>Nenhuma voz para este idioma</option>';
+    sel.innerHTML = voices.map(v => `<option value="${v.name.replace(/"/g, '&quot;')}">${voiceLabel(v)}</option>`).join('') || '<option>Nenhuma voz para este idioma</option>';
     if (saved && voices.some(v => v.name === saved)) sel.value = saved;
     const natural = voices.some(v => /natural|online|neural/i.test(v.name));
     const banner = $('banner');
@@ -141,6 +169,27 @@
     if (v.lang === lang) s += 3;
     if (/multilingual/i.test(v.name)) s -= 1;
     return s;
+  }
+  // Nome, gênero e região de cada voz, em letras latinas (para escolher sem
+  // precisar ouvir). O gênero vem da lista oficial das vozes da Microsoft.
+  let VOZES = {};
+  fetch('/vozes.json').then(r => r.json()).then(j => { VOZES = j; loadVoices(); }).catch(() => {});
+  const regionName = (() => { try { const d = new Intl.DisplayNames(['pt-BR'], { type: 'region' }); return c => { try { return d.of(c); } catch (_) { return c; } }; } catch (_) { return c => c; } })();
+  function voiceGender(v, first) {
+    if (!first) return '';
+    if (VOZES[v.lang] && VOZES[v.lang][first]) return VOZES[v.lang][first];
+    for (const loc of Object.keys(VOZES)) if (loc.startsWith(base) && VOZES[loc][first]) return VOZES[loc][first];
+    return '';
+  }
+  function voiceLabel(v) {
+    const m = v.name.match(/Microsoft\s+([A-Za-z]+)/);
+    const first = m ? m[1] : '';
+    const g = voiceGender(v, first);
+    const gender = g === 'M' ? 'masculina' : g === 'F' ? 'feminina' : 'gênero não informado';
+    const region = v.lang.includes('-') ? regionName(v.lang.split('-')[1]) : '';
+    const natural = /natural|neural/i.test(v.name) ? ' · natural' : '';
+    const name = first || (/[^\u0000-\u024F]/.test(v.name) ? 'Voz do sistema' : v.name.replace(/^Google\s*/, 'Google '));
+    return [name, gender, region].filter(Boolean).join(' · ') + natural;
   }
   speechSynthesis.onvoiceschanged = loadVoices;
   loadVoices();
@@ -163,10 +212,56 @@
   function accept(item) {
     if (item.seq <= receivedSeq) return;
     receivedSeq = item.seq;
-    if (item.seq <= spokenSeq) return;
+    // Já falado antes (ex.: a página recarregou): vai direto para o histórico
+    if (item.seq <= spokenSeq) { addHistory(item, false); return; }
     queue.push(item);
     pump();
   }
+
+  // ---------- Histórico rolável e buscável ----------
+  const fold = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  let histTotal = 0;
+  function addHistory(item, current) {
+    if (!item.text) return;
+    const feed = $('histFeed'), body = $('histBody');
+    const atEnd = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
+    $('histEmpty')?.remove();
+    const p = document.createElement('p');
+    p.className = 'hist-item' + (current ? ' current' : '');
+    p.dataset.seq = item.seq;
+    p.dataset.text = item.text;
+    p.textContent = item.text;
+    feed.appendChild(p);
+    histTotal++;
+    $('histCount').textContent = histTotal + (histTotal === 1 ? ' trecho' : ' trechos');
+    applySearch(p);
+    if (atEnd && !$('histSearch').value) body.scrollTop = body.scrollHeight;
+  }
+  function markDone(seq) {
+    const el = $('histFeed').querySelector(`.hist-item[data-seq="${seq}"]`);
+    if (el) el.classList.remove('current');
+  }
+  function applySearch(only) {
+    const q = fold($('histSearch').value.trim());
+    const items = only ? [only] : $('histFeed').querySelectorAll('.hist-item');
+    for (const el of items) {
+      const text = el.dataset.text;
+      if (!q) { el.hidden = false; el.textContent = text; continue; }
+      const i = fold(text).indexOf(q);
+      el.hidden = i < 0;
+      if (i >= 0) {
+        el.textContent = '';
+        el.append(text.slice(0, i));
+        const m = document.createElement('mark');
+        m.textContent = text.slice(i, i + q.length);
+        el.append(m, text.slice(i + q.length));
+      }
+    }
+  }
+  $('histSearch').addEventListener('input', () => {
+    applySearch();
+    if (!$('histSearch').value) $('histBody').scrollTop = $('histBody').scrollHeight;
+  });
 
   function pump() {
     render();
@@ -176,6 +271,7 @@
     if (!item.text) { spokenSeq = item.seq; saveProgress(); return pump(); } // traduzido junto com o seguinte
     speaking = true;
     current = item;
+    addHistory(item, true);
     if (item.tClose) lastLagMs = Date.now() - item.tClose;
     const u = new SpeechSynthesisUtterance(item.text);
     u.lang = lang;
@@ -187,6 +283,7 @@
       if (done) return;
       done = true;
       clearTimeout(watchdog);
+      markDone(item.seq);
       spokenSeq = item.seq;
       saveProgress();
       speaking = false;
@@ -220,7 +317,7 @@
     ws.onopen = () => {
       retry = 0;
       setConn('Conectado', 'ok');
-      ws.send(JSON.stringify({ type: 'hello', role: 'saida', sala, lang, id: outputId, session, after: spokenSeq }));
+      ws.send(JSON.stringify({ type: 'hello', role: 'saida', sala, lang, id: outputId, session, after: receivedSeq }));
     };
     ws.onmessage = ev => {
       const msg = JSON.parse(ev.data);
@@ -235,6 +332,7 @@
         if (msg.session !== session) {
           // Sessão nova no servidor: começa do zero
           session = msg.session; spokenSeq = 0; receivedSeq = 0; queue = [];
+          $('histFeed').innerHTML = ''; histTotal = 0; $('histCount').textContent = '0 trechos';
           if (speaking) { speechSynthesis.cancel(); }
           saveProgress();
         }
@@ -252,7 +350,7 @@
 
   setInterval(() => {
     if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'status', id: outputId, lang, voice: (selectedVoice() || {}).name || '',
-      spokenSeq, receivedSeq, backlogWords: backlogWords(), rate: rateFor(), playing: started && !paused }));
+      spokenSeq, receivedSeq, currentSeq: current ? current.seq : 0, backlogWords: backlogWords(), rate: rateFor(), playing: started && !paused }));
     render();
   }, 1000);
 
@@ -282,6 +380,7 @@
   $('liveBtn').onclick = () => {
     const keep = queue.filter(i => i.text).slice(-2);
     const skipped = queue.filter(i => !keep.includes(i));
+    for (const it of skipped) addHistory(it, false); // pulados ficam no histórico, para consulta
     if (skipped.length) spokenSeq = Math.max(spokenSeq, skipped[skipped.length - 1].seq);
     queue = keep;
     saveProgress();

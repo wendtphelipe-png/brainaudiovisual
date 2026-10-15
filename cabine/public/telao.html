@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telão</title>
+<link rel="icon" type="image/svg+xml" href="/logo/icone.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+  /* Telão: uma faixa vertical por idioma, lado a lado, ocupando a tela
+     inteira (16:9). O operador recorta no programa de transmissão a faixa
+     do idioma que quer projetar. Cada faixa tem o feed de baixo para cima,
+     com destaque na frase que está sendo dublada agora. */
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; background: #04060A; color: #EAF0F7; overflow: hidden;
+    font-family: Archivo, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wall { height: 100vh; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0; }
+  .col { position: relative; container-type: inline-size; display: grid; grid-template-rows: auto 1fr; min-width: 0; border-right: 1px solid #141B28; }
+  .col:last-child { border-right: 0; }
+  .col-head { display: flex; align-items: center; gap: .6em; padding: 2.4cqw 4cqw 1.6cqw; font-size: clamp(12px, 2.6cqw, 22px); color: #8592A8;
+    font-weight: 700; font-variation-settings: "wdth" 118; letter-spacing: .08em; }
+  .col-head b { color: #FFB224; }
+  .feed-wrap { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 4cqw 4cqw;
+    mask-image: linear-gradient(transparent 0, #000 22%); -webkit-mask-image: linear-gradient(transparent 0, #000 22%); }
+  .line { margin: 0 0 .7em; font-size: clamp(16px, 3.6cqw, 44px); line-height: 1.32; color: #6F7D96; transition: color .5s, opacity .5s; text-wrap: pretty; }
+  .line.current { color: #FFFFFF; font-weight: 600; position: relative; padding-inline-start: .55em; }
+  .line.current::before { content: ""; position: absolute; inset-inline-start: 0; top: .18em; bottom: .18em; width: .14em; border-radius: 2px; background: #FFB224; box-shadow: 0 0 18px rgba(255, 178, 36, .7); }
+  .line.fresh { animation: lineIn .45s ease-out; }
+  @keyframes lineIn { from { opacity: 0; transform: translateY(.4em); } }
+  .empty { color: #3A465C; font-size: clamp(14px, 2.4cqw, 26px); padding-bottom: 2em; }
+  .msg { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; color: #8592A8; font-size: 22px; padding: 30px; }
+  body.clean .col-head { display: none; }
+  @media (prefers-reduced-motion: reduce) { .line.fresh { animation: none; } }
+</style>
+</head>
+<body>
+  <main class="wall" id="wall"></main>
+  <div class="msg" id="msg">Conectando…</div>
+<script>
+(function () {
+  // Nome de cada idioma escrito nele mesmo (é o que a plateia lê)
+  const NAMES = { 'pt-BR': 'PORTUGUÊS', 'en-US': 'ENGLISH', 'es-ES': 'ESPAÑOL', 'fr-FR': 'FRANÇAIS', 'de-DE': 'DEUTSCH', 'it-IT': 'ITALIANO', 'ar-SA': 'العربية' };
+  const MAX_LINES = 40;
+  const params = new URLSearchParams(location.search);
+  const sala = (params.get('sala') || '').toUpperCase();
+  // ?limpo=1 esconde o nome dos idiomas no topo das faixas
+  if (params.get('limpo') === '1') document.body.classList.add('clean');
+  const $ = id => document.getElementById(id);
+
+  let config = { targets: [] };
+  let items = {};      // idioma -> Map(seq -> item)
+  let outputs = [];
+
+  function build() {
+    $('wall').innerHTML = config.targets.map(l => `
+      <section class="col" data-lang="${l}" ${l.startsWith('ar') ? 'dir="rtl"' : ''}>
+        <div class="col-head"><b>●</b>${NAMES[l] || l}</div>
+        <div class="feed-wrap" id="feed-${l}"><p class="empty">…</p></div>
+      </section>`).join('');
+    for (const l of config.targets) render(l, false);
+  }
+
+  // O que mostrar em cada faixa: com uma saída de voz ligada, só o que já foi
+  // (ou está sendo) dublado, com destaque no atual; sem saída, tudo o que
+  // chegou, com destaque no último.
+  function render(lang, animate = true) {
+    const feed = $('feed-' + lang);
+    if (!feed) return;
+    const all = [...(items[lang] || new Map()).values()].filter(i => i.text).sort((a, b) => a.seq - b.seq);
+    const out = outputs.filter(o => o.lang === lang && o.age < 4000 && o.playing);
+    let shown = all, currentSeq = all.length ? all[all.length - 1].seq : 0;
+    if (out.length) {
+      const cur = Math.max(...out.map(o => o.currentSeq || 0));
+      const spoken = Math.max(...out.map(o => o.spokenSeq || 0));
+      const upto = Math.max(cur, spoken);
+      shown = all.filter(i => i.seq <= upto);
+      currentSeq = cur;
+    }
+    shown = shown.slice(-MAX_LINES);
+    const have = new Set([...feed.querySelectorAll('.line')].map(el => Number(el.dataset.seq)));
+    feed.querySelector('.empty')?.remove();
+    // Remove o que saiu da janela e acrescenta o novo, sem refazer tudo
+    const keep = new Set(shown.map(i => i.seq));
+    feed.querySelectorAll('.line').forEach(el => { if (!keep.has(Number(el.dataset.seq))) el.remove(); });
+    for (const it of shown) {
+      if (have.has(it.seq)) continue;
+      const p = document.createElement('p');
+      p.className = 'line' + (animate ? ' fresh' : '');
+      p.dataset.seq = it.seq;
+      p.textContent = it.text;
+      feed.appendChild(p);
+    }
+    feed.querySelectorAll('.line').forEach(el => el.classList.toggle('current', Number(el.dataset.seq) === currentSeq));
+    if (!shown.length && !feed.querySelector('.empty')) feed.innerHTML = '<p class="empty">…</p>';
+  }
+
+  let ws, retry = 0;
+  function connect() {
+    if (!sala) { $('msg').textContent = 'Abra esta página pelo botão "Telão" do cockpit.'; return; }
+    ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    ws.onopen = () => { retry = 0; ws.send(JSON.stringify({ type: 'hello', role: 'telao', sala })); };
+    ws.onclose = () => { setTimeout(connect, Math.min(4000, 500 + retry++ * 500)); };
+    ws.onmessage = ev => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'error') { $('msg').hidden = false; $('msg').textContent = msg.text; ws.onclose = null; return; }
+      if (msg.type === 'welcome') {
+        $('msg').hidden = true;
+        config = msg.config;
+        items = {};
+        for (const [l, list] of Object.entries(msg.translations || {})) items[l] = new Map(list.map(i => [i.seq, i]));
+        outputs = msg.outputs || [];
+        document.title = 'Telão · Sala ' + msg.room;
+        build();
+      } else if (msg.type === 'config') {
+        config = msg.config; build();
+      } else if (msg.type === 'tr') {
+        (items[msg.lang] = items[msg.lang] || new Map()).set(msg.item.seq, msg.item);
+        const m = items[msg.lang];
+        if (m.size > 300) m.delete(m.keys().next().value);
+        render(msg.lang);
+      } else if (msg.type === 'outputs') {
+        outputs = msg.outputs;
+        for (const l of config.targets) render(l);
+      }
+    };
+  }
+  connect();
+})();
+</script>
+</body>
+</html>

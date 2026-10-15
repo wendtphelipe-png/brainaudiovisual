@@ -136,7 +136,7 @@ class Room {
     map.set(item.seq, item);
     if (map.size > 5000) map.delete(map.keys().next().value);
     this.log({ type: 'tr', lang, ...item });
-    this.broadcast({ type: 'tr', lang, item }, c => c.role === 'cockpit' || (c.role === 'saida' && c.lang === lang));
+    this.broadcast({ type: 'tr', lang, item }, c => c.role === 'cockpit' || c.role === 'telao' || (c.role === 'saida' && c.lang === lang));
   }
 
   // Se o fim da fala ficou sem tradução (internet caiu), tenta de novo sozinho
@@ -150,6 +150,13 @@ class Room {
   }
 
   outputsList() { return [...this.outputs.values()].map(o => ({ ...o, age: Date.now() - o.lastSeen })); }
+
+  // Telão: só leitura, todas as traduções e o que cada saída está falando
+  telaoWelcome() {
+    return { type: 'welcome', room: this.code, name: this.name, session: this.session, config: this.config,
+      translations: Object.fromEntries(Object.entries(this.translations).map(([l, m]) => [l, [...m.values()].slice(-80)])),
+      outputs: this.outputsList() };
+  }
 
   cockpitWelcome() {
     return { type: 'welcome', room: this.code, name: this.name, session: this.session, config: this.config, blocks: this.blocks.slice(-300),
@@ -253,6 +260,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/' || p === '/nova') return sendFile(res, path.join(PUBLIC, 'inicio.html'));
   if (p === '/cockpit') return sendFile(res, path.join(PUBLIC, 'cockpit.html'));
   if (p === '/saida') return sendFile(res, path.join(PUBLIC, 'saida.html'));
+  if (p === '/telao') return sendFile(res, path.join(PUBLIC, 'telao.html'));
   if (p === '/saude') return sendJson(res, 200, { ok: true, salas: rooms.size, conexoes: [...clients].filter(c => c.role).length });
   if (p === '/api/info') return sendJson(res, 200, { requiresKey: !!CREATE_KEY, local: !PUBLIC_URL });
 
@@ -305,6 +313,10 @@ wss.on('connection', ws => {
         room.lastUsed = Date.now();
         return send(ws, room.cockpitWelcome());
       }
+      if (msg.role === 'telao') {
+        ws.role = 'telao'; ws.room = room;
+        return send(ws, room.telaoWelcome());
+      }
       if (msg.role === 'saida') {
         ws.role = 'saida'; ws.room = room; ws.lang = msg.lang; ws.outputId = msg.id;
         // Reenvia tudo o que esta saída ainda não recebeu (mesma sessão)
@@ -338,12 +350,13 @@ wss.on('connection', ws => {
           room.newSession();
           for (const c of room.clients(() => true)) {
             if (c.role === 'cockpit') send(c, room.cockpitWelcome());
+            if (c.role === 'telao') send(c, room.telaoWelcome());
             if (c.role === 'saida') send(c, { type: 'welcome', room: room.code, name: room.name, session: room.session, config: room.config, items: [] });
           }
           break;
       }
     } else if (ws.role === 'saida' && msg.type === 'status') {
-      room.outputs.set(msg.id, { id: msg.id, lang: msg.lang, voice: msg.voice, spokenSeq: msg.spokenSeq, receivedSeq: msg.receivedSeq,
+      room.outputs.set(msg.id, { id: msg.id, lang: msg.lang, voice: msg.voice, spokenSeq: msg.spokenSeq, receivedSeq: msg.receivedSeq, currentSeq: msg.currentSeq || 0,
         backlogWords: msg.backlogWords, rate: msg.rate, playing: msg.playing, lastSeen: Date.now() });
     }
   });
@@ -360,7 +373,7 @@ setInterval(() => { for (const r of rooms.values()) r.retryCarry(); }, 5000);
 setInterval(() => {
   for (const r of rooms.values()) {
     for (const [id, o] of r.outputs) if (Date.now() - o.lastSeen > 15000) r.outputs.delete(id);
-    r.broadcast({ type: 'outputs', outputs: r.outputsList() }, c => c.role === 'cockpit');
+    r.broadcast({ type: 'outputs', outputs: r.outputsList() }, c => c.role === 'cockpit' || c.role === 'telao');
   }
 }, 1000);
 setInterval(() => { for (const r of rooms.values()) r.save(); cleanupRooms(); }, 10 * 60 * 1000);
