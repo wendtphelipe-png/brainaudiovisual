@@ -9,45 +9,54 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
 <style>
-  /* Telão: uma faixa vertical por idioma, lado a lado, ocupando a tela
-     inteira (16:9). O operador recorta no programa de transmissão a faixa
-     do idioma que quer projetar. Cada faixa tem o feed de baixo para cima,
-     com destaque na frase que está sendo dublada agora. */
+  /* Telão: uma LINHA por idioma, empilhadas, com altura fixa. Habilitar um
+     idioma novo acrescenta uma linha embaixo e não muda o tamanho das
+     outras. O operador recorta no programa de transmissão a linha do idioma
+     que quer projetar.
+     Dentro da linha o texto é corrido: cada frase nova se soma ao parágrafo
+     e o conjunto sobe suavemente de baixo para cima, como uma legenda de
+     teleprompter. A frase sendo dublada fica em destaque.
+     Ajustes pelo endereço: ?altura=216 (altura da linha em px; padrão 216,
+     cinco linhas numa tela 1920x1080) e ?limpo=1 (sem o nome do idioma). */
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  html, body { margin: 0; height: 100%; background: #04060A; color: #EAF0F7; overflow: hidden;
-    font-family: Archivo, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
-  .wall { height: 100vh; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0; }
-  .col { position: relative; container-type: inline-size; display: grid; grid-template-rows: auto 1fr; min-width: 0; border-right: 1px solid #141B28; }
-  .col:last-child { border-right: 0; }
-  .col-head { display: flex; align-items: center; gap: .6em; padding: 2.4cqw 4cqw 1.6cqw; font-size: clamp(12px, 2.6cqw, 22px); color: #8592A8;
-    font-weight: 700; font-variation-settings: "wdth" 118; letter-spacing: .08em; }
-  .col-head b { color: #FFB224; }
-  .feed-wrap { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 4cqw 4cqw;
-    mask-image: linear-gradient(transparent 0, #000 22%); -webkit-mask-image: linear-gradient(transparent 0, #000 22%); }
-  .line { margin: 0 0 .7em; font-size: clamp(16px, 3.6cqw, 44px); line-height: 1.32; color: #6F7D96; transition: color .5s, opacity .5s; text-wrap: pretty; }
-  .line.current { color: #FFFFFF; font-weight: 600; position: relative; padding-inline-start: .55em; }
-  .line.current::before { content: ""; position: absolute; inset-inline-start: 0; top: .18em; bottom: .18em; width: .14em; border-radius: 2px; background: #FFB224; box-shadow: 0 0 18px rgba(255, 178, 36, .7); }
-  .line.fresh { animation: lineIn .45s ease-out; }
-  @keyframes lineIn { from { opacity: 0; transform: translateY(.4em); } }
-  .empty { color: #3A465C; font-size: clamp(14px, 2.4cqw, 26px); padding-bottom: 2em; }
+  :root { --row-h: 216px; }
+  html, body { margin: 0; background: #04060A; color: #EAF0F7; font-family: Archivo, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { overflow-x: hidden; }
+  .rows { display: flex; flex-direction: column; width: 100vw; }
+  .row { position: relative; height: var(--row-h); flex: 0 0 var(--row-h); border-bottom: 1px solid #141B28; overflow: hidden; }
+  .tag { position: absolute; top: calc(var(--row-h) * .07); left: 2.2vw; z-index: 2; display: inline-flex; align-items: center; gap: .5em;
+    font-size: calc(var(--row-h) * .075); color: #8592A8; font-weight: 700; font-variation-settings: "wdth" 118; letter-spacing: .1em; }
+  .tag b { width: .5em; height: .5em; border-radius: 50%; background: #FFB224; box-shadow: 0 0 12px rgba(255, 178, 36, .8); }
+  .row[dir="rtl"] .tag { left: auto; right: 2.2vw; }
+  /* Janela do texto: fica presa embaixo; o que passa do topo some em degradê */
+  .viewport { position: absolute; inset: calc(var(--row-h) * .2) 2.2vw calc(var(--row-h) * .1); display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden;
+    mask-image: linear-gradient(transparent 0, #000 30%); -webkit-mask-image: linear-gradient(transparent 0, #000 30%); }
+  body.clean .viewport { top: calc(var(--row-h) * .08); }
+  body.clean .tag { display: none; }
+  .text { font-size: calc(var(--row-h) * .175); line-height: 1.3; color: #6F7D96; text-wrap: pretty; will-change: transform; }
+  .seg { transition: color .5s; }
+  .seg.current { color: #FFFFFF; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(255, 178, 36, .85); text-decoration-thickness: .08em; text-underline-offset: .18em; }
+  .seg.fresh { animation: segIn .6s ease-out; }
+  @keyframes segIn { from { opacity: 0; } }
   .msg { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; color: #8592A8; font-size: 22px; padding: 30px; }
-  body.clean .col-head { display: none; }
-  @media (prefers-reduced-motion: reduce) { .line.fresh { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .seg.fresh { animation: none; } }
 </style>
 </head>
 <body>
-  <main class="wall" id="wall"></main>
+  <main class="rows" id="rows"></main>
   <div class="msg" id="msg">Conectando…</div>
 <script>
 (function () {
   // Nome de cada idioma escrito nele mesmo (é o que a plateia lê)
   const NAMES = { 'pt-BR': 'PORTUGUÊS', 'en-US': 'ENGLISH', 'es-ES': 'ESPAÑOL', 'fr-FR': 'FRANÇAIS', 'de-DE': 'DEUTSCH', 'it-IT': 'ITALIANO', 'ar-SA': 'العربية' };
-  const MAX_LINES = 40;
+  const MAX_SEGS = 60;
   const params = new URLSearchParams(location.search);
   const sala = (params.get('sala') || '').toUpperCase();
-  // ?limpo=1 esconde o nome dos idiomas no topo das faixas
+  const altura = Number(params.get('altura'));
+  if (altura >= 80 && altura <= 1080) document.documentElement.style.setProperty('--row-h', altura + 'px');
   if (params.get('limpo') === '1') document.body.classList.add('clean');
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = id => document.getElementById(id);
 
   let config = { targets: [] };
@@ -55,46 +64,55 @@
   let outputs = [];
 
   function build() {
-    $('wall').innerHTML = config.targets.map(l => `
-      <section class="col" data-lang="${l}" ${l.startsWith('ar') ? 'dir="rtl"' : ''}>
-        <div class="col-head"><b>●</b>${NAMES[l] || l}</div>
-        <div class="feed-wrap" id="feed-${l}"><p class="empty">…</p></div>
+    $('rows').innerHTML = config.targets.map(l => `
+      <section class="row" data-lang="${l}" ${l.startsWith('ar') ? 'dir="rtl"' : ''}>
+        <div class="tag"><b></b>${NAMES[l] || l}</div>
+        <div class="viewport"><div class="text" id="text-${l}"></div></div>
       </section>`).join('');
     for (const l of config.targets) render(l, false);
   }
 
-  // O que mostrar em cada faixa: com uma saída de voz ligada, só o que já foi
-  // (ou está sendo) dublado, com destaque no atual; sem saída, tudo o que
-  // chegou, com destaque no último.
-  function render(lang, animate = true) {
-    const feed = $('feed-' + lang);
-    if (!feed) return;
+  // O que mostrar: com uma saída de voz ligada, só o que já foi (ou está
+  // sendo) dublado, com destaque no atual; sem saída, tudo o que chegou,
+  // com destaque no último.
+  function visible(lang) {
     const all = [...(items[lang] || new Map()).values()].filter(i => i.text).sort((a, b) => a.seq - b.seq);
     const out = outputs.filter(o => o.lang === lang && o.age < 4000 && o.playing);
-    let shown = all, currentSeq = all.length ? all[all.length - 1].seq : 0;
-    if (out.length) {
-      const cur = Math.max(...out.map(o => o.currentSeq || 0));
-      const spoken = Math.max(...out.map(o => o.spokenSeq || 0));
-      const upto = Math.max(cur, spoken);
-      shown = all.filter(i => i.seq <= upto);
-      currentSeq = cur;
-    }
-    shown = shown.slice(-MAX_LINES);
-    const have = new Set([...feed.querySelectorAll('.line')].map(el => Number(el.dataset.seq)));
-    feed.querySelector('.empty')?.remove();
-    // Remove o que saiu da janela e acrescenta o novo, sem refazer tudo
-    const keep = new Set(shown.map(i => i.seq));
-    feed.querySelectorAll('.line').forEach(el => { if (!keep.has(Number(el.dataset.seq))) el.remove(); });
+    if (!out.length) return { shown: all, current: all.length ? all[all.length - 1].seq : 0 };
+    const cur = Math.max(...out.map(o => o.currentSeq || 0));
+    const upto = Math.max(cur, ...out.map(o => o.spokenSeq || 0));
+    return { shown: all.filter(i => i.seq <= upto), current: cur };
+  }
+
+  function render(lang, animate = true) {
+    const text = $('text-' + lang);
+    if (!text) return;
+    const { shown, current } = visible(lang);
+    const have = new Set([...text.children].map(el => Number(el.dataset.seq)));
+    const before = text.offsetHeight;
+    let added = false;
     for (const it of shown) {
       if (have.has(it.seq)) continue;
-      const p = document.createElement('p');
-      p.className = 'line' + (animate ? ' fresh' : '');
-      p.dataset.seq = it.seq;
-      p.textContent = it.text;
-      feed.appendChild(p);
+      const s = document.createElement('span');
+      s.className = 'seg' + (animate ? ' fresh' : '');
+      s.dataset.seq = it.seq;
+      s.textContent = it.text + ' ';
+      text.appendChild(s);
+      added = true;
     }
-    feed.querySelectorAll('.line').forEach(el => el.classList.toggle('current', Number(el.dataset.seq) === currentSeq));
-    if (!shown.length && !feed.querySelector('.empty')) feed.innerHTML = '<p class="empty">…</p>';
+    // Guarda só o fim do texto (o começo já saiu da tela pelo topo)
+    while (text.children.length > MAX_SEGS) text.firstChild.remove();
+    for (const el of text.children) el.classList.toggle('current', Number(el.dataset.seq) === current);
+    // Subida suave: o texto cresceu e empurraria tudo para cima de uma vez;
+    // começa deslocado para baixo pela diferença e desliza até o lugar.
+    const grow = text.offsetHeight - before;
+    if (added && animate && grow > 0 && !reduce) {
+      text.style.transition = 'none';
+      text.style.transform = `translateY(${grow}px)`;
+      text.getBoundingClientRect();
+      text.style.transition = 'transform .9s cubic-bezier(.2, .7, .2, 1)';
+      text.style.transform = 'translateY(0)';
+    }
   }
 
   let ws, retry = 0;
@@ -115,7 +133,10 @@
         document.title = 'Telão · Sala ' + msg.room;
         build();
       } else if (msg.type === 'config') {
-        config = msg.config; build();
+        // Idioma novo entra como linha nova; as outras ficam como estão
+        const prev = config.targets;
+        config = msg.config;
+        if (prev.join() !== config.targets.join()) build();
       } else if (msg.type === 'tr') {
         (items[msg.lang] = items[msg.lang] || new Map()).set(msg.item.seq, msg.item);
         const m = items[msg.lang];

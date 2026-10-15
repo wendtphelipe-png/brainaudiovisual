@@ -980,6 +980,13 @@
           .home .btn-wa { background: #25D366 !important; color: #052E16 !important; }
           .home .grad-text { background: linear-gradient(100deg, #EAF0F7 30%, var(--blue) 75%, #8FD3FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
+          /* Logo grande da abertura: camadas com profundidade que inclinam seguindo o mouse (sem girar sozinho) */
+          .home .hero-logo { position: relative; width: min(100%, 460px); aspect-ratio: 1; margin: 0 auto; perspective: 1100px; }
+          .home .hero-logo-glow { position: absolute; inset: 12%; border-radius: 50%; background: radial-gradient(circle, rgba(63,169,245,.28), rgba(255,178,36,.08) 45%, transparent 70%); filter: blur(30px); animation: heroGlow 6s ease-in-out infinite; }
+          @keyframes heroGlow { 0%, 100% { opacity: .75; transform: scale(.96); } 50% { opacity: 1; transform: scale(1.04); } }
+          .home .hero-logo-stage { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateX(var(--rx, 8deg)) rotateY(var(--ry, -14deg)); transition: transform .5s cubic-bezier(.2,.7,.2,1); }
+          .home .hero-logo-stage img { position: absolute; inset: 0; width: 100%; height: 100%; opacity: var(--o); transform: translateZ(var(--z)); filter: drop-shadow(0 0 18px rgba(63,169,245,.25)); }
+
           /* Seletor de idioma */
           .home .lang-menu { position: relative; }
           .home .lang-btn { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; font-weight: 600; font-size: .85rem; }
@@ -1112,9 +1119,13 @@
                 <a href="#solucoes" class="btn-cut btn-night h-14 px-7 text-base inline-flex items-center no-underline">${t.heroCta[1]}</a>
               </div>
             </div>
-            <div class="relative w-full max-w-xl mx-auto" id="heroBrain">
-              <div class="photo aspect-[4/3] reveal-img tilt" style="--d:.2s"><img src="${IMG}palco-congresso.webp" alt="" fetchpriority="high"></div>
-              <div class="photo aspect-[4/3] w-[46%] absolute -left-8 -bottom-10 hidden sm:block reveal-img tilt shadow-2xl border border-[#232D40]" style="--d:.45s"><img src="${IMG}auditorio-plateia.webp" alt=""></div>
+            <div class="hero-logo reveal" id="heroBrain" style="--d:.2s" aria-hidden="true">
+              <div class="hero-logo-glow"></div>
+              <div class="hero-logo-stage" id="heroLogo">
+                <img src="/design/logo/simbolo-escuro.svg" alt="" style="--z:-60px;--o:.12">
+                <img src="/design/logo/simbolo-escuro.svg" alt="" style="--z:-30px;--o:.28">
+                <img src="/design/logo/simbolo-escuro.svg" alt="" style="--z:0px;--o:1">
+              </div>
             </div>
           </section>
 
@@ -1325,10 +1336,14 @@
           });
           el.addEventListener('mouseleave', () => { el.style.transform = ''; });
         });
-        const hero = document.getElementById('heroBrain');
-        if (hero) window.addEventListener('mousemove', ev => {
-          const x = ev.clientX / window.innerWidth - 0.5, y = ev.clientY / window.innerHeight - 0.5;
-          hero.style.transform = `translate(${(x * 18).toFixed(1)}px, ${(y * 14).toFixed(1)}px)`;
+        // O logo da abertura inclina na direção do cursor
+        const logo = document.getElementById('heroLogo');
+        if (logo) window.addEventListener('mousemove', ev => {
+          const r = logo.getBoundingClientRect();
+          const x = (ev.clientX - (r.left + r.width / 2)) / window.innerWidth;
+          const y = (ev.clientY - (r.top + r.height / 2)) / window.innerHeight;
+          logo.style.setProperty('--ry', (Math.max(-1, Math.min(1, x * 2)) * 28).toFixed(2) + 'deg');
+          logo.style.setProperty('--rx', (Math.max(-1, Math.min(1, -y * 2)) * 22).toFixed(2) + 'deg');
         }, { passive: true });
       }
 
