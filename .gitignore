@@ -7,3 +7,5 @@ token.json
 rooms_state.json
 audiovisual-edition/temp/
 audiovisual-edition/output/
+estudio/dados/
+__pycache__/
