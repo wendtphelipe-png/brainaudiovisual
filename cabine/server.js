@@ -244,7 +244,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/' || p === '/nova') return sendFile(res, path.join(PUBLIC, 'inicio.html'));
   if (p === '/cockpit') return sendFile(res, path.join(PUBLIC, 'cockpit.html'));
   if (p === '/saida') return sendFile(res, path.join(PUBLIC, 'saida.html'));
-  if (p === '/saude') return sendJson(res, 200, { ok: true, salas: rooms.size });
+  if (p === '/saude') return sendJson(res, 200, { ok: true, salas: rooms.size, conexoes: [...clients].filter(c => c.role).length });
   if (p === '/api/info') return sendJson(res, 200, { requiresKey: !!CREATE_KEY, local: !PUBLIC_URL });
 
   // Criar sala nova: devolve o código e a chave do cockpit

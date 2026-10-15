@@ -6,6 +6,14 @@ set -euo pipefail
 APP_DIR="/opt/brain-cabine"
 BRANCH="${CABINE_BRANCH:-main}"
 
+# Trava de evento: com cockpit ou saída conectados, não reinicia no meio da
+# transmissão. O deploy falha avisando; é só rodar de novo depois do evento.
+CONEXOES="$(curl -fsS http://127.0.0.1:8790/saude 2>/dev/null | sed -n 's/.*"conexoes":\([0-9]*\).*//p')"
+if [[ "${CONEXOES:-0}" -gt 0 && "${FORCAR:-0}" != "1" ]]; then
+  echo "EVENTO EM ANDAMENTO: $CONEXOES conexão(ões) ativa(s). Atualização adiada para não cortar a transmissão."
+  exit 3
+fi
+
 git -C "$APP_DIR" fetch -q origin "$BRANCH"
 git -C "$APP_DIR" reset -q --hard "origin/$BRANCH"
 (cd "$APP_DIR/cabine" && npm ci --omit=dev --silent)
