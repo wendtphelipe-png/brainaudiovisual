@@ -50,15 +50,21 @@
   .lane-name { font-weight: 700; font-variation-settings: "wdth" 112; }
   .lane-stats { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
   .lane-stats b { color: var(--ink); font-weight: 600; }
-  .lane-body { overflow-y: auto; padding: 10px 16px 18px; scroll-behavior: smooth; }
-  .blk { display: grid; grid-template-columns: 38px 1fr; gap: 8px; padding: 7px 0; border-bottom: 1px dashed color-mix(in srgb, var(--line) 70%, transparent); animation: blkIn .25s ease-out; }
-  @keyframes blkIn { from { opacity: 0; transform: translateY(4px); } }
-  .blk-seq { color: var(--dim); font-size: .78rem; font-variant-numeric: tabular-nums; padding-top: 3px; }
-  .blk-text { line-height: 1.5; font-size: 1.02rem; }
-  .blk-meta { color: var(--dim); font-size: .74rem; margin-top: 2px; font-variant-numeric: tabular-nums; }
-  .blk.spoken .blk-text { color: var(--muted); }
-  .blk.merged .blk-text { color: var(--dim); font-style: italic; font-size: .85rem; }
-  .interim { color: var(--dim); line-height: 1.5; padding: 8px 0 0 46px; min-height: 2em; }
+  /* Feed de leitura: texto corrido em parágrafos, o mais recente sempre embaixo */
+  .lane-body { overflow-y: auto; padding: 16px 20px 20px; display: flex; flex-direction: column; }
+  .feed { margin-top: auto; }
+  .para { margin: 0 0 16px; font-size: 1.12rem; line-height: 1.65; text-wrap: pretty; }
+  .para:last-child { margin-bottom: 0; }
+  .seg { transition: color .6s; }
+  .seg.fresh { animation: segIn .9s ease-out; }
+  @keyframes segIn { from { color: var(--amber); } }
+  .seg.spoken { color: var(--muted); }
+  .seg-meta { display: none; margin: 0 4px 0 1px; color: var(--dim); font-size: .66rem; font-variant-numeric: tabular-nums; }
+  body.details .seg-meta { display: inline; }
+  .tech, .lane-stats .tech { display: none; }
+  body.details .tech, body.details .lane-stats .tech { display: inline; }
+  body.details .lane-stats.tech { display: flex; }
+  .interim { color: var(--dim); margin: 0; min-height: 1.65em; }
   .interim:not(:empty)::after { content: ""; display: inline-block; width: 7px; height: 1em; margin-left: 3px; vertical-align: -2px; background: var(--amber); animation: blink 1s steps(2) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .empty { color: var(--dim); padding: 24px 0; line-height: 1.5; font-size: .92rem; }
@@ -85,6 +91,7 @@
       <span class="timecode" id="timecode" title="Tempo de captação">00:00:00</span>
       <span class="chip" id="chipServer">Servidor</span>
       <span class="chip" id="chipStt">Captação parada</span>
+      <button class="btn btn-ghost" id="detailsBtn" type="button" aria-pressed="false" title="Mostrar números dos blocos e tempos" style="height:34px;padding:0 12px;font-size:.85rem">Detalhes</button>
       <button class="icon-btn" id="themeBtn" type="button" aria-label="Alternar tema" title="Alternar tema">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
       </button>
@@ -128,6 +135,15 @@
     try { localStorage.setItem('cabine_tema', light ? 'light' : 'dark'); } catch (_) {}
   };
 
+  // Detalhes técnicos (números dos blocos e tempos) ficam escondidos por padrão
+  try { if (localStorage.getItem('cabine_detalhes') === '1') document.body.classList.add('details'); } catch (_) {}
+  $('detailsBtn').setAttribute('aria-pressed', document.body.classList.contains('details'));
+  $('detailsBtn').onclick = () => {
+    const on = document.body.classList.toggle('details');
+    $('detailsBtn').setAttribute('aria-pressed', on);
+    try { localStorage.setItem('cabine_detalhes', on ? '1' : '0'); } catch (_) {}
+  };
+
   // ---------------- Estado ----------------
   let config = { source: 'pt-BR', targets: ['en-US', 'es-ES'] };
   const sala = (new URLSearchParams(location.search).get('sala') || '').toUpperCase();
@@ -139,6 +155,25 @@
   let outputs = [];
 
   // ---------------- Faixas ----------------
+  // Os blocos chegam curtos (para a voz sair rápido), mas na tela viram
+  // texto corrido em parágrafos, como uma legenda de leitura. O parágrafo
+  // é decidido pelo original e as traduções seguem o mesmo parágrafo, para
+  // as colunas ficarem alinhadas. O mais recente fica sempre embaixo.
+  const PARA_MIN_WORDS = 28;   // fim de frase só quebra parágrafo depois disto
+  const PARA_MAX_WORDS = 70;   // parágrafo nunca passa disto
+  const PARA_PAUSE_MS = 4000;  // pausa longa do palestrante abre parágrafo novo
+  let paraOf = new Map(), paraCount = 0, paraWords = 0, lastBlock = null;
+
+  function paragraphFor(b) {
+    const pause = lastBlock && b.tFirst && b.tFirst - lastBlock.tClose > PARA_PAUSE_MS;
+    const sentenceEnd = lastBlock && /[.?!]$/.test(lastBlock.text);
+    if (!paraCount || pause || paraWords >= PARA_MAX_WORDS || (sentenceEnd && paraWords >= PARA_MIN_WORDS)) { paraCount++; paraWords = 0; }
+    paraWords += b.words;
+    lastBlock = b;
+    paraOf.set(b.seq, paraCount);
+    return paraCount;
+  }
+
   function buildLanes() {
     const lanes = $('lanes');
     const src = LANGS[config.source] || ['??', config.source];
@@ -146,50 +181,86 @@
       <section class="lane source">
         <div class="lane-head">
           <div class="lane-title"><span class="code">${src[0]}</span><span class="lane-name">Original</span></div>
-          <div class="lane-stats"><span>Blocos <b id="st-blocks">0</b></span><span>Média <b id="st-words">0</b> palavras</span></div>
+          <div class="lane-stats tech"><span>Blocos <b id="st-blocks">0</b></span><span>Média <b id="st-words">0</b> palavras</span></div>
         </div>
-        <div class="lane-body" id="body-source"><div id="list-source"></div><div class="interim" id="interim"></div></div>
+        <div class="lane-body" id="body-source"><div class="feed" id="feed-source"><p class="para interim" id="interim"></p></div></div>
       </section>` +
       config.targets.map(l => {
         const m = LANGS[l] || ['??', l];
         return `<section class="lane">
           <div class="lane-head">
             <div class="lane-title"><span class="code">${m[0]}</span><span class="lane-name">${m[1]}</span><span class="chip" id="out-${l}">Sem saída</span></div>
-            <div class="lane-stats"><span>Tradução <b id="lat-${l}">–</b></span><span>Fila na saída <b id="q-${l}">–</b></span><span>Voz <b id="v-${l}">–</b></span></div>
+            <div class="lane-stats"><span>Voz <b id="v-${l}">–</b></span><span class="tech">Tradução <b id="lat-${l}">–</b></span><span class="tech">Fila na saída <b id="q-${l}">–</b></span></div>
           </div>
-          <div class="lane-body" id="body-${l}"><div id="list-${l}"></div></div>
+          <div class="lane-body" id="body-${l}"><div class="feed" id="feed-${l}"></div></div>
         </section>`;
       }).join('');
+    paraOf = new Map(); paraCount = 0; paraWords = 0; lastBlock = null;
     for (const b of blocks) addBlock(b, false);
     for (const l of config.targets) for (const it of (tr[l] || new Map()).values()) addTr(l, it, false);
-    if (!blocks.length) $('list-source').innerHTML = '<p class="empty">Clique em "Iniciar captação". O texto do palestrante aparece aqui em blocos curtos, e as traduções ao lado.</p>';
+    if (!blocks.length) $('feed-source').insertAdjacentHTML('afterbegin', '<p class="empty">Clique em "Iniciar captação". O texto do palestrante aparece aqui, e as traduções ao lado.</p>');
+    for (const body of document.querySelectorAll('.lane-body')) body.scrollTop = body.scrollHeight;
     stats();
   }
 
+  const atEnd = el => el.scrollHeight - el.scrollTop - el.clientHeight < 90;
   function stick(el, wasAtEnd) { if (wasAtEnd) el.scrollTop = el.scrollHeight; }
-  const atEnd = el => el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+
+  // Parágrafo da faixa (cria no fim, antes do texto provisório, se não existir)
+  function paraIn(lane, id) {
+    const feed = $('feed-' + lane);
+    let p = feed.querySelector(`.para[data-para="${id}"]`);
+    if (!p) {
+      p = document.createElement('p');
+      p.className = 'para';
+      p.dataset.para = id;
+      const interim = lane === 'source' ? $('interim') : null;
+      // Mantém a ordem dos parágrafos mesmo se uma tradução chegar atrasada
+      const after = [...feed.querySelectorAll('.para[data-para]')].find(x => Number(x.dataset.para) > id);
+      feed.insertBefore(p, after || interim);
+    }
+    return p;
+  }
+
+  function segment(text, seq, meta, live) {
+    const s = document.createElement('span');
+    s.className = 'seg' + (live ? ' fresh' : '');
+    s.dataset.seq = seq;
+    s.textContent = text + ' ';
+    const m = document.createElement('sup');
+    m.className = 'seg-meta';
+    m.textContent = meta;
+    s.appendChild(m);
+    return s;
+  }
 
   function addBlock(b, live = true) {
-    const list = $('list-source'), body = $('body-source');
-    if (!list) return;
+    const body = $('body-source');
+    if (!body) return;
     const end = atEnd(body);
-    list.querySelector('.empty')?.remove();
-    list.insertAdjacentHTML('beforeend', `<div class="blk"><span class="blk-seq">${b.seq}</span><div><div class="blk-text">${esc(b.text)}</div></div></div>`);
-    if (live) $('interim').textContent = '';
+    $('feed-source').querySelector('.empty')?.remove();
+    paraIn('source', paragraphFor(b)).appendChild(segment(b.text, b.seq, `#${b.seq}`, live));
+    if (live) setInterim('');
     stick(body, end);
   }
 
   function addTr(lang, it, live = true) {
-    const list = $('list-' + lang), body = $('body-' + lang);
-    if (!list) return;
+    const body = $('body-' + lang);
+    if (!body || it.mergedInto) return; // o texto dele veio junto com o bloco seguinte
     const end = atEnd(body);
-    const lat = it.tTr && it.tClose ? ((it.tTr - it.tClose) / 1000).toFixed(1).replace('.', ',') + ' s' : '';
-    const html = it.mergedInto
-      ? `<div class="blk merged" data-seq="${it.seq}"><span class="blk-seq">${it.seq}</span><div><div class="blk-text">traduzido junto com o bloco ${it.mergedInto}</div></div></div>`
-      : `<div class="blk" data-seq="${it.seq}"><span class="blk-seq">${it.seq}</span><div><div class="blk-text">${esc(it.text)}</div><div class="blk-meta">${lat}</div></div></div>`;
-    list.insertAdjacentHTML('beforeend', html);
+    const lat = it.tTr && it.tClose ? ` ${((it.tTr - it.tClose) / 1000).toFixed(1).replace('.', ',')}s` : '';
+    paraIn(lang, paraOf.get(it.seq) || paraCount || 1).appendChild(segment(it.text, it.seq, `#${it.seq}${lat}`, live));
     stick(body, end);
     if (live) stats();
+  }
+
+  // Texto provisório do palestrante (ainda não confirmado), no fim do original
+  function setInterim(text) {
+    const el = $('interim'), body = $('body-source');
+    if (!el) return;
+    const end = atEnd(body);
+    el.textContent = text;
+    stick(body, end);
   }
 
   function stats() {
@@ -215,7 +286,7 @@
       $('q-' + l).textContent = `${Math.round((o.backlogWords || 0) / 2.6)} s · ${String(o.rate || 1).replace('.', ',')}x`;
       $('v-' + l).textContent = (o.voice || '–').replace(/^Microsoft /, '').replace(/ Online \(Natural\).*/, '');
       // Marca na faixa o que já foi falado no notebook
-      document.querySelectorAll(`#list-${CSS.escape(l)} .blk`).forEach(el => el.classList.toggle('spoken', Number(el.dataset.seq) <= (o.spokenSeq || 0)));
+      document.querySelectorAll(`#feed-${CSS.escape(l)} .seg`).forEach(el => el.classList.toggle('spoken', Number(el.dataset.seq) <= (o.spokenSeq || 0)));
     }
     $('outputs').innerHTML = '<span>Links das saídas (abrir no Microsoft Edge do notebook de cada idioma)</span>' + config.targets.map(l => {
       const url = `${links.saida}&lang=${l}`;
@@ -282,7 +353,7 @@
           break;
         case 'interim':
           // Texto provisório vindo de outro cockpit (ex.: monitor em outro aparelho)
-          if (!recognizing && $('interim')) $('interim').textContent = msg.text;
+          if (!recognizing) setInterim(msg.text);
           break;
         case 'outputs':
           outputs = msg.outputs; renderOutputs();
@@ -323,14 +394,25 @@
     rec.interimResults = true;
     rec.maxAlternatives = 1;
     const myRun = ++run;
+    // O Chrome às vezes divide a fala em vários trechos provisórios ao mesmo
+    // tempo. Mandar cada trecho como frase separada fazia o servidor repetir
+    // tudo em loop. Agora vai um texto só: todos os trechos ainda abertos,
+    // juntos. Quando todos ficam definitivos, a frase fecha e a próxima
+    // começa depois deles (o que já foi definitivo nunca é reenviado).
+    let base = 0;
     rec.onresult = ev => {
       lastResult = Date.now();
-      for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        const r = ev.results[i];
-        const text = r[0].transcript;
-        send({ type: 'stt', utt: `${session}:${myRun}:${i}`, text, final: r.isFinal });
-        if (!r.isFinal) $('interim').textContent = text;
+      const parts = [];
+      let allFinal = true;
+      for (let i = base; i < ev.results.length; i++) {
+        parts.push(ev.results[i][0].transcript.trim());
+        if (!ev.results[i].isFinal) allFinal = false;
       }
+      const text = parts.filter(Boolean).join(' ');
+      if (!text) return;
+      send({ type: 'stt', utt: `${session}:${myRun}:${base}`, text, final: allFinal });
+      if (allFinal) base = ev.results.length;
+      setInterim(allFinal ? '' : text);
     };
     rec.onerror = ev => {
       if (ev.error === 'not-allowed') { toast('O navegador bloqueou o microfone. Libere o acesso e tente de novo.'); stopRecognition(); }

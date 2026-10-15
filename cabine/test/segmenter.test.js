@@ -41,11 +41,11 @@ test('fala longa sem pausa: nenhuma palavra perdida ou repetida', () => {
   assert.deepStrictEqual(blocks.map(b => b.seq), blocks.map((_, i) => i + 1));
 });
 
-test('blocos curtos: no máximo 22 palavras', () => {
+test('blocos curtos: no máximo 26 palavras', () => {
   const { blocks } = simulate({ words: SPEECH, repeat: 6 });
-  for (const b of blocks) assert.ok(b.words <= 22, `bloco ${b.seq} com ${b.words} palavras`);
+  for (const b of blocks) assert.ok(b.words <= 26, `bloco ${b.seq} com ${b.words} palavras`);
   const avg = blocks.reduce((s, b) => s + b.words, 0) / blocks.length;
-  assert.ok(avg >= 5 && avg <= 16, `média ${avg}`);
+  assert.ok(avg >= 6 && avg <= 18, `média ${avg}`);
 });
 
 test('atraso curto: cada palavra vira bloco em poucos segundos, sem esperar pausa', () => {
@@ -60,8 +60,8 @@ test('atraso curto: cada palavra vira bloco em poucos segundos, sem esperar paus
   }
   const avg = total / idx;
   // Exclui o fim (encerramento), que é forçado
-  assert.ok(avg < 3000, `atraso médio ${avg} ms`);
-  assert.ok(worst < 6000, `pior atraso ${worst} ms`);
+  assert.ok(avg < 3500, `atraso médio ${avg} ms`);
+  assert.ok(worst < 7000, `pior atraso ${worst} ms`);
 });
 
 test('frase final do reconhecimento fecha o bloco na hora', () => {
@@ -89,4 +89,43 @@ test('corte natural antes de conjunção', () => {
   seg.update('x', words.join(' '), true);
   assert.ok(blocks[0].text.endsWith('visível'), blocks[0].text);
   assert.ok(blocks[1].text.startsWith('e por isso'), blocks[1].text);
+});
+
+// Caso real de 15/10/2026 (sala EGK6): o Chrome devolveu dois trechos
+// provisórios ao mesmo tempo e o cockpit antigo mandava cada um como frase
+// separada, alternando. Isso repetia o texto sem parar.
+test('dois trechos provisórios alternando não repetem nada', () => {
+  let clock = 0;
+  const blocks = [];
+  const seg = new Segmenter({ now: () => clock, onBlock: b => blocks.push(b) });
+  const a = 'compreenda levanta ela manda o que repito sempre isso'.split(' ');
+  const b = 'para todos os alunos que chegaram atrasados hoje na aula'.split(' ');
+  for (let i = 1; i <= a.length; i++) {
+    clock += 100; seg.update('run:3', a.slice(0, i).join(' '), false);
+    clock += 100; seg.update('run:4', b.slice(0, i).join(' '), false);
+    seg.tick();
+  }
+  clock += 5000;
+  seg.flush();
+  const out = blocks.map(x => x.text).join(' ').split(' ');
+  // Cada palavra aparece no máximo uma vez a mais do que existe nos dois trechos
+  const count = w => out.filter(x => x === w).length;
+  assert.strictEqual(count('compreenda'), 1, out.join(' '));
+  assert.strictEqual(count('alunos'), 1, out.join(' '));
+  assert.ok(out.length <= a.length + b.length, `saíram ${out.length} palavras`);
+});
+
+// Cockpit novo: um texto só por rodada, que cresce; "final" no meio não pode
+// fazer o mesmo texto ser confirmado de novo quando ele continuar crescendo.
+test('texto que cresce depois de um final não repete o começo', () => {
+  let clock = 0;
+  const blocks = [];
+  const seg = new Segmenter({ now: () => clock, onBlock: b => blocks.push(b) });
+  seg.update('s:1:0', 'o nervo hipogástrico passa', false);
+  clock += 700; seg.update('s:1:0', 'o nervo hipogástrico passa medial', false);
+  clock += 100; seg.update('s:1:0', 'o nervo hipogástrico passa medial ao plano', true);
+  clock += 300; seg.update('s:1:0', 'o nervo hipogástrico passa medial ao plano', true);
+  clock += 300; seg.update('s:1:2', 'e seguimos a dissecção', false);
+  clock += 4000; seg.flush();
+  assert.strictEqual(blocks.map(x => x.text).join(' '), 'o nervo hipogástrico passa medial ao plano e seguimos a dissecção');
 });

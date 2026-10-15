@@ -34,27 +34,35 @@ class Segmenter {
     this.now = opts.now || Date.now;
     this.stableMs = opts.stableMs ?? 600;
     this.margin = opts.margin ?? 2;
-    this.minWords = opts.minWords ?? 5;
-    this.softMax = opts.softMax ?? 14;
-    this.hardMax = opts.hardMax ?? 22;
-    this.maxAgeMs = opts.maxAgeMs ?? 2500;
+    this.minWords = opts.minWords ?? 6;
+    this.softMax = opts.softMax ?? 16;
+    this.hardMax = opts.hardMax ?? 26;
+    this.maxAgeMs = opts.maxAgeMs ?? 3000;
     this.seq = opts.startSeq ?? 0;
     this.pending = [];       // palavras confirmadas que ainda não viraram bloco
     this.pendingSince = 0;   // quando entrou a primeira palavra do bloco
+    // Quantas palavras de cada frase já foram confirmadas. Se uma frase
+    // "voltar" (o Chrome às vezes alterna entre dois trechos provisórios),
+    // continua de onde parou em vez de mandar tudo de novo.
+    this.seen = new Map();
     this.resetUtterance(null);
   }
 
   resetUtterance(id) {
+    if (this.uttId !== null && this.uttId !== undefined) this.seen.set(this.uttId, this.committed);
+    if (this.seen.size > 500) this.seen.delete(this.seen.keys().next().value);
     this.uttId = id;
-    this.committed = 0;      // quantas palavras desta frase já foram confirmadas
+    this.committed = id === null ? 0 : (this.seen.get(id) || 0); // quantas palavras desta frase já foram confirmadas
     this.history = [];       // [{t, words}] do texto provisório recente
   }
 
   // Texto do reconhecimento. `utt` identifica a frase; `final` = frase fechada.
   update(utt, text, final) {
     if (utt !== this.uttId) {
-      // Frase nova sem o "final" da anterior: confirma o que sobrou dela
-      if (this.uttId !== null) this.finishUtterance();
+      // Trocou de frase: confirma o que sobrou da anterior, sem fechar o
+      // bloco (quem fecha são as regras de tamanho, tempo e pontuação)
+      const last = this.history[this.history.length - 1];
+      if (this.uttId !== null && last) this.commitUpTo(last.words, last.words.length);
       this.resetUtterance(utt);
     }
     const words = String(text || '').trim().split(/\s+/).filter(Boolean);
@@ -62,9 +70,10 @@ class Segmenter {
     this.history.push({ t, words });
     this.history = this.history.filter(h => t - h.t <= this.stableMs * 4);
     if (final) {
+      // Frase fechada: confirma tudo e fecha o bloco. A contagem continua,
+      // porque o cockpit pode seguir mandando o mesmo texto crescendo.
       this.commitUpTo(words, words.length);
       this.closeBlock('final');
-      this.resetUtterance(null);
       return;
     }
     this.evaluate();

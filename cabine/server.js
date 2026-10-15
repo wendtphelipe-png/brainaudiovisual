@@ -95,26 +95,35 @@ class Room {
     this.translations[lang] = this.translations[lang] || new Map();
     this.carry[lang] = this.carry[lang] || [];
     this.queued[lang] = (this.queued[lang] || 0) + 1;
+    // A tradução começa já, em paralelo com as anteriores (a fila não espera
+    // um bloco terminar para começar o próximo)...
+    const attempt = translate(block.text, this.config.source, lang).then(text => ({ ok: true, text }), err => ({ ok: false, err }));
+    // ...mas a publicação respeita sempre a ordem dos blocos
     const prev = this.chains[lang] || Promise.resolve();
-    this.chains[lang] = prev.then(() => this.translateBlock(lang, block))
+    this.chains[lang] = prev.then(() => this.publishInOrder(lang, block, attempt))
       .catch(err => console.error(`[${this.code}] fila ${lang}`, err))
       .finally(() => { this.queued[lang]--; });
   }
 
-  async translateBlock(lang, block) {
-    // Pega os blocos atrasados deste idioma e traduz tudo junto, na ordem
+  async publishInOrder(lang, block, attempt) {
+    // Blocos deste idioma que falharam antes vão junto com este, na ordem
     const pending = this.carry[lang];
     this.carry[lang] = [];
     this.busy[lang] = true;
-    const source = [...pending.map(b => b.text), block.text].join(' ');
     try {
-      const text = await translate(source, this.config.source, lang);
+      let result = await attempt;
+      let source = block.text;
+      if (pending.length) {
+        source = [...pending.map(b => b.text), block.text].join(' ');
+        result = await translate(source, this.config.source, lang).then(text => ({ ok: true, text }), err => ({ ok: false, err }));
+      }
+      if (!result.ok) throw result.err;
       const tTr = Date.now();
       for (const b of pending) this.publish(lang, { seq: b.seq, text: '', mergedInto: block.seq, tClose: b.tClose, tTr });
-      this.publish(lang, { seq: block.seq, text, src: source, tClose: block.tClose, tTr });
+      this.publish(lang, { seq: block.seq, text: result.text, src: source, tClose: block.tClose, tTr });
     } catch (err) {
-      console.warn(`[${this.code}] tradução ${lang} bloco ${block.seq} falhou (${err.message}); vai junto com o próximo`);
-      this.log({ type: 'tr-fail', lang, seq: block.seq, error: err.message });
+      console.warn(`[${this.code}] tradução ${lang} bloco ${block.seq} falhou (${err && err.message}); vai junto com o próximo`);
+      this.log({ type: 'tr-fail', lang, seq: block.seq, error: String(err && err.message) });
       this.carry[lang] = [...pending, block, ...this.carry[lang]];
       this.broadcast({ type: 'alert', text: `Tradução para ${lang} atrasada no bloco ${block.seq}; será enviada com o próximo.` }, c => c.role === 'cockpit');
     } finally {
