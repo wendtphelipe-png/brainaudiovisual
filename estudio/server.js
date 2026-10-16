@@ -304,7 +304,7 @@ function enviarArquivo(res, arq) {
   });
 }
 function json(res, obj, status = 200) {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Private-Network': 'true' });
   res.end(JSON.stringify(obj));
 }
 function lerCorpo(req) {
@@ -353,7 +353,7 @@ const servidor = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
   try {
-    if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }); return res.end(); }
+    if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Private-Network': 'true' }); return res.end(); }
     // O Hub do site confere este endereço para saber se o estúdio está ligado
     if (p === '/api/status') return json(res, { status: 'online', versao: 'v2' });
     if (p === '/api/estado') {

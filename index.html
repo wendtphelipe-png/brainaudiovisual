@@ -1913,10 +1913,10 @@
               </article>
               <article class="bg-white dark:bg-slate-900 p-6 sm:p-8">
                 <h3 class="text-xl font-bold text-slate-900 dark:text-white">Estúdio de dublagem</h3>
-                <p class="mt-2 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">Envie um vídeo ou um link do YouTube ou Vimeo. O estúdio transcreve, traduz e gera a dublagem com legendas .vtt e .srt, tudo num pacote .zip, sem custo por minuto.</p>
+                <p class="mt-2 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">Envie um vídeo ou um link do YouTube ou Vimeo. O estúdio detecta o idioma, transcreve, traduz e gera os áudios dublados e as legendas .vtt em português, inglês e espanhol, direto no Google Drive.</p>
                 <div class="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
                   <span class="text-slate-500 dark:text-slate-400">Motor local: <span id="hubEngineStatusBadge" class="font-semibold text-slate-700 dark:text-slate-200">verificando</span></span>
-                  <button type="button" onclick="window.showEngineSetupModal()" class="font-semibold text-slate-700 dark:text-slate-200 underline decoration-slate-300 underline-offset-4 hover:decoration-[#F29A00] bg-transparent border-0 p-0 cursor-pointer">Instalar ou reparar o motor</button>
+                  <button type="button" onclick="window.showEstudioDesligado()" class="font-semibold text-slate-700 dark:text-slate-200 underline decoration-slate-300 underline-offset-4 hover:decoration-[#F29A00] bg-transparent border-0 p-0 cursor-pointer">Como ligar o estúdio</button>
                 </div>
               </article>
             </div>
@@ -2005,7 +2005,7 @@
         if (newTab && !newTab.closed) {
           try { newTab.close(); } catch(_) {}
         }
-        window.showEngineSetupModal();
+        window.showEstudioDesligado();
       }
     };
 
@@ -2016,6 +2016,56 @@
     window.openAudioVisualStudioDirect = function() {
       window.closeEngineSetupModal();
       window.open('http://127.0.0.1:3050', '_blank');
+    };
+
+    // Estúdio v2: roda só no PC com a placa de vídeo (D:\Projetos\BrainLingo\estudio).
+    // Se estiver desligado, explica como ligar e abre sozinho quando ele responder.
+    window.showEstudioDesligado = function() {
+      let m = document.getElementById('brain-estudio-desligado');
+      if (!m) {
+        m = document.createElement('div');
+        m.id = 'brain-estudio-desligado';
+        m.setAttribute('role', 'dialog');
+        m.setAttribute('aria-modal', 'true');
+        m.setAttribute('aria-labelledby', 'estudioDesligadoTitulo');
+        m.style.cssText = 'position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:16px;background:rgba(4,6,10,.72);font-family:Archivo,system-ui,sans-serif';
+        m.innerHTML = `
+          <div style="width:min(480px,100%);background:#111723;border:1px solid #222C3D;border-radius:12px;padding:26px;color:#EAF0F7;box-shadow:0 30px 80px rgba(0,0,0,.5)">
+            <h2 id="estudioDesligadoTitulo" style="margin:0 0 6px;font-size:1.2rem;font-weight:700">O estúdio está desligado</h2>
+            <p style="margin:0 0 18px;color:#8592A8;font-size:.92rem;line-height:1.5">O estúdio de dublagem roda no computador com a placa de vídeo. Para ligar, nesse computador:</p>
+            <ol style="margin:0 0 18px;padding-left:20px;color:#EAF0F7;font-size:.92rem;line-height:1.7">
+              <li>Abra a pasta <code style="background:#161E2C;padding:2px 6px;border-radius:4px;font-size:.85rem">D:\\Projetos\\BrainLingo\\estudio</code></li>
+              <li>Dê dois cliques em <b>INICIAR-ESTUDIO.bat</b></li>
+            </ol>
+            <div id="estudioDesligadoStatus" style="display:flex;align-items:center;gap:10px;font-size:.88rem;color:#8592A8;margin-bottom:20px">
+              <span style="width:8px;height:8px;border-radius:50%;background:#FFB224;box-shadow:0 0 8px #FFB224"></span>Esperando o estúdio ligar…
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+              <button type="button" id="estudioDesligadoFechar" style="height:40px;padding:0 16px;border-radius:6px;border:0;background:#161E2C;color:#EAF0F7;box-shadow:inset 0 0 0 1px #222C3D;font-weight:650;cursor:pointer">Fechar</button>
+              <button type="button" id="estudioDesligadoAbrir" style="height:40px;padding:0 16px;border:0;background:#3FA9F5;color:#041320;font-weight:700;cursor:pointer;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)">Abrir mesmo assim</button>
+            </div>
+          </div>`;
+        document.body.appendChild(m);
+        m.querySelector('#estudioDesligadoFechar').onclick = () => window.closeEstudioDesligado();
+        m.querySelector('#estudioDesligadoAbrir').onclick = () => { window.closeEstudioDesligado(); window.open('http://127.0.0.1:3050', '_blank'); };
+        m.addEventListener('click', e => { if (e.target === m) window.closeEstudioDesligado(); });
+      }
+      m.style.display = 'grid';
+      clearInterval(window._estudioEspera);
+      window._estudioEspera = setInterval(async () => {
+        if (!(await window.pingAvEngine())) return;
+        clearInterval(window._estudioEspera);
+        const st = document.getElementById('estudioDesligadoStatus');
+        if (st) st.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#34B886;box-shadow:0 0 8px #34B886"></span>Estúdio ligado.';
+        const b = document.getElementById('estudioDesligadoAbrir');
+        if (b) b.textContent = 'Abrir o estúdio';
+        if (window.updateHubEngineStatus) window.updateHubEngineStatus();
+      }, 2000);
+    };
+    window.closeEstudioDesligado = function() {
+      clearInterval(window._estudioEspera);
+      const m = document.getElementById('brain-estudio-desligado');
+      if (m) m.style.display = 'none';
     };
 
     window.closeEngineSetupModal = function() {
@@ -2725,7 +2775,7 @@ pause\r
       const startBtn = document.getElementById('avStartBtn');
 
       if (window.location.protocol === 'https:' && !apiBase) {
-        window.showEngineSetupModal();
+        window.showEstudioDesligado();
         return;
       }
 
