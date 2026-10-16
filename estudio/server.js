@@ -476,6 +476,11 @@ const servidor = http.createServer(async (req, res) => {
 
 CONFIG.saida = estado.config.saida;
 process.env.ESTUDIO_SAIDA = estado.config.saida;
+// Já ligado (alguém clicou duas vezes): este segundo servidor só sai
+servidor.on('error', e => {
+  if (e.code === 'EADDRINUSE') { console.log(`O estúdio já está ligado em http://127.0.0.1:${PORTA}`); process.exit(0); }
+  throw e;
+});
 servidor.listen(PORTA, '127.0.0.1', () => {
   console.log(`Estúdio v2 em http://127.0.0.1:${PORTA}`);
   estadoVimeo().catch(() => {});
