@@ -78,6 +78,16 @@
   .out-link code { font-family: inherit; font-variant-numeric: tabular-nums; color: var(--ink); }
   .out-link button { height: 26px; padding: 0 9px; border-radius: 4px; border: 0; background: var(--panel-2); cursor: pointer; font-size: .78rem; color: var(--muted); }
   .out-link button:hover { color: var(--ink); }
+  .out-link button.qr { width: 26px; padding: 0; display: grid; place-items: center; }
+  .out-link button.qr svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  /* QR code de uma saída, para testar pelo celular */
+  .qr-janela { padding: 22px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); text-align: center; width: min(340px, calc(100vw - 32px)); }
+  .qr-janela::backdrop { background: rgba(4, 6, 10, .65); }
+  .qr-janela h3 { margin: 0 0 4px; font-size: 1rem; }
+  .qr-janela p { margin: 0 0 14px; color: var(--muted); font-size: .82rem; }
+  .qr-janela .codigo { background: #fff; border-radius: 8px; padding: 12px; display: inline-block; line-height: 0; }
+  .qr-janela .codigo svg { width: 232px; height: 232px; }
+  .qr-janela code { display: block; margin: 12px 0 14px; font-family: inherit; font-size: .74rem; color: var(--muted); word-break: break-all; }
   .toast { position: fixed; right: 18px; bottom: 70px; max-width: 380px; padding: 12px 14px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--amber); color: var(--ink); font-size: .9rem; box-shadow: 0 16px 40px -18px rgba(0,0,0,.6); }
   @media (max-width: 900px) { body { height: auto; overflow: auto; } .lanes { grid-auto-flow: row; grid-auto-columns: auto; } .lane-body { max-height: 50vh; } .actions { margin-left: 0; } }
 </style>
@@ -124,6 +134,15 @@
 
   <footer class="outputs" id="outputs"></footer>
 
+  <dialog class="qr-janela" id="qrJanela" aria-labelledby="qrTitulo">
+    <h3 id="qrTitulo"></h3>
+    <p>Aponte a câmera do celular para abrir a saída deste idioma.</p>
+    <div class="codigo" id="qrCodigo"></div>
+    <code id="qrLink"></code>
+    <button class="btn btn-ghost" type="button" id="qrFechar">Fechar</button>
+  </dialog>
+
+<script src="/vendor/qrcode.js"></script>
 <script>
 (function () {
   const LANGS = { 'pt-BR': ['PT', 'Português'], 'en-US': ['EN', 'Inglês'], 'es-ES': ['ES', 'Espanhol'], 'fr-FR': ['FR', 'Francês'],
@@ -294,10 +313,25 @@
     }
     $('outputs').innerHTML = '<span>Links das saídas (abrir no Microsoft Edge do notebook de cada idioma)</span>' + config.targets.map(l => {
       const url = `${links.saida}&lang=${l}`;
-      return `<span class="out-link"><b>${(LANGS[l] || [l])[0]}</b><code>${esc(url)}</code><button type="button" data-copy="${esc(url)}">Copiar</button></span>`;
+      return `<span class="out-link"><b>${(LANGS[l] || [l])[0]}</b><code>${esc(url)}</code><button type="button" data-copy="${esc(url)}">Copiar</button>`
+        + `<button type="button" class="qr" data-qr="${esc(url)}" data-lang="${esc(l)}" title="Mostrar QR code" aria-label="Mostrar QR code da saída ${esc((LANGS[l] || [l, l])[1])}">`
+        + `<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h4v4h-4"/></svg></button></span>`;
     }).join('');
   }
   $('outputs').addEventListener('click', e => {
+    const qr = e.target.dataset && e.target.dataset.qr;
+    if (qr) {
+      const l = e.target.dataset.lang;
+      const q = qrcode(0, 'M');
+      q.addData(qr);
+      q.make();
+      $('qrCodigo').innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+      $('qrTitulo').textContent = `Saída em ${(LANGS[l] || [l, l])[1]}`;
+      $('qrLink').textContent = qr;
+      $('qrFechar').onclick = () => $('qrJanela').close();
+      $('qrJanela').showModal();
+      return;
+    }
     const url = e.target.dataset && e.target.dataset.copy;
     if (!url) return;
     navigator.clipboard?.writeText(url);
