@@ -321,24 +321,27 @@ function itemPublico(it) {
   return resto;
 }
 
-// Janela do Windows para escolher a pasta de destino. A janela nasce presa a
-// um formulário invisível "sempre na frente"; sem isso ela abria escondida
-// atrás do navegador e parecia que o botão não fazia nada.
-function escolherPasta() {
-  const atual = estado.config.saida.replace(/'/g, "''").replace(/\//g, '\\');
-  const ps = [
-    'Add-Type -AssemblyName System.Windows.Forms, System.Drawing',
-    '[Console]::OutputEncoding = [Text.Encoding]::UTF8',
-    "$f = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; StartPosition = 'Manual'; Location = New-Object System.Drawing.Point(-3000, -3000); Size = New-Object System.Drawing.Size(1, 1) }",
-    '$f.Show(); $f.Activate()',
-    '$d = New-Object System.Windows.Forms.FolderBrowserDialog',
-    "$d.Description = 'Pasta onde o estúdio salva os vídeos dublados'",
-    '$d.ShowNewFolderButton = $true',
-    `$d.SelectedPath = '${atual}'`,
-    "if ($d.ShowDialog($f) -eq 'OK') { Write-Output $d.SelectedPath }",
-    '$f.Close()',
-  ].join('; ');
-  return rodarTexto('powershell', ['-NoProfile', '-STA', '-Command', ps]).then(s => s.trim());
+// Seletor de pastas dentro da própria tela. (A janela do Windows abria
+// atrás do navegador, porque o Windows não deixa um programa em segundo plano
+// passar para a frente.) Sem caminho, lista os discos e atalhos.
+const OCULTAS = /^(\$|System Volume Information$|Config\.Msi$|Recovery$|PerfLogs$|\.)/i;
+function listarPastasPc(caminho) {
+  if (!caminho) {
+    const discos = [];
+    for (const letra of 'CDEFGHIJKLMNOPQRSTUVWXYZ') {
+      try { fs.statfsSync(letra + ':\\'); discos.push({ nome: `Disco ${letra}:`, caminho: letra + ':\\' }); } catch { /* não existe */ }
+    }
+    const atalhos = ['G:\\Meu Drive', 'G:\\Drives compartilhados'].filter(p => fs.existsSync(p))
+      .map(p => ({ nome: p.endsWith('Meu Drive') ? 'Google Drive (Meu Drive)' : 'Google Drive (compartilhados)', caminho: p }));
+    return { caminho: '', pai: null, pastas: [...atalhos, ...discos] };
+  }
+  const atual = path.resolve(caminho);
+  const pastas = fs.readdirSync(atual, { withFileTypes: true })
+    .filter(d => d.isDirectory() && !OCULTAS.test(d.name))
+    .map(d => ({ nome: d.name, caminho: path.join(atual, d.name) }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt', { numeric: true }));
+  const pai = path.dirname(atual);
+  return { caminho: atual, pai: pai === atual ? '' : pai, pastas };
 }
 
 function abrirNoExplorer(pasta) {
@@ -413,10 +416,17 @@ const servidor = http.createServer(async (req, res) => {
       agendar();
       return json(res, estado.config);
     }
-    if (req.method === 'POST' && p === '/api/escolher-pasta') {
-      const pasta = await escolherPasta();
-      if (pasta) { estado.config.saida = pasta; CONFIG.saida = pasta; process.env.ESTUDIO_SAIDA = pasta; salvar(); }
-      return json(res, estado.config);
+    if (p === '/api/pastas') {
+      try { return json(res, listarPastasPc(url.searchParams.get('caminho') || '')); }
+      catch (e) { return json(res, { erro: 'Não foi possível abrir essa pasta.' }, 400); }
+    }
+    if (req.method === 'POST' && p === '/api/pastas/criar') {
+      const { caminho, nome } = await lerCorpo(req);
+      const limpo = String(nome || '').replace(/[<>:"/\\|?*]/g, ' ').trim();
+      if (!caminho || !limpo) return json(res, { erro: 'Dê um nome para a pasta.' }, 400);
+      const nova = path.join(caminho, limpo);
+      fs.mkdirSync(nova, { recursive: true });
+      return json(res, { caminho: nova });
     }
     if (req.method === 'POST' && p === '/api/abrir-saida') {
       abrirNoExplorer(estado.config.saida);

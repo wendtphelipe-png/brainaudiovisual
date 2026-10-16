@@ -173,6 +173,21 @@
   .ja { margin-top: 8px; font-size: .82rem; color: var(--amber); line-height: 1.45; }
   .ja ul { margin: 6px 0 8px; padding-left: 18px; color: var(--muted); max-height: 120px; overflow: auto; }
 
+  /* Seletor de pasta de destino */
+  .seletor { width: min(620px, calc(100vw - 32px)); max-height: min(640px, calc(100vh - 40px)); padding: 0; border: 1px solid var(--line-2); border-radius: 10px; background: var(--panel); color: var(--ink); box-shadow: 0 30px 80px rgba(0, 0, 0, .55); }
+  .seletor[open] { display: flex; flex-direction: column; }
+  .seletor::backdrop { background: rgba(4, 6, 10, .7); }
+  .seletor h3 { margin: 0; padding: 18px 20px 10px; font-size: 1.05rem; font-weight: 700; font-variation-settings: "wdth" 110; }
+  .seletor .trilha { display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; color: var(--muted); font-size: .86rem; }
+  .seletor .trilha span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sel-lista { flex: 1; min-height: 220px; overflow: auto; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px 0; }
+  .sel-lista button { display: flex; align-items: center; gap: 10px; width: 100%; height: 38px; padding: 0 20px; border: 0; background: none; cursor: pointer; text-align: left; font-size: .9rem; }
+  .sel-lista button:hover, .sel-lista button:focus-visible { background: var(--panel-2); }
+  .sel-lista button svg.i { width: 16px; height: 16px; color: var(--muted); }
+  .sel-lista .vazia { padding: 18px 20px; color: var(--dim); font-size: .86rem; }
+  .seletor .aviso { padding: 0 20px; }
+  .sel-rodape { display: flex; gap: 8px; padding: 14px 20px; align-items: center; }
+
   @media (max-width: 1150px) {
     .item { grid-template-columns: 34px minmax(0, 1fr) 150px auto; }
     .item .seis { display: none; }
@@ -287,6 +302,19 @@
     <div class="rundown" id="fila"></div>
   </main>
 </div>
+
+<dialog class="seletor" id="seletor" aria-labelledby="seletor-t">
+  <h3 id="seletor-t">Onde salvar os vídeos dublados</h3>
+  <div class="trilha"><button class="ico" id="sel-subir" title="Pasta de cima" aria-label="Pasta de cima"><svg class="i"><use href="#i-up"/></svg></button><span id="sel-caminho" class="num"></span></div>
+  <div class="sel-lista" id="sel-lista"></div>
+  <div class="aviso" id="sel-aviso" hidden></div>
+  <div class="sel-rodape">
+    <button class="btn peq" id="sel-nova"><svg class="i"><use href="#i-plus"/></svg>Nova pasta</button>
+    <span style="flex:1"></span>
+    <button class="btn peq" id="sel-cancelar">Cancelar</button>
+    <button class="btn prim peq" id="sel-usar">Salvar nesta pasta</button>
+  </div>
+</dialog>
 
 <script>
 (function () {
@@ -474,13 +502,37 @@
   $('simultaneos').onclick = e => { const b = e.target.closest('button'); if (b) api('/api/config', { simultaneos: Number(b.dataset.v) }).then(atualizar1); };
   $('vozes').onclick = e => { const b = e.target.closest('button'); if (b) api('/api/config', { vozes: b.dataset.v }).then(atualizar1); };
   $('saida').onchange = () => api('/api/config', { saida: $('saida').value.trim() }).then(atualizar1).catch(err => alert(err.message));
-  $('btn-pasta').onclick = async () => {
-    $('btn-pasta').disabled = true;
-    mostrar($('aviso-pasta'), 'Escolha a pasta na janela do Windows que abriu.', true);
-    try { await api('/api/escolher-pasta', {}); mostrar($('aviso-pasta'), ''); }
-    catch (e) { mostrar($('aviso-pasta'), e.message); }
-    $('btn-pasta').disabled = false;
-    atualizar1();
+  // Seletor de pasta dentro da tela
+  let selAtual = '', selPai = null;
+  async function selAbrir(caminho) {
+    try {
+      const r = await api('/api/pastas?caminho=' + encodeURIComponent(caminho || ''));
+      selAtual = r.caminho; selPai = r.pai;
+      $('sel-caminho').textContent = r.caminho || 'Discos e atalhos';
+      $('sel-subir').disabled = r.pai === null;
+      $('sel-usar').disabled = $('sel-nova').disabled = !r.caminho;
+      $('sel-lista').innerHTML = r.pastas.length
+        ? r.pastas.map(p => `<button type="button" data-c="${esc(p.caminho)}">${ico('folder')}${esc(p.nome)}</button>`).join('')
+        : '<div class="vazia">Nenhuma pasta aqui dentro. Você pode salvar nesta pasta ou criar uma nova.</div>';
+      mostrar($('sel-aviso'), '');
+    } catch (e) { mostrar($('sel-aviso'), e.message); }
+  }
+  $('sel-lista').onclick = e => { const b = e.target.closest('button[data-c]'); if (b) selAbrir(b.dataset.c); };
+  $('sel-subir').onclick = () => selAbrir(selPai || '');
+  $('sel-cancelar').onclick = () => $('seletor').close();
+  $('sel-nova').onclick = async () => {
+    const nome = prompt('Nome da nova pasta:');
+    if (!nome) return;
+    try { const r = await api('/api/pastas/criar', { caminho: selAtual, nome }); selAbrir(r.caminho); }
+    catch (e) { mostrar($('sel-aviso'), e.message); }
+  };
+  $('sel-usar').onclick = async () => {
+    try { await api('/api/config', { saida: selAtual }); $('seletor').close(); atualizar1(); }
+    catch (e) { mostrar($('sel-aviso'), e.message); }
+  };
+  $('btn-pasta').onclick = () => {
+    $('seletor').showModal();
+    selAbrir(config.saida && config.saida.replace(/\//g, '\\'));
   };
   $('btn-abrir-saida').onclick = () => api('/api/abrir-saida', {}).catch(e => mostrar($('aviso-pasta'), e.message));
   $('btn-pausar').onclick = () => api('/api/config', { pausado: !config.pausado }).then(atualizar1);
