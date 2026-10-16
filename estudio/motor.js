@@ -405,7 +405,7 @@ async function processar(job, { aoProgresso = () => {}, log = () => {}, aoTitulo
   const frases = montarFrases(trans);
   aoIdioma({ idioma: origem, certeza: trans.certeza });
   const legendas = montarLegendas(frases);
-  if (!frases.length) throw new Error('Nenhuma fala encontrada no áudio.');
+  if (!frases.length) throw new Error('Este vídeo não tem fala para dublar (só imagem, som ambiente ou música).');
   log(`${frases.length} frases, ${legendas.length} legendas`);
 
   const destino = path.join(CONFIG.saida, nomeSeguro(titulo));

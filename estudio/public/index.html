@@ -21,6 +21,9 @@
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
+  /* Página na altura da janela; cada coluna rola sozinha */
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; overflow: hidden; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Archivo, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   button, input, select, textarea { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
@@ -28,7 +31,7 @@
   .num { font-variant-numeric: tabular-nums; }
 
   /* Barra do topo */
-  .top { display: flex; align-items: center; gap: 20px; padding: 14px 24px; border-bottom: 1px solid var(--line); background: #0C111B; position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+  .top { display: flex; align-items: center; gap: 20px; padding: 14px 24px; border-bottom: 1px solid var(--line); background: #0C111B; z-index: 5; flex-wrap: wrap; flex: none; }
   .marca { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
   .marca img.s { width: 34px; height: 34px; }
   .marca img.w { height: 20px; }
@@ -45,7 +48,8 @@
   .med.critico .r b { color: var(--bad); }
 
   /* Corpo: coluna de entrada + fila */
-  .corpo { display: grid; grid-template-columns: var(--lado, 380px) 8px minmax(0, 1fr); min-height: calc(100vh - 64px); }
+  .corpo { display: grid; grid-template-columns: var(--lado, 380px) 8px minmax(0, 1fr); flex: 1; min-height: 0; }
+  .lado, .principal { overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--line-2) transparent; }
   /* Alça para arrastar e mudar a largura da coluna da esquerda */
   .alca { cursor: col-resize; position: relative; touch-action: none; }
   .alca::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: var(--line); transition: background .15s; }
@@ -174,6 +178,9 @@
     .item .seis { display: none; }
   }
   @media (max-width: 860px) {
+    body { display: block; overflow: auto; height: auto; }
+    html { height: auto; }
+    .lado, .principal { overflow: visible; }
     .corpo { grid-template-columns: 1fr !important; }
     .alca { display: none; }
     .lado { border-bottom: 1px solid var(--line); }
@@ -260,7 +267,9 @@
       </div>
       <div class="campo">
         <label class="t" for="saida">Salvar em</label>
-        <div class="destino"><input type="text" id="saida" spellcheck="false"><button class="btn" id="btn-pasta" title="Escolher pasta" aria-label="Escolher pasta"><svg class="i"><use href="#i-folder"/></svg></button></div>
+        <input type="text" id="saida" spellcheck="false">
+        <div class="linha-btn"><button class="btn peq" id="btn-pasta"><svg class="i"><use href="#i-folder"/></svg>Escolher outra pasta</button><button class="btn peq" id="btn-abrir-saida"><svg class="i"><use href="#i-open"/></svg>Abrir a pasta</button></div>
+        <div class="aviso" id="aviso-pasta" hidden></div>
       </div>
     </section>
   </aside>
@@ -465,7 +474,15 @@
   $('simultaneos').onclick = e => { const b = e.target.closest('button'); if (b) api('/api/config', { simultaneos: Number(b.dataset.v) }).then(atualizar1); };
   $('vozes').onclick = e => { const b = e.target.closest('button'); if (b) api('/api/config', { vozes: b.dataset.v }).then(atualizar1); };
   $('saida').onchange = () => api('/api/config', { saida: $('saida').value.trim() }).then(atualizar1).catch(err => alert(err.message));
-  $('btn-pasta').onclick = () => api('/api/escolher-pasta', {}).then(atualizar1);
+  $('btn-pasta').onclick = async () => {
+    $('btn-pasta').disabled = true;
+    mostrar($('aviso-pasta'), 'Escolha a pasta na janela do Windows que abriu.', true);
+    try { await api('/api/escolher-pasta', {}); mostrar($('aviso-pasta'), ''); }
+    catch (e) { mostrar($('aviso-pasta'), e.message); }
+    $('btn-pasta').disabled = false;
+    atualizar1();
+  };
+  $('btn-abrir-saida').onclick = () => api('/api/abrir-saida', {}).catch(e => mostrar($('aviso-pasta'), e.message));
   $('btn-pausar').onclick = () => api('/api/config', { pausado: !config.pausado }).then(atualizar1);
   $('btn-limpar').onclick = () => api('/api/limpar', {}).then(() => { ultimo = null; atualizar1(); });
 

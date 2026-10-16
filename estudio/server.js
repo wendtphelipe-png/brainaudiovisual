@@ -321,10 +321,29 @@ function itemPublico(it) {
   return resto;
 }
 
+// Janela do Windows para escolher a pasta de destino. A janela nasce presa a
+// um formulário invisível "sempre na frente"; sem isso ela abria escondida
+// atrás do navegador e parecia que o botão não fazia nada.
 function escolherPasta() {
-  // Janela do Windows para escolher a pasta de destino
-  const ps = `Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Pasta onde o estúdio salva os vídeos dublados'; $d.SelectedPath = '${estado.config.saida.replace(/'/g, "''").replace(/\//g, '\\')}'; $f = New-Object System.Windows.Forms.Form -Property @{TopMost=$true}; if ($d.ShowDialog($f) -eq 'OK') { [Console]::OutputEncoding = [Text.Encoding]::UTF8; Write-Output $d.SelectedPath }`;
+  const atual = estado.config.saida.replace(/'/g, "''").replace(/\//g, '\\');
+  const ps = [
+    'Add-Type -AssemblyName System.Windows.Forms, System.Drawing',
+    '[Console]::OutputEncoding = [Text.Encoding]::UTF8',
+    "$f = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; StartPosition = 'Manual'; Location = New-Object System.Drawing.Point(-3000, -3000); Size = New-Object System.Drawing.Size(1, 1) }",
+    '$f.Show(); $f.Activate()',
+    '$d = New-Object System.Windows.Forms.FolderBrowserDialog',
+    "$d.Description = 'Pasta onde o estúdio salva os vídeos dublados'",
+    '$d.ShowNewFolderButton = $true',
+    `$d.SelectedPath = '${atual}'`,
+    "if ($d.ShowDialog($f) -eq 'OK') { Write-Output $d.SelectedPath }",
+    '$f.Close()',
+  ].join('; ');
   return rodarTexto('powershell', ['-NoProfile', '-STA', '-Command', ps]).then(s => s.trim());
+}
+
+function abrirNoExplorer(pasta) {
+  fs.mkdirSync(pasta, { recursive: true });
+  spawn('explorer.exe', [path.resolve(pasta)], { detached: true, stdio: 'ignore' }).unref();
 }
 
 const servidor = http.createServer(async (req, res) => {
@@ -399,6 +418,10 @@ const servidor = http.createServer(async (req, res) => {
       if (pasta) { estado.config.saida = pasta; CONFIG.saida = pasta; process.env.ESTUDIO_SAIDA = pasta; salvar(); }
       return json(res, estado.config);
     }
+    if (req.method === 'POST' && p === '/api/abrir-saida') {
+      abrirNoExplorer(estado.config.saida);
+      return json(res, { ok: true });
+    }
     if (req.method === 'POST' && p === '/api/limpar') {
       estado.fila = estado.fila.filter(i => !['pronto', 'cancelado'].includes(i.estado));
       salvar();
@@ -420,7 +443,7 @@ const servidor = http.createServer(async (req, res) => {
         if (it.estado === 'processando') cancelar(it);
         else if (it.estado === 'aguardando') Object.assign(it, { estado: 'cancelado', etapa: 'Cancelado' });
       } else if (acao === 'abrir' && it.destino) {
-        spawn('explorer', [it.destino.replace(/\//g, '\\')], { windowsHide: false, detached: true }).unref();
+        abrirNoExplorer(it.destino);
       } else if (acao === 'subir' && it.estado === 'aguardando') {
         // Passa para o começo da fila de espera
         estado.fila = estado.fila.filter(i => i !== it);
