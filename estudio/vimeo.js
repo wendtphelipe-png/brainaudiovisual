@@ -87,7 +87,9 @@ async function listarPastas(token) {
   ]);
   // Pastas com o mesmo nome (ex.: "01 Janeiro" em cada ano) aparecem com o caminho
   const caminho = p => [...(p.metadata?.connections?.ancestor_path || [])].reverse().map(a => a.name).concat(p.name).join(' / ');
-  const item = tipo => p => ({ tipo, id: ultimoNumero(p.uri), nome: tipo === 'pasta' ? caminho(p) : p.name, total: p.metadata?.connections?.videos?.total ?? null });
+  // "pai" é a pasta imediatamente acima (para montar a árvore na tela)
+  const pai = p => { const a = p.metadata?.connections?.ancestor_path || []; return a.length ? ultimoNumero(a[0].uri) : null; };
+  const item = tipo => p => ({ tipo, id: ultimoNumero(p.uri), nome: tipo === 'pasta' ? caminho(p) : p.name, curto: p.name, pai: tipo === 'pasta' ? pai(p) : null, total: p.metadata?.connections?.videos?.total ?? null });
   return [...pastas.map(item('pasta')), ...albuns.map(item('album'))].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
 }
 
@@ -104,7 +106,9 @@ function pastaDoLink(link) {
 async function videosDe(token, { tipo, id }) {
   const rota = tipo === 'pasta' ? `/me/projects/${id}/videos` : `/me/albums/${id}/videos`;
   const lista = await todas(token, rota + '?fields=uri,name,duration&per_page=100');
-  return lista.map(v => ({ origem: `https://vimeo.com/${ultimoNumero(v.uri)}`, titulo: v.name, duracao: v.duration }));
+  // Em ordem de nome (as aulas costumam ser numeradas: 01, 02, 03…)
+  return lista.map(v => ({ origem: `https://vimeo.com/${ultimoNumero(v.uri)}`, titulo: v.name, duracao: v.duration }))
+    .sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt', { numeric: true }));
 }
 
 module.exports = { lerToken, idDoLink, info, baixar, conta, listarPastas, pastaDoLink, videosDe };

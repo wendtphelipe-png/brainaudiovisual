@@ -18,6 +18,7 @@ const PORTA = Number(process.env.PORTA || 3050);
 const PUBLICO = path.join(__dirname, 'public');
 const LOGO = path.join(__dirname, '..', 'design', 'logo');
 const ARQ_FILA = path.join(CONFIG.dados, 'fila.json');
+const ARQ_HIST = path.join(CONFIG.dados, 'historico.json');
 const ENVIOS = path.join(CONFIG.dados, 'envios');
 const EXT_MIDIA = /\.(mp4|mov|mkv|avi|webm|m4v|m4a|mp3|wav|aac|flac|ogg)$/i;
 fs.mkdirSync(ENVIOS, { recursive: true });
@@ -31,6 +32,28 @@ try {
   // O que estava rodando quando o PC desligou volta para a fila
   for (const it of estado.fila) if (it.estado === 'processando') Object.assign(it, { estado: 'aguardando', etapa: 'Retomado após reinício', progresso: 0, arquivos: [] });
 } catch { /* primeira vez */ }
+
+// Histórico: todo vídeo que já ficou pronto alguma vez, para não entrar
+// na fila de novo sem querer. "Refazer" tira o vídeo do histórico.
+let historico = {};
+try { historico = JSON.parse(fs.readFileSync(ARQ_HIST, 'utf8')); } catch { /* vazio */ }
+function salvarHistorico() {
+  fs.writeFileSync(ARQ_HIST + '.tmp', JSON.stringify(historico, null, 1), 'utf8');
+  fs.renameSync(ARQ_HIST + '.tmp', ARQ_HIST);
+}
+
+// Identidade de um vídeo, igual não importa como o link foi colado
+function chaveDe(origem) {
+  const v = vimeo.idDoLink(origem);
+  if (v) return 'vimeo:' + v.id;
+  const y = String(origem).match(/(?:[?&]v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/);
+  if (y) return 'youtube:' + y[1];
+  if (/^https?:\/\//i.test(origem)) return 'link:' + origem;
+  // Arquivo enviado pela tela ganha um prefixo no nome; o histórico usa o nome original
+  const nome = path.basename(origem).toLowerCase();
+  return 'arquivo:' + (path.dirname(origem) === ENVIOS ? nome.replace(/^[a-z0-9]+-/, '') : nome);
+}
+for (const it of estado.fila) if (!it.chave) it.chave = chaveDe(it.origem);
 
 let salvarTimer = null;
 function salvar() {
@@ -100,6 +123,8 @@ function iniciar(it) {
       Object.assign(it, { estado: 'pronto', etapa: 'Pronto', progresso: 1, destino: m.fim.destino, arquivos: m.fim.arquivos, fim: Date.now(),
         resumo: { idiomas: m.fim.idiomas, tempos: m.fim.tempos, duracao: m.fim.duracao } });
       addLog(it, `Pronto em ${Math.round(m.fim.totalSeg / 60)} min`);
+      historico[it.chave] = { titulo: it.titulo, origem: it.origem, destino: m.fim.destino, quando: Date.now() };
+      salvarHistorico();
     } else if (m.erro) {
       Object.assign(it, { estado: 'erro', erro: m.erro, fim: Date.now() });
       addLog(it, 'Erro: ' + m.erro);
@@ -181,19 +206,23 @@ async function expandir(texto) {
   return { itens, avisos };
 }
 
-function adicionar(itens) {
-  const ativos = new Set(estado.fila.filter(i => ['aguardando', 'processando'].includes(i.estado)).map(i => i.origem));
+function adicionar(itens, forcar = false) {
+  const ativos = new Set(estado.fila.filter(i => ['aguardando', 'processando'].includes(i.estado)).map(i => i.chave));
   let n = 0, repetidos = 0;
+  const jaProcessados = [];
   for (const v of itens) {
-    if (ativos.has(v.origem)) { repetidos++; continue; }
-    ativos.add(v.origem);
-    estado.fila.push({ id: novoId(), origem: v.origem, titulo: v.titulo, tituloFixo: v.titulo || null, fonte: v.fonte, duracaoVideo: v.duracao || null,
+    const chave = chaveDe(v.origem);
+    if (ativos.has(chave)) { repetidos++; continue; }
+    if (historico[chave] && !forcar) { jaProcessados.push({ origem: v.origem, titulo: v.titulo || historico[chave].titulo, duracao: v.duracao }); continue; }
+    if (historico[chave]) { delete historico[chave]; salvarHistorico(); }
+    ativos.add(chave);
+    estado.fila.push({ id: novoId(), chave, origem: v.origem, titulo: v.titulo, tituloFixo: v.titulo || null, fonte: v.fonte, duracaoVideo: v.duracao || null,
       estado: 'aguardando', etapa: 'Na fila', progresso: 0, arquivos: [], criado: Date.now(), log: [] });
     n++;
   }
   salvar();
   agendar();
-  return { adicionados: n, repetidos };
+  return { adicionados: n, repetidos, jaProcessados };
 }
 
 function rodarTexto(cmd, args) {
@@ -251,6 +280,17 @@ async function estadoVimeo(forcar = false) {
   return cacheVimeo.dados;
 }
 
+// Vídeos de uma pasta, guardados por 2 minutos (abrir e fechar pastas na tela)
+const cachePastas = new Map();
+async function videosVimeo(token, ref) {
+  const k = ref.tipo + ':' + ref.id;
+  const c = cachePastas.get(k);
+  if (c && Date.now() - c.quando < 120000) return c.lista;
+  const lista = await vimeo.videosDe(token, ref);
+  cachePastas.set(k, { quando: Date.now(), lista });
+  return lista;
+}
+
 // ---------- HTTP ----------
 
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -295,10 +335,24 @@ const servidor = http.createServer(async (req, res) => {
     // O Hub do site confere este endereço para saber se o estúdio está ligado
     if (p === '/api/status') return json(res, { status: 'online', versao: 'v2' });
     if (p === '/api/estado') {
-      return json(res, { config: estado.config, fila: estado.fila.map(itemPublico), sistema, gpuDono,
+      return json(res, { config: estado.config, fila: estado.fila.map(itemPublico), sistema, gpuDono, processados: Object.keys(historico),
         vimeo: { conectado: !!vimeo.lerToken(CONFIG.dados), conta: cacheVimeo.dados && cacheVimeo.dados.conta } });
     }
     if (p === '/api/vimeo') return json(res, await estadoVimeo(url.searchParams.get('atualizar') === '1'));
+    const mp = p.match(/^\/api\/vimeo\/(pasta|album)\/(\d+)$/);
+    if (mp) {
+      const token = vimeo.lerToken(CONFIG.dados);
+      if (!token) return json(res, { erro: 'Vimeo não conectado.' }, 400);
+      const vs = await videosVimeo(token, { tipo: mp[1], id: mp[2] });
+      return json(res, vs.map(v => ({ ...v, chave: chaveDe(v.origem) })));
+    }
+    if (p === '/api/historico') return json(res, historico);
+    if (req.method === 'POST' && p === '/api/historico/limpar') {
+      const { chaves = [] } = await lerCorpo(req);
+      for (const c of chaves) delete historico[c];
+      salvarHistorico();
+      return json(res, { ok: true });
+    }
 
     if (req.method === 'POST' && p === '/api/adicionar') {
       const corpo = await lerCorpo(req);
@@ -306,12 +360,14 @@ const servidor = http.createServer(async (req, res) => {
       if (corpo.vimeo) {
         const token = vimeo.lerToken(CONFIG.dados);
         if (!token) return json(res, { erro: 'Vimeo não conectado.' }, 400);
-        const vs = await vimeo.videosDe(token, corpo.vimeo);
+        const vs = await videosVimeo(token, corpo.vimeo);
         r = { itens: vs.map(v => ({ ...v, fonte: 'vimeo' })), avisos: vs.length ? [] : ['A pasta escolhida não tem vídeos.'] };
+      } else if (Array.isArray(corpo.videos)) {
+        r = { itens: corpo.videos.map(v => ({ ...v, fonte: v.fonte || (/vimeo/i.test(v.origem) ? 'vimeo' : 'link') })), avisos: [] };
       } else {
         r = await expandir(corpo.texto);
       }
-      return json(res, { ...adicionar(r.itens), avisos: r.avisos });
+      return json(res, { ...adicionar(r.itens, !!corpo.forcar), avisos: r.avisos });
     }
     if (req.method === 'POST' && p === '/api/enviar') {
       // Arquivo do PC enviado pela tela (corpo = o próprio arquivo)
@@ -354,6 +410,8 @@ const servidor = http.createServer(async (req, res) => {
       if (!it) return json(res, { erro: 'Item não encontrado' }, 404);
       const acao = m[2];
       if (acao === 'tentar' && ['erro', 'cancelado', 'pronto'].includes(it.estado)) {
+        // Refazer um vídeo pronto: ele sai do histórico
+        if (historico[it.chave]) { delete historico[it.chave]; salvarHistorico(); }
         Object.assign(it, { estado: 'aguardando', etapa: 'Na fila', progresso: 0, erro: null, arquivos: [] });
         addLog(it, 'Voltou para a fila');
       } else if (acao === 'remover' && it.estado !== 'processando') {

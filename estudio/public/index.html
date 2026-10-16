@@ -45,8 +45,13 @@
   .med.critico .r b { color: var(--bad); }
 
   /* Corpo: coluna de entrada + fila */
-  .corpo { display: grid; grid-template-columns: 360px 1fr; min-height: calc(100vh - 64px); }
-  .lado { border-right: 1px solid var(--line); padding: 22px; display: flex; flex-direction: column; gap: 26px; background: var(--panel); }
+  .corpo { display: grid; grid-template-columns: var(--lado, 380px) 8px minmax(0, 1fr); min-height: calc(100vh - 64px); }
+  /* Alça para arrastar e mudar a largura da coluna da esquerda */
+  .alca { cursor: col-resize; position: relative; touch-action: none; }
+  .alca::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: var(--line); transition: background .15s; }
+  .alca:hover::after, .alca.arrastando::after, .alca:focus-visible::after { background: var(--blue); }
+  body.arrastando { cursor: col-resize; user-select: none; }
+  .lado { padding: 22px; min-width: 0; display: flex; flex-direction: column; gap: 26px; background: var(--panel); }
   .lado h2 { margin: 0 0 10px; font-size: .95rem; font-weight: 700; font-variation-settings: "wdth" 110; }
   .lado p.ajuda { margin: 0 0 10px; color: var(--muted); font-size: .84rem; line-height: 1.45; }
   textarea { width: 100%; min-height: 120px; resize: vertical; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); line-height: 1.45; font-size: .88rem; }
@@ -133,13 +138,45 @@
   .vazio { padding: 70px 20px; text-align: center; color: var(--muted); }
   .vazio strong { display: block; color: var(--ink); font-size: 1.1rem; margin-bottom: 6px; font-weight: 650; }
 
+  /* Árvore de pastas do Vimeo */
+  .arvore { margin-top: 8px; max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); padding: 4px 0; font-size: .86rem; }
+  .no { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 8px 0 calc(6px + var(--n, 0) * 16px); }
+  .no:hover { background: rgba(255, 255, 255, .03); }
+  .no .abre { width: 22px; height: 22px; display: grid; place-items: center; border: 0; background: none; color: var(--muted); cursor: pointer; border-radius: 4px; flex: none; padding: 0; }
+  .no .abre svg { width: 14px; height: 14px; transition: transform .15s; }
+  .no.aberto > .abre svg { transform: rotate(90deg); }
+  .no .nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+  .no.pasta .nome { font-weight: 600; }
+  .no .qtd { color: var(--dim); font-size: .76rem; white-space: nowrap; }
+  .no .qtd.tudo { color: var(--ok); }
+  .no > svg.i { width: 15px; height: 15px; color: var(--muted); }
+  .no .mais { width: 26px; height: 26px; display: grid; place-items: center; border: 0; background: none; color: var(--muted); border-radius: 4px; cursor: pointer; flex: none; padding: 0; }
+  .no .mais:hover { background: var(--line); color: var(--ink); }
+  .no.video { cursor: pointer; }
+  .no.video input { width: 16px; height: 16px; accent-color: var(--blue); flex: none; margin: 0 3px 0 25px; }
+  .no.video .dur { color: var(--dim); font-size: .76rem; white-space: nowrap; }
+  .no.video.feito .nome { color: var(--muted); }
+  .marca-ok { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border-radius: 4px; border: 0; background: rgba(52, 184, 134, .16); color: var(--ok); font-size: .74rem; font-weight: 650; cursor: pointer; white-space: nowrap; flex: none; }
+  .marca-ok svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  .marca-ok .t2 { display: none; }
+  .marca-ok:hover { background: rgba(240, 90, 110, .14); color: var(--bad); }
+  .marca-ok:hover .t1 { display: none; }
+  .marca-ok:hover .t2 { display: inline; }
+  .marca-fila { height: 22px; display: inline-flex; align-items: center; padding: 0 7px; border-radius: 4px; background: rgba(63, 169, 245, .14); color: var(--blue); font-size: .74rem; font-weight: 650; white-space: nowrap; flex: none; }
+  .no.carregando { color: var(--dim); font-size: .8rem; padding-left: calc(34px + var(--n, 0) * 16px); }
+  .sel-barra { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .sel-barra span { font-size: .84rem; color: var(--muted); flex: 1; }
+  .ja { margin-top: 8px; font-size: .82rem; color: var(--amber); line-height: 1.45; }
+  .ja ul { margin: 6px 0 8px; padding-left: 18px; color: var(--muted); max-height: 120px; overflow: auto; }
+
   @media (max-width: 1150px) {
     .item { grid-template-columns: 34px minmax(0, 1fr) 150px auto; }
     .item .seis { display: none; }
   }
   @media (max-width: 860px) {
-    .corpo { grid-template-columns: 1fr; }
-    .lado { border-right: 0; border-bottom: 1px solid var(--line); }
+    .corpo { grid-template-columns: 1fr !important; }
+    .alca { display: none; }
+    .lado { border-bottom: 1px solid var(--line); }
     .item { grid-template-columns: minmax(0, 1fr) auto; }
     .item .ordem { display: none; }
     .item .etapa { grid-column: 1 / -1; grid-row: 2; }
@@ -161,6 +198,9 @@
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
   <symbol id="i-open" viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
   <symbol id="i-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11"/><rect x="2" y="6" width="14" height="12" rx="2"/></symbol>
   <symbol id="i-more" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="i-audio" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></symbol>
   <symbol id="i-cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4"/><path d="M15 15h2"/><path d="M7 11h2"/><path d="M13 11h4"/></symbol>
@@ -185,6 +225,7 @@
       <textarea id="links" placeholder="https://vimeo.com/123456789&#10;https://www.youtube.com/playlist?list=…&#10;D:\Aulas\Modulo 3"></textarea>
       <div class="linha-btn"><button class="btn prim" id="btn-add"><svg class="i"><use href="#i-link"/></svg>Adicionar à fila</button></div>
       <div class="aviso" id="aviso-add" hidden></div>
+      <div class="ja" id="ja-add" hidden></div>
       <label class="soltar" id="soltar">
         <input type="file" id="arquivos" multiple accept="video/*,audio/*" hidden>
         <svg class="i" style="vertical-align:-4px"><use href="#i-upload"/></svg>
@@ -195,10 +236,12 @@
     <section>
       <h2>Pastas do Vimeo</h2>
       <div class="vimeo-st" id="vimeo-st"><i></i><span>Conectando…</span></div>
+      <p class="ajuda">Abra as pastas para ver os vídeos. Marque os que quiser, ou use o + para colocar a pasta inteira. Vídeo já processado fica com o sinal verde; para refazer, clique nele.</p>
       <input type="text" id="vimeo-busca" placeholder="Buscar pasta ou álbum" autocomplete="off" hidden>
-      <select id="vimeo-pastas" size="7" style="height:auto;padding:6px;margin-top:8px" hidden></select>
-      <div class="linha-btn" id="vimeo-acoes" hidden><button class="btn" id="btn-vimeo"><svg class="i"><use href="#i-folder"/></svg>Adicionar a pasta inteira</button></div>
+      <div class="arvore" id="arvore" hidden></div>
+      <div class="sel-barra" id="sel-barra" hidden><span id="sel-n"></span><button class="btn peq" id="btn-sel-limpar">Desmarcar</button><button class="btn prim peq" id="btn-sel">Adicionar à fila</button></div>
       <div class="aviso" id="aviso-vimeo" hidden></div>
+      <div class="ja" id="ja-vimeo" hidden></div>
     </section>
 
     <section>
@@ -221,6 +264,7 @@
       </div>
     </section>
   </aside>
+  <div class="alca" id="alca" role="separator" aria-orientation="vertical" aria-label="Arraste para mudar a largura da coluna" tabindex="0"></div>
 
   <main class="principal">
     <div class="cab-fila">
@@ -242,6 +286,7 @@
   const SIGLAS = ['PT', 'EN', 'ES'];
   const abertos = new Set();
   let ultimo = null, config = {};
+  let processados = new Set(), naFila = new Set();
 
   const ico = n => `<svg class="i"><use href="#i-${n}"/></svg>`;
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -340,6 +385,10 @@
 
   function desenhar(d) {
     config = d.config;
+    // Atualiza as marcas da árvore quando um vídeo fica pronto ou entra na fila
+    const p2 = new Set(d.processados || []);
+    const f2 = new Set(d.fila.filter(i => ['aguardando', 'processando'].includes(i.estado)).map(i => i.chave));
+    if ([...p2].join() !== [...processados].join() || [...f2].join() !== [...naFila].join()) { processados = p2; naFila = f2; desenharArvore(); }
     monitor(d.sistema, d.gpuDono, d.fila);
     const c = { aguardando: 0, processando: 0, pronto: 0, erro: 0 };
     for (const it of d.fila) c[it.estado] = (c[it.estado] || 0) + 1;
@@ -364,9 +413,25 @@
 
   // ---------- ações ----------
   function mostrar(el, texto, ok) { el.hidden = !texto; el.textContent = texto || ''; el.classList.toggle('ok', !!ok); }
-  function resultado(r) {
+  // Vídeos já processados antes ficam de fora, com a opção de refazer
+  function mostrarJa(caixa, lista) {
+    if (!caixa) return;
+    caixa.hidden = !lista.length;
+    if (!lista.length) return;
+    caixa.innerHTML = (lista.length === 1 ? '1 vídeo já foi processado antes e ficou de fora:' : lista.length + ' vídeos já foram processados antes e ficaram de fora:')
+      + '<ul>' + lista.map(v => '<li>' + esc(v.titulo || v.origem) + '</li>').join('') + '</ul>'
+      + '<button class="btn peq" type="button">' + ico('retry') + 'Refazer mesmo assim</button>';
+    caixa.querySelector('button').onclick = async () => {
+      const r = await api('/api/adicionar', { videos: lista, forcar: true });
+      caixa.hidden = true;
+      mostrar(caixa.previousElementSibling, resultado(r), true);
+      atualizar1();
+    };
+  }
+  function resultado(r, caixaJa) {
+    mostrarJa(caixaJa, r.jaProcessados || []);
     const partes = [];
-    partes.push(r.adicionados === 1 ? '1 vídeo entrou na fila.' : `${r.adicionados} vídeos entraram na fila.`);
+    partes.push(r.adicionados === 1 ? '1 vídeo entrou na fila.' : `${r.adicionados || 'Nenhum'} ${r.adicionados === 0 ? 'vídeo entrou' : 'vídeos entraram'} na fila.`);
     if (r.repetidos) partes.push(`${r.repetidos} já estavam na fila.`);
     if (r.avisos && r.avisos.length) partes.push(...r.avisos);
     return partes.join('\n');
@@ -379,7 +444,7 @@
     mostrar($('aviso-add'), 'Lendo os links…', true);
     try {
       const r = await api('/api/adicionar', { texto });
-      mostrar($('aviso-add'), resultado(r), r.adicionados > 0 && !(r.avisos || []).length);
+      mostrar($('aviso-add'), resultado(r, $('ja-add')), r.adicionados > 0 && !(r.avisos || []).length);
       if (r.adicionados) $('links').value = '';
     } catch (e) { mostrar($('aviso-add'), e.message); }
     $('btn-add').disabled = false;
@@ -426,13 +491,105 @@
   zona.ondragleave = () => zona.classList.remove('sobre');
   zona.ondrop = e => { e.preventDefault(); zona.classList.remove('sobre'); if (e.dataTransfer.files.length) enviar(e.dataTransfer.files); };
 
-  // ---------- Vimeo ----------
+  // ---------- Vimeo: árvore de pastas ----------
   let pastas = [];
-  function listarPastas() {
-    const q = $('vimeo-busca').value.trim().toLowerCase();
-    const lista = pastas.filter(p => !q || p.nome.toLowerCase().includes(q));
-    $('vimeo-pastas').innerHTML = lista.map(p => `<option value="${p.tipo}:${p.id}">${esc(p.nome)}${p.total != null ? ` (${p.total})` : ''}${p.tipo === 'album' ? ' · álbum' : ''}</option>`).join('');
+  const abertas = new Set();          // pastas abertas na árvore
+  const videos = new Map();           // "pasta:id" → lista de vídeos (ou 'carregando')
+  const marcados = new Map();         // origem → vídeo marcado para adicionar
+  const ck = '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>';
+
+  function filhos(paiId) { return pastas.filter(p => p.tipo === 'pasta' && p.pai === paiId); }
+  function contagem(p) {
+    const vs = videos.get(p.tipo + ':' + p.id);
+    if (!Array.isArray(vs)) return `<span class="qtd">${p.total != null ? p.total + ' vídeos' : ''}</span>`;
+    if (!vs.length) return '<span class="qtd">vazia</span>';
+    const feitos = vs.filter(v => processados.has(v.chave)).length;
+    return `<span class="qtd ${feitos === vs.length ? 'tudo' : ''}">${feitos}/${vs.length} prontos</span>`;
   }
+  function noPasta(p, nivel, nomeCompleto) {
+    const k = p.tipo + ':' + p.id;
+    const aberto = abertas.has(k);
+    let h = `<div class="no pasta ${aberto ? 'aberto' : ''}" style="--n:${nivel}" data-k="${k}">
+      <button class="abre" data-acao="abrir" aria-label="${aberto ? 'Fechar' : 'Abrir'} pasta" aria-expanded="${aberto}">${ico('right')}</button>
+      ${ico(p.tipo === 'album' ? 'video' : 'folder')}<span class="nome" data-acao="abrir" title="${esc(p.nome)}">${esc(nomeCompleto ? p.nome : p.curto)}</span>${contagem(p)}
+      <button class="mais" data-acao="tudo" title="Adicionar a pasta inteira à fila" aria-label="Adicionar a pasta inteira à fila">${ico('plus')}</button></div>`;
+    if (!aberto) return h;
+    if (!nomeCompleto) for (const f of filhos(p.id)) h += noPasta(f, nivel + 1);
+    const vs = videos.get(k);
+    if (vs === 'carregando') h += `<div class="no carregando" style="--n:${nivel + 1}">Carregando…</div>`;
+    else if (Array.isArray(vs)) h += vs.map(v => noVideo(v, nivel + 1)).join('');
+    return h;
+  }
+  function noVideo(v, nivel) {
+    const feito = processados.has(v.chave), fila = naFila.has(v.chave);
+    const estado = feito
+      ? `<button class="marca-ok" data-acao="refazer" data-chave="${esc(v.chave)}" title="Já processado. Clique para liberar e poder refazer.">${ck}<span class="t1">Pronto</span><span class="t2">Refazer</span></button>`
+      : fila ? '<span class="marca-fila">Na fila</span>' : '';
+    return `<label class="no video ${feito ? 'feito' : ''}" style="--n:${nivel}">
+      <input type="checkbox" data-origem="${esc(v.origem)}" ${marcados.has(v.origem) ? 'checked' : ''} ${feito || fila ? 'disabled' : ''}>
+      <span class="nome" title="${esc(v.titulo)}">${esc(v.titulo)}</span><span class="dur num">${v.duracao ? minutos(v.duracao) : ''}</span>${estado}</label>`;
+  }
+  function desenharArvore() {
+    if (!pastas.length) return;
+    const q = $('vimeo-busca').value.trim().toLowerCase();
+    const raizes = q ? pastas.filter(p => p.nome.toLowerCase().includes(q))
+      : [...pastas.filter(p => p.tipo === 'pasta' && !p.pai), ...pastas.filter(p => p.tipo === 'album')];
+    const pos = $('arvore').scrollTop;
+    $('arvore').innerHTML = raizes.map(p => noPasta(p, 0, !!q)).join('') || '<div class="no carregando">Nenhuma pasta com esse nome.</div>';
+    $('arvore').scrollTop = pos;
+    $('sel-barra').hidden = !marcados.size;
+    $('sel-n').textContent = marcados.size === 1 ? '1 vídeo marcado' : `${marcados.size} vídeos marcados`;
+  }
+  async function abrirPasta(k) {
+    if (abertas.has(k)) { abertas.delete(k); return desenharArvore(); }
+    abertas.add(k);
+    if (!Array.isArray(videos.get(k))) {
+      videos.set(k, 'carregando');
+      desenharArvore();
+      const [tipo, id] = k.split(':');
+      try { videos.set(k, await api(`/api/vimeo/${tipo}/${id}`)); }
+      catch (e) { videos.delete(k); abertas.delete(k); mostrar($('aviso-vimeo'), e.message); }
+    }
+    desenharArvore();
+  }
+  $('arvore').onclick = async e => {
+    const alvo = e.target.closest('[data-acao]');
+    if (!alvo) return;
+    const acao = alvo.dataset.acao;
+    if (acao === 'refazer') {
+      e.preventDefault();
+      if (!confirm('Liberar este vídeo para ser processado de novo?')) return;
+      await api('/api/historico/limpar', { chaves: [alvo.dataset.chave] });
+      return atualizar1();
+    }
+    const k = alvo.closest('.no').dataset.k;
+    if (acao === 'abrir') return abrirPasta(k);
+    if (acao === 'tudo') {
+      const [tipo, id] = k.split(':');
+      mostrar($('aviso-vimeo'), 'Buscando os vídeos da pasta…', true);
+      try { const r = await api('/api/adicionar', { vimeo: { tipo, id } }); mostrar($('aviso-vimeo'), resultado(r, $('ja-vimeo')), true); }
+      catch (err) { mostrar($('aviso-vimeo'), err.message); }
+      atualizar1();
+    }
+  };
+  $('arvore').onchange = e => {
+    const cb = e.target.closest('input[type=checkbox]');
+    if (!cb) return;
+    const o = cb.dataset.origem;
+    if (cb.checked) {
+      for (const lista of videos.values()) if (Array.isArray(lista)) { const v = lista.find(x => x.origem === o); if (v) { marcados.set(o, v); break; } }
+    } else marcados.delete(o);
+    desenharArvore();
+  };
+  $('btn-sel-limpar').onclick = () => { marcados.clear(); desenharArvore(); };
+  $('btn-sel').onclick = async () => {
+    const lista = [...marcados.values()].map(v => ({ origem: v.origem, titulo: v.titulo, duracao: v.duracao, fonte: 'vimeo' }));
+    try { const r = await api('/api/adicionar', { videos: lista }); mostrar($('aviso-vimeo'), resultado(r, $('ja-vimeo')), true); marcados.clear(); }
+    catch (e) { mostrar($('aviso-vimeo'), e.message); }
+    atualizar1();
+  };
+  $('vimeo-busca').oninput = desenharArvore;
+
   async function carregarVimeo() {
     const st = $('vimeo-st');
     try {
@@ -445,21 +602,32 @@
       st.className = 'vimeo-st on';
       st.querySelector('span').textContent = `Conectado: ${v.conta}`;
       pastas = v.pastas;
-      $('vimeo-busca').hidden = $('vimeo-pastas').hidden = $('vimeo-acoes').hidden = false;
-      listarPastas();
+      $('vimeo-busca').hidden = $('arvore').hidden = false;
+      desenharArvore();
     } catch (e) { st.querySelector('span').textContent = e.message; }
   }
-  $('vimeo-busca').oninput = listarPastas;
-  $('btn-vimeo').onclick = async () => {
-    const v = $('vimeo-pastas').value;
-    if (!v) return mostrar($('aviso-vimeo'), 'Escolha uma pasta na lista.');
-    const [tipo, id] = v.split(':');
-    $('btn-vimeo').disabled = true;
-    mostrar($('aviso-vimeo'), 'Buscando os vídeos da pasta…', true);
-    try { const r = await api('/api/adicionar', { vimeo: { tipo, id } }); mostrar($('aviso-vimeo'), resultado(r), true); }
-    catch (e) { mostrar($('aviso-vimeo'), e.message); }
-    $('btn-vimeo').disabled = false;
-    atualizar1();
+
+  // ---------- largura da coluna da esquerda ----------
+  const corpo = document.querySelector('.corpo');
+  const alca = $('alca');
+  const aplicarLargura = px => corpo.style.setProperty('--lado', Math.round(Math.min(Math.max(px, 280), window.innerWidth * 0.7)) + 'px');
+  const guardarLargura = () => { try { localStorage.setItem('estudio-lado', parseInt(corpo.style.getPropertyValue('--lado'))); } catch {} };
+  try { const salvo = Number(localStorage.getItem('estudio-lado')); if (salvo) aplicarLargura(salvo); } catch {}
+  alca.onpointerdown = e => {
+    alca.setPointerCapture(e.pointerId);
+    alca.classList.add('arrastando'); document.body.classList.add('arrastando');
+    const mover = ev => aplicarLargura(ev.clientX);
+    alca.addEventListener('pointermove', mover);
+    alca.addEventListener('pointerup', () => {
+      alca.classList.remove('arrastando'); document.body.classList.remove('arrastando');
+      alca.removeEventListener('pointermove', mover);
+      guardarLargura();
+    }, { once: true });
+  };
+  alca.onkeydown = e => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    aplicarLargura(document.querySelector('.lado').getBoundingClientRect().width + (e.key === 'ArrowRight' ? 24 : -24));
+    guardarLargura();
   };
 
   carregarVimeo();
