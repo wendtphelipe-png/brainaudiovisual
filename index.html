@@ -1977,12 +1977,27 @@
 
     window.launchAudioVisualStudio = async function(event) {
       if (event && event.preventDefault) event.preventDefault();
-      // Abre a tela do estúdio direto. A conferência por fetch pode ser
-      // bloqueada pelo navegador (site público pedindo acesso ao próprio PC),
-      // então ela só decide se mostra o aviso de como ligar, sem impedir a abertura.
-      window.open('http://127.0.0.1:3050', '_blank');
-      const isUp = await window.pingAvEngine();
-      if (!isUp) window.showEstudioDesligado(true);
+      // Se o estúdio já responde, abre direto. Se não, chama o atalho
+      // brain-estudio:// (registrado no PC por estudio\registrar-atalho.ps1),
+      // que liga o estúdio sem janela, e abre a tela quando ele responder.
+      // A aba nasce já no clique, para o navegador não bloquear a janela.
+      const URL_ESTUDIO = 'http://127.0.0.1:3050';
+      const aba = window.open('about:blank', '_blank');
+      if (await window.pingAvEngine()) {
+        if (aba && !aba.closed) aba.location.href = URL_ESTUDIO; else window.open(URL_ESTUDIO, '_blank');
+        return;
+      }
+      if (aba) aba.document.write('<body style="margin:0;display:grid;place-items:center;height:100vh;background:#0A0E16;color:#8592A8;font:16px Archivo,system-ui,sans-serif">Ligando o estúdio de dublagem…</body>');
+      window.location.href = 'brain-estudio://ligar';
+      // Espera até 6 s o estúdio responder (a conferência pode ser bloqueada
+      // pelo navegador; nesse caso abre ao fim da espera assim mesmo)
+      let ligado = false;
+      for (let i = 0; i < 8 && !ligado; i++) {
+        await new Promise(r => setTimeout(r, 750));
+        ligado = await window.pingAvEngine();
+      }
+      if (aba && !aba.closed) aba.location.href = URL_ESTUDIO; else window.open(URL_ESTUDIO, '_blank');
+      if (!ligado) window.showEstudioDesligado(true);
     };
 
     window.openAudioVisualStudio = function() {
