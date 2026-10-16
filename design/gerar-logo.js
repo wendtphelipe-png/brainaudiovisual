@@ -52,8 +52,11 @@ const icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect 
 
 const out = path.join(__dirname, 'logo');
 fs.mkdirSync(out, { recursive: true });
-for (const name of ['simbolo.svg', 'simbolo-escuro.svg', 'simbolo-claro.svg']) fs.writeFileSync(path.join(out, name), symbol + '\n');
+// brain-b-*: os mesmos desenhos com nomes novos, que o site usa. A Hostinger
+// guarda cópia dos arquivos por 7 dias e devolvia o logo antigo com o nome velho.
+for (const name of ['simbolo.svg', 'simbolo-escuro.svg', 'simbolo-claro.svg', 'brain-b-escuro.svg', 'brain-b-claro.svg']) fs.writeFileSync(path.join(out, name), symbol + '\n');
 fs.writeFileSync(path.join(out, 'icone.svg'), icon + '\n');
+fs.writeFileSync(path.join(out, 'brain-b-icone.svg'), icon + '\n');
 fs.writeFileSync(path.join(__dirname, '..', 'frontend', 'public', 'favicon.svg'), icon + '\n');
 fs.writeFileSync(path.join(__dirname, '..', 'audiovisual-edition', 'public', 'favicon.svg'), icon + '\n');
 console.log('ok símbolo e ícone');
