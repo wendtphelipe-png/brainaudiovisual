@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { translate } = require('../cabine/translate');
+const vimeo = require('./vimeo');
 
 const CONFIG = {
   python: process.env.ESTUDIO_PY || 'D:/Projetos/estudio-py/Scripts/python.exe',
@@ -128,6 +129,14 @@ async function obterAudio(job, pasta, log) {
     if (!fs.existsSync(job.origem)) throw new Error(`Arquivo não encontrado: ${job.origem}`);
     return { arquivo: job.origem, titulo: job.titulo || path.parse(job.origem).name };
   }
+  // Vimeo com token da conta: API oficial, sem cookies
+  const refVimeo = vimeo.idDoLink(job.origem);
+  const token = refVimeo && vimeo.lerToken(CONFIG.dados);
+  if (token) {
+    const r = await vimeo.baixar(token, refVimeo, path.join(pasta, 'origem.mp4'), log);
+    return { arquivo: r.arquivo, titulo: job.titulo || r.titulo };
+  }
+
   const extra = [];
   const cookies = job.cookies || path.join(CONFIG.dados, 'cookies.txt');
   if (fs.existsSync(cookies)) extra.push('--cookies', cookies);
