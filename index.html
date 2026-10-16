@@ -1966,17 +1966,14 @@
       }
     };
 
-    // Estúdio v2: roda só no PC com a placa de vídeo (D:\Projetos\BrainLingo\estudio).
-    // O Chrome só deixa um site chamar um programa do PC no instante do clique,
-    // então o atalho brain-estudio:// (registrado por estudio\registrar-atalho.ps1)
-    // é chamado logo no clique, antes de qualquer espera. Depois um aviso mostra
-    // o andamento e o botão para abrir a tela.
+    // Estúdio v2: roda só no PC com a placa de vídeo (D:\Projetos\BrainLingo\estudio)
+    // e liga sozinho com o Windows (estudio\ligar-com-windows.ps1). O botão só
+    // abre a tela. (O atalho brain-estudio:// não foi chamado pelo Chrome nos
+    // testes, por isso o botão não depende mais dele.)
     const URL_ESTUDIO = 'http://127.0.0.1:3050';
     window.launchAudioVisualStudio = function(event) {
       if (event && event.preventDefault) event.preventDefault();
-      if (window._estudioLigado) { window.open(URL_ESTUDIO, '_blank'); return; }
-      window.location.href = 'brain-estudio://ligar';
-      window.showEstudioDesligado('ligando');
+      window.open(URL_ESTUDIO, '_blank');
     };
 
     window.openAudioVisualStudio = function() {
@@ -2026,7 +2023,7 @@
         status.innerHTML = ponto('#FFB224') + 'Ligando…';
       } else {
         m.querySelector('#estudioDesligadoTitulo').textContent = 'Como ligar o estúdio';
-        m.querySelector('#estudioDesligadoTexto').textContent = 'O estúdio de dublagem roda no computador com a placa de vídeo. Pelo botão "Abrir estúdio" ele liga sozinho nesse computador. Se não ligar, nesse computador:';
+        m.querySelector('#estudioDesligadoTexto').textContent = 'O estúdio de dublagem roda no computador com a placa de vídeo e liga sozinho quando o Windows inicia. Se a tela do estúdio não abrir, nesse computador:';
         m.querySelector('#estudioDesligadoPassos').hidden = false;
         status.innerHTML = ponto('#FFB224') + 'Esperando o estúdio ligar…';
       }

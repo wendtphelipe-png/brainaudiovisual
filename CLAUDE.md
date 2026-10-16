@@ -51,7 +51,12 @@ Leia antes de qualquer tarefa. Atualizado em 16/10/2026.
 - **Saída por vídeo:** `PT/EN/ES.mp3` e `PT/EN/ES.vtt`. O idioma original usa o próprio áudio do vídeo. Tudo vai para `G:\Meu Drive\BR.AIN Dublagens\<título>\`.
 - `server.js`: fila com 1 a 3 vídeos ao mesmo tempo (a placa transcreve um por vez), monitor do PC, árvore de pastas do Vimeo, histórico de processados e tela em `public/index.html`. Abre em http://127.0.0.1:3050.
 - `trabalho.js`: um processo por vídeo, que permite cancelar.
-- Para ligar: botão "Abrir estúdio" do Hub, que chama o atalho `brain-estudio://`. Esse atalho é registrado no usuário do Windows por `estudio\registrar-atalho.ps1` e roda `ligar-estudio.vbs` sem janela. Também dá para dar dois cliques em `estudio\INICIAR-ESTUDIO.bat`. O registro do servidor fica em `estudio\dados\servidor.log`. O ambiente Python fica em `D:\Projetos\estudio-py` e os modelos em `D:\Projetos\estudio-modelos`, ambos fora do repositório.
+- Para ligar:
+  - O estúdio **liga sozinho com o Windows**. O atalho na pasta Inicializar é criado por `estudio\ligar-com-windows.ps1` e roda `ligar-estudio.vbs` sem janela.
+  - O botão "Abrir estúdio" do Hub só abre http://127.0.0.1:3050.
+  - Se precisar ligar à mão: dois cliques em `estudio\INICIAR-ESTUDIO.bat`.
+  - O registro do servidor fica em `estudio\dados\servidor.log`.
+  - O atalho `brain-estudio://` (`registrar-atalho.ps1`) continua registrado, mas o Chrome não o chamou nos testes, então o Hub não depende dele. O ambiente Python fica em `D:\Projetos\estudio-py` e os modelos em `D:\Projetos\estudio-modelos`, ambos fora do repositório.
 - **Na nuvem o estúdio não roda** (não tem placa de vídeo, Drive G: nem token). Lá dá para editar o código; para testar, peça ao Phelipe que rode no PC.
 - **Reiniciar o estúdio derruba os vídeos em andamento**, que recomeçam do zero. Só reinicie com a fila parada ou com o aviso dele.
 
