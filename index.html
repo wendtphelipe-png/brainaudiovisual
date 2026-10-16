@@ -1977,36 +1977,12 @@
 
     window.launchAudioVisualStudio = async function(event) {
       if (event && event.preventDefault) event.preventDefault();
-      const btn = document.getElementById('hubAvLaunchBtn');
-      const originalText = btn ? btn.innerHTML : '';
-      if (btn) {
-        btn.innerHTML = '<span>Verificando motor local...</span>';
-        btn.style.opacity = '0.7';
-      }
-
-      let newTab = null;
-      try {
-        newTab = window.open('about:blank', '_blank');
-      } catch(_) {}
-
+      // Abre a tela do estúdio direto. A conferência por fetch pode ser
+      // bloqueada pelo navegador (site público pedindo acesso ao próprio PC),
+      // então ela só decide se mostra o aviso de como ligar, sem impedir a abertura.
+      window.open('http://127.0.0.1:3050', '_blank');
       const isUp = await window.pingAvEngine();
-      if (btn) {
-        btn.innerHTML = originalText;
-        btn.style.opacity = '1';
-      }
-
-      if (isUp) {
-        if (newTab && !newTab.closed) {
-          newTab.location.href = 'http://127.0.0.1:3050';
-        } else {
-          window.open('http://127.0.0.1:3050', '_blank');
-        }
-      } else {
-        if (newTab && !newTab.closed) {
-          try { newTab.close(); } catch(_) {}
-        }
-        window.showEstudioDesligado();
-      }
+      if (!isUp) window.showEstudioDesligado(true);
     };
 
     window.openAudioVisualStudio = function() {
@@ -2020,7 +1996,7 @@
 
     // Estúdio v2: roda só no PC com a placa de vídeo (D:\Projetos\BrainLingo\estudio).
     // Se estiver desligado, explica como ligar e abre sozinho quando ele responder.
-    window.showEstudioDesligado = function() {
+    window.showEstudioDesligado = function(abriuAba) {
       let m = document.getElementById('brain-estudio-desligado');
       if (!m) {
         m = document.createElement('div');
@@ -2050,6 +2026,10 @@
         m.querySelector('#estudioDesligadoAbrir').onclick = () => { window.closeEstudioDesligado(); window.open('http://127.0.0.1:3050', '_blank'); };
         m.addEventListener('click', e => { if (e.target === m) window.closeEstudioDesligado(); });
       }
+      // Quando a aba já foi aberta: se o estúdio apareceu nela, este aviso pode ser fechado
+      m.querySelector('#estudioDesligadoTitulo').textContent = abriuAba ? 'O estúdio não abriu?' : 'O estúdio está desligado';
+      m.querySelector('p').textContent = (abriuAba ? 'Se a tela do estúdio apareceu na nova aba, é só fechar este aviso. Se não apareceu, ele está desligado. ' : '')
+        + 'O estúdio de dublagem roda no computador com a placa de vídeo. Para ligar, nesse computador:';
       m.style.display = 'grid';
       clearInterval(window._estudioEspera);
       window._estudioEspera = setInterval(async () => {
