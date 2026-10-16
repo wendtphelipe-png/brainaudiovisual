@@ -174,7 +174,7 @@ async function transcrever(wav, pasta, aoProgresso, log) {
       if (m.progresso != null) aoProgresso(m.progresso);
       if (m.idioma) log(`Idioma detectado: ${m.idioma} (certeza ${Math.round(m.certeza * 100)}%)`);
       if (m.aviso) log('Aviso: ' + m.aviso);
-      if (m.dispositivo) log(`Transcrevendo no ${m.dispositivo === 'cuda' ? 'placa de vídeo' : 'processador'}…`);
+      if (m.dispositivo) log(`Transcrevendo ${m.dispositivo === 'cuda' ? 'na placa de vídeo' : 'no processador'}…`);
     },
   });
   return JSON.parse(fs.readFileSync(saida, 'utf8'));
@@ -381,7 +381,9 @@ async function dublarIdioma({ frases, textos, generoPorFrase, idioma, duracao, p
 
 // ---------- trabalho completo ----------
 
-async function processar(job, { aoProgresso = () => {}, log = () => {} } = {}) {
+// Opções: aoProgresso({etapa,total}), log(texto), aoTitulo(titulo), aoIdioma(info),
+// aoArquivo(nome) e comGpu(fn) (a fila usa para a placa transcrever um vídeo por vez)
+async function processar(job, { aoProgresso = () => {}, log = () => {}, aoTitulo = () => {}, aoIdioma = () => {}, aoArquivo = () => {}, comGpu = fn => fn() } = {}) {
   const inicioTrabalho = Date.now();
   const id = job.id || `${Date.now().toString(36)}`;
   const pasta = path.join(CONFIG.dados, 'trabalhos', id);
@@ -392,13 +394,16 @@ async function processar(job, { aoProgresso = () => {}, log = () => {} } = {}) {
 
   etapa('Baixando', 0, 0.08)(0);
   const { arquivo, titulo } = await medir('obter', () => obterAudio(job, pasta, log));
+  aoTitulo(titulo);
   const wav = path.join(pasta, 'fala16k.wav');
   await rodar(CONFIG.ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', '-i', arquivo, '-vn', '-ac', '1', '-ar', '16000', wav]);
 
-  const trans = await medir('transcrever', () => transcrever(wav, pasta, etapa('Transcrevendo', 0.08, 0.32), log));
+  etapa('Aguardando a placa de vídeo', 0.08, 0)(0);
+  const trans = await medir('transcrever', () => comGpu(() => transcrever(wav, pasta, etapa('Transcrevendo', 0.08, 0.32), log)));
   const origem = trans.idioma;
   if (trans.certeza < 0.6) log(`Atenção: idioma "${origem}" detectado com pouca certeza (${Math.round(trans.certeza * 100)}%). Confira o resultado.`);
   const frases = montarFrases(trans);
+  aoIdioma({ idioma: origem, certeza: trans.certeza });
   const legendas = montarLegendas(frases);
   if (!frases.length) throw new Error('Nenhuma fala encontrada no áudio.');
   log(`${frases.length} frases, ${legendas.length} legendas`);
@@ -415,10 +420,12 @@ async function processar(job, { aoProgresso = () => {}, log = () => {} } = {}) {
     const vtt = path.join(destino, `${SIGLA[origem]}.vtt`);
     escreverVtt(vtt, legendas);
     arquivos.push(mp3, vtt);
+    aoArquivo(path.basename(mp3)); aoArquivo(path.basename(vtt));
   }
 
   const gen = generos(frases);
   const variantes = job.vozes === 'ambas' ? ['f', 'm'] : [null];
+  aoIdioma({ idioma: origem, certeza: trans.certeza, voz: job.vozes === 'ambas' ? 'ambas' : gen.predominante });
   log(`Voz: ${gen.predominante === 'm' ? 'masculina' : 'feminina'} predominante (${gen.segundosM}s masc., ${gen.segundosF}s fem.)`);
 
   const relatorio = { titulo, origem, certeza: trans.certeza, duracao: trans.duracao, dispositivo: trans.dispositivo, frases: frases.length, voz: gen, idiomas: {} };
@@ -435,6 +442,7 @@ async function processar(job, { aoProgresso = () => {}, log = () => {} } = {}) {
     const vtt = path.join(destino, `${SIGLA[alvo]}.vtt`);
     escreverVtt(vtt, legAlvo);
     arquivos.push(vtt);
+    aoArquivo(path.basename(vtt));
 
     for (const [v, variante] of variantes.entries()) {
       const generoPorFrase = variante ? frases.map(() => variante) : gen.porFrase;
@@ -446,6 +454,7 @@ async function processar(job, { aoProgresso = () => {}, log = () => {} } = {}) {
       const final = path.join(destino, nome);
       fs.copyFileSync(r.mp3, final);
       arquivos.push(final);
+      aoArquivo(nome);
       relatorio.idiomas[rotulo] = { falas: r.falas, aceleradas: r.aceleradas, empurradas: r.empurradas, atrasoMaxSeg: r.atrasoMax };
       log(`${SIGLA[alvo]}${variante ? ' ' + variante : ''}: ${r.falas} falas, ${r.aceleradas} aceleradas, ${r.empurradas} com atraso (máx. ${r.atrasoMax}s)`);
     }

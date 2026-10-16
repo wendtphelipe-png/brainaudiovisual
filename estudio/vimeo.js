@@ -58,4 +58,53 @@ async function baixar(token, ref, destino, log = () => {}) {
   return { arquivo: destino, titulo: v.name, duracao: v.duration };
 }
 
-module.exports = { lerToken, idDoLink, info, baixar };
+// Conta do token (nome e plano), para mostrar na tela
+async function conta(token) {
+  const u = await chamar(token, '/me?fields=name,account');
+  return { nome: u.name, plano: u.account };
+}
+
+// Percorre todas as páginas de uma listagem da API
+async function todas(token, rota) {
+  const itens = [];
+  let prox = rota;
+  while (prox) {
+    const r = await chamar(token, prox);
+    itens.push(...(r.data || []));
+    prox = r.paging && r.paging.next;
+  }
+  return itens;
+}
+
+const ultimoNumero = uri => String(uri).split('/').filter(Boolean).pop();
+
+// Pastas (projects) e álbuns (showcases) da conta
+async function listarPastas(token) {
+  const campos = 'fields=uri,name,metadata.connections.videos.total,metadata.connections.ancestor_path&per_page=100';
+  const [pastas, albuns] = await Promise.all([
+    todas(token, '/me/projects?' + campos).catch(() => []),
+    todas(token, '/me/albums?' + campos).catch(() => []),
+  ]);
+  // Pastas com o mesmo nome (ex.: "01 Janeiro" em cada ano) aparecem com o caminho
+  const caminho = p => [...(p.metadata?.connections?.ancestor_path || [])].reverse().map(a => a.name).concat(p.name).join(' / ');
+  const item = tipo => p => ({ tipo, id: ultimoNumero(p.uri), nome: tipo === 'pasta' ? caminho(p) : p.name, total: p.metadata?.connections?.videos?.total ?? null });
+  return [...pastas.map(item('pasta')), ...albuns.map(item('album'))].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+}
+
+// Link de pasta ou álbum copiado do navegador
+function pastaDoLink(link) {
+  let m = String(link).match(/vimeo\.com\/(?:.*\/)?(?:folder|folders|project|projects)\/(\d+)/i);
+  if (m) return { tipo: 'pasta', id: m[1] };
+  m = String(link).match(/vimeo\.com\/(?:.*\/)?(?:showcase|showcases|album|albums)\/(\d+)/i);
+  if (m) return { tipo: 'album', id: m[1] };
+  return null;
+}
+
+// Vídeos de uma pasta ou álbum, na ordem da conta
+async function videosDe(token, { tipo, id }) {
+  const rota = tipo === 'pasta' ? `/me/projects/${id}/videos` : `/me/albums/${id}/videos`;
+  const lista = await todas(token, rota + '?fields=uri,name,duration&per_page=100');
+  return lista.map(v => ({ origem: `https://vimeo.com/${ultimoNumero(v.uri)}`, titulo: v.name, duracao: v.duration }));
+}
+
+module.exports = { lerToken, idDoLink, info, baixar, conta, listarPastas, pastaDoLink, videosDe };

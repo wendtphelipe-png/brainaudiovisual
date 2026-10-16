@@ -2127,7 +2127,7 @@ echo.\r
 echo [4/5] Iniciando os servidores locais do Brain Audiovisual...\r
 powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 3050, 8765 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>nul\r
 \r
-start "Brain Audiovisual - Engine 3050" /min cmd /c "node audiovisual-edition\\\\server.js"\r
+start "Brain Audiovisual - Engine 3050" /min cmd /c "node estudio\\\\server.js"\r
 start "Brain Audiovisual - Hub 8765" /min cmd /c "node server.js"\r
 \r
 timeout /t 2 /nobreak >nul\r

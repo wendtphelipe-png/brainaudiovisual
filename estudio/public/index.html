@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estúdio de dublagem</title>
+<link rel="icon" type="image/svg+xml" href="/logo/icone.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+  /* Estúdio v2. Mesmo sistema visual da Cabine: azul-noite, azul Brain para
+     o que está sendo processado, âmbar para tradução e dublagem. A fila é
+     um "espelho" de programação (rundown), uma linha por vídeo, e cada
+     linha mostra os 6 arquivos acendendo conforme ficam prontos. */
+  :root {
+    --bg: #0A0E16; --panel: #111723; --panel-2: #161E2C; --line: #222C3D; --line-2: #2C384C;
+    --ink: #EAF0F7; --muted: #8592A8; --dim: #5F6B80;
+    --blue: #3FA9F5; --amber: #FFB224; --ok: #34B886; --bad: #F05A6E;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Archivo, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Barra do topo */
+  .top { display: flex; align-items: center; gap: 20px; padding: 14px 24px; border-bottom: 1px solid var(--line); background: #0C111B; position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+  .marca { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+  .marca img.s { width: 34px; height: 34px; }
+  .marca img.w { height: 20px; }
+  .marca .sep { width: 1px; height: 26px; background: var(--line-2); }
+  .marca h1 { margin: 0; font-size: 1.05rem; font-weight: 700; font-variation-settings: "wdth" 112; letter-spacing: .01em; }
+  .monitor { margin-left: auto; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .med { display: grid; gap: 5px; min-width: 86px; }
+  .med .r { display: flex; justify-content: space-between; gap: 8px; font-size: .74rem; color: var(--muted); }
+  .med .r b { color: var(--ink); font-weight: 650; }
+  .med .barra { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .med .barra i { display: block; height: 100%; background: var(--blue); transition: width .6s; }
+  .med.alto .barra i { background: var(--amber); }
+  .med.critico .barra i { background: var(--bad); }
+  .med.critico .r b { color: var(--bad); }
+
+  /* Corpo: coluna de entrada + fila */
+  .corpo { display: grid; grid-template-columns: 360px 1fr; min-height: calc(100vh - 64px); }
+  .lado { border-right: 1px solid var(--line); padding: 22px; display: flex; flex-direction: column; gap: 26px; background: var(--panel); }
+  .lado h2 { margin: 0 0 10px; font-size: .95rem; font-weight: 700; font-variation-settings: "wdth" 110; }
+  .lado p.ajuda { margin: 0 0 10px; color: var(--muted); font-size: .84rem; line-height: 1.45; }
+  textarea { width: 100%; min-height: 120px; resize: vertical; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); line-height: 1.45; font-size: .88rem; }
+  textarea:focus, select:focus, input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(63, 169, 245, .18); }
+  select, input[type=text] { width: 100%; height: 40px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border: 0; border-radius: 6px; cursor: pointer; font-weight: 650; font-variation-settings: "wdth" 106; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); transition: background .15s; white-space: nowrap; }
+  .btn:hover { background: var(--line); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.prim { background: var(--blue); color: #041320; box-shadow: none; clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px); border-radius: 0; font-weight: 700; }
+  .btn.prim:hover { filter: brightness(1.08); }
+  .btn.peq { height: 32px; padding: 0 10px; font-size: .82rem; }
+  .linha-btn { display: flex; gap: 8px; margin-top: 10px; }
+  .linha-btn .btn { flex: 1; }
+  .aviso { margin-top: 8px; font-size: .82rem; color: var(--amber); line-height: 1.4; white-space: pre-line; }
+  .aviso.ok { color: var(--ok); }
+  .soltar { display: block; margin-top: 10px; border: 1px dashed var(--line-2); border-radius: 6px; padding: 14px; text-align: center; color: var(--muted); font-size: .84rem; cursor: pointer; transition: border-color .15s, background .15s; }
+  .soltar:hover, .soltar.sobre { border-color: var(--blue); background: rgba(63, 169, 245, .06); color: var(--ink); }
+  .vimeo-st { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--muted); margin-bottom: 10px; }
+  .vimeo-st i { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+  .vimeo-st.on i { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+
+  /* Ajustes */
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button { flex: 1; height: 38px; border: 0; background: var(--panel-2); cursor: pointer; font-weight: 600; color: var(--muted); }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed=true] { background: rgba(63, 169, 245, .16); color: var(--ink); box-shadow: inset 0 -2px 0 var(--blue); }
+  .campo { margin-bottom: 16px; }
+  .campo label.t { display: block; font-size: .82rem; color: var(--muted); margin-bottom: 6px; }
+  .destino { display: flex; gap: 8px; }
+  .destino input { font-size: .82rem; }
+
+  /* Fila */
+  .principal { padding: 22px 26px; min-width: 0; }
+  .cab-fila { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+  .cab-fila h2 { margin: 0; font-size: 1.35rem; font-weight: 750; font-variation-settings: "wdth" 116; }
+  .contagem { display: flex; gap: 14px; color: var(--muted); font-size: .86rem; }
+  .contagem b { color: var(--ink); }
+  .cab-fila .acoes { margin-left: auto; display: flex; gap: 8px; }
+  .pausa { color: var(--amber); }
+
+  .rundown { border-top: 1px solid var(--line); }
+  .item { display: grid; grid-template-columns: 44px minmax(0, 1fr) 210px 150px 160px; gap: 18px; align-items: center; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+  .item.processando { background: linear-gradient(90deg, rgba(63, 169, 245, .07), transparent 60%); }
+  .ordem { font-size: .9rem; color: var(--dim); text-align: right; font-weight: 650; }
+  .item.processando .ordem { color: var(--blue); }
+  .titulo { min-width: 0; }
+  .titulo strong { display: block; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .titulo .meta { display: flex; gap: 10px; align-items: center; margin-top: 4px; font-size: .8rem; color: var(--muted); flex-wrap: wrap; }
+  .titulo .meta svg.i { width: 14px; height: 14px; }
+  .idioma { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 4px; background: var(--panel-2); color: var(--ink); font-weight: 600; font-size: .76rem; }
+  .idioma.duvida { color: var(--amber); box-shadow: inset 0 0 0 1px rgba(255, 178, 36, .4); }
+
+  .etapa { font-size: .84rem; }
+  .etapa .txt { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; color: var(--muted); }
+  .etapa .txt b { color: var(--ink); font-weight: 600; }
+  .trilho { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .trilho i { display: block; height: 100%; width: 0; background: var(--blue); transition: width .8s ease; }
+  .item.dublando .trilho i { background: var(--amber); }
+  .item.pronto .trilho i { background: var(--ok); }
+  .item.erro .etapa .txt b { color: var(--bad); }
+  .item.erro .trilho i { background: var(--bad); }
+
+  /* Os 6 arquivos: colunas PT EN ES, linhas áudio e legenda */
+  .seis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 6px; font-size: .7rem; text-align: center; }
+  .seis .l { color: var(--muted); font-weight: 700; letter-spacing: .04em; }
+  .seis .l.orig { color: var(--blue); }
+  .pip { height: 14px; border-radius: 3px; background: var(--line); display: grid; place-items: center; }
+  .pip svg { width: 11px; height: 11px; stroke: var(--dim); fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .pip.on { background: rgba(52, 184, 134, .22); }
+  .pip.on svg { stroke: var(--ok); }
+  .pip.dupla { background: linear-gradient(90deg, rgba(52, 184, 134, .22) 50%, rgba(52, 184, 134, .35) 50%); }
+
+  .botoes { display: flex; gap: 6px; justify-content: flex-end; }
+  .ico { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 6px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+  .ico:hover { background: var(--panel-2); color: var(--ink); }
+  .ico.perigo:hover { color: var(--bad); }
+
+  .detalhes { grid-column: 2 / -1; margin-top: -4px; }
+  .detalhes .erro-txt { color: var(--bad); font-size: .86rem; margin-bottom: 8px; line-height: 1.45; }
+  .detalhes pre { margin: 0; max-height: 220px; overflow: auto; background: #070A10; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; font-size: .76rem; line-height: 1.55; color: var(--muted); white-space: pre-wrap; }
+  .detalhes .resumo { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 8px; font-size: .82rem; color: var(--muted); }
+  .detalhes .resumo b { color: var(--ink); }
+
+  .vazio { padding: 70px 20px; text-align: center; color: var(--muted); }
+  .vazio strong { display: block; color: var(--ink); font-size: 1.1rem; margin-bottom: 6px; font-weight: 650; }
+
+  @media (max-width: 1150px) {
+    .item { grid-template-columns: 34px minmax(0, 1fr) 150px auto; }
+    .item .seis { display: none; }
+  }
+  @media (max-width: 860px) {
+    .corpo { grid-template-columns: 1fr; }
+    .lado { border-right: 0; border-bottom: 1px solid var(--line); }
+    .item { grid-template-columns: minmax(0, 1fr) auto; }
+    .item .ordem { display: none; }
+    .item .etapa { grid-column: 1 / -1; grid-row: 2; }
+    .detalhes { grid-column: 1 / -1; }
+    .top, .principal, .lado { padding-left: 16px; padding-right: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></symbol>
+  <symbol id="i-retry" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-audio" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></symbol>
+  <symbol id="i-cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4"/><path d="M15 15h2"/><path d="M7 11h2"/><path d="M13 11h4"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol>
+</svg>
+
+<header class="top">
+  <a class="marca" href="/">
+    <img class="s" src="/logo/simbolo.svg" alt="">
+    <img class="w" src="/logo/wordmark-claro.png" alt="Brain Audiovisual">
+    <span class="sep"></span>
+    <h1>Estúdio de dublagem</h1>
+  </a>
+  <div class="monitor" id="monitor" aria-label="Uso do computador"></div>
+</header>
+
+<div class="corpo">
+  <aside class="lado">
+    <section>
+      <h2>Adicionar à fila</h2>
+      <p class="ajuda">Cole links do YouTube ou do Vimeo, um por linha. Playlists e pastas do Vimeo entram com todos os vídeos. Também aceita o caminho de um arquivo ou pasta do PC.</p>
+      <textarea id="links" placeholder="https://vimeo.com/123456789&#10;https://www.youtube.com/playlist?list=…&#10;D:\Aulas\Modulo 3"></textarea>
+      <div class="linha-btn"><button class="btn prim" id="btn-add"><svg class="i"><use href="#i-link"/></svg>Adicionar à fila</button></div>
+      <div class="aviso" id="aviso-add" hidden></div>
+      <label class="soltar" id="soltar">
+        <input type="file" id="arquivos" multiple accept="video/*,audio/*" hidden>
+        <svg class="i" style="vertical-align:-4px"><use href="#i-upload"/></svg>
+        Arraste vídeos do PC aqui ou clique para escolher
+      </label>
+    </section>
+
+    <section>
+      <h2>Pastas do Vimeo</h2>
+      <div class="vimeo-st" id="vimeo-st"><i></i><span>Conectando…</span></div>
+      <input type="text" id="vimeo-busca" placeholder="Buscar pasta ou álbum" autocomplete="off" hidden>
+      <select id="vimeo-pastas" size="7" style="height:auto;padding:6px;margin-top:8px" hidden></select>
+      <div class="linha-btn" id="vimeo-acoes" hidden><button class="btn" id="btn-vimeo"><svg class="i"><use href="#i-folder"/></svg>Adicionar a pasta inteira</button></div>
+      <div class="aviso" id="aviso-vimeo" hidden></div>
+    </section>
+
+    <section>
+      <h2>Ajustes</h2>
+      <div class="campo">
+        <label class="t">Vídeos ao mesmo tempo</label>
+        <div class="seg" id="simultaneos">
+          <button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="3">3</button>
+        </div>
+      </div>
+      <div class="campo">
+        <label class="t">Voz da dublagem</label>
+        <div class="seg" id="vozes">
+          <button type="button" data-v="auto">Igual à original</button><button type="button" data-v="ambas">Feminina e masculina</button>
+        </div>
+      </div>
+      <div class="campo">
+        <label class="t" for="saida">Salvar em</label>
+        <div class="destino"><input type="text" id="saida" spellcheck="false"><button class="btn" id="btn-pasta" title="Escolher pasta" aria-label="Escolher pasta"><svg class="i"><use href="#i-folder"/></svg></button></div>
+      </div>
+    </section>
+  </aside>
+
+  <main class="principal">
+    <div class="cab-fila">
+      <h2>Fila</h2>
+      <div class="contagem num" id="contagem"></div>
+      <div class="acoes">
+        <button class="btn peq" id="btn-pausar"></button>
+        <button class="btn peq" id="btn-limpar">Tirar os prontos</button>
+      </div>
+    </div>
+    <div class="rundown" id="fila"></div>
+  </main>
+</div>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const NOMES = { pt: 'Português', en: 'Inglês', es: 'Espanhol', fr: 'Francês', it: 'Italiano', de: 'Alemão' };
+  const SIGLAS = ['PT', 'EN', 'ES'];
+  const abertos = new Set();
+  let ultimo = null, config = {};
+
+  const ico = n => `<svg class="i"><use href="#i-${n}"/></svg>`;
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const gb = b => (b / 1073741824).toFixed(b > 1e11 ? 0 : 1);
+  const minutos = s => (s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min` : `${Math.max(1, Math.round(s / 60))} min`);
+
+  async function api(rota, corpo) {
+    const r = await fetch(rota, corpo === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.erro || 'Falha ' + r.status);
+    return j;
+  }
+
+  // ---------- monitor ----------
+  function medidor(rotulo, valor, pct, alto = 70, critico = 92) {
+    const cls = pct >= critico ? 'critico' : pct >= alto ? 'alto' : '';
+    return `<div class="med ${cls}"><div class="r"><span>${rotulo}</span><b class="num">${valor}</b></div><div class="barra"><i style="width:${Math.min(100, pct)}%"></i></div></div>`;
+  }
+  function monitor(s, gpuDono, fila) {
+    const partes = [medidor('Processador', s.cpu + '%', s.cpu)];
+    if (s.ram.total) { const p = Math.round(s.ram.usado / s.ram.total * 100); partes.push(medidor('Memória', `${gb(s.ram.usado)} / ${gb(s.ram.total)} GB`, p, 80, 93)); }
+    if (s.gpu) {
+      partes.push(medidor('Placa de vídeo', s.gpu.uso + '%', s.gpu.uso, 101, 101));
+      partes.push(medidor('Memória da placa', `${(s.gpu.memUsada / 1024).toFixed(1)} / ${(s.gpu.memTotal / 1024).toFixed(0)} GB`, s.gpu.memUsada / s.gpu.memTotal * 100, 85, 96));
+      partes.push(medidor('Temperatura', s.gpu.temp + ' °C', s.gpu.temp, 78, 86));
+    }
+    // O cache do Google Drive fica no C:, por isso ele é vigiado
+    for (const d of s.discos) {
+      const usado = 100 - d.livre / d.total * 100;
+      if (d.nome === 'G:') continue;
+      partes.push(medidor(`Disco ${d.nome} livre`, gb(d.livre) + ' GB', usado, 90, d.livre < 5 * 1073741824 ? 0 : 101));
+    }
+    $('monitor').innerHTML = partes.join('');
+  }
+
+  // ---------- fila ----------
+  function pipsDe(it) {
+    const tem = new Set(it.arquivos || []);
+    const orig = (it.idioma || '').toUpperCase();
+    const col = s => {
+      const audio = tem.has(`${s}.mp3`) || (tem.has(`${s} - voz feminina.mp3`) && tem.has(`${s} - voz masculina.mp3`));
+      const meio = tem.has(`${s} - voz feminina.mp3`) !== tem.has(`${s} - voz masculina.mp3`);
+      return { audio, meio, vtt: tem.has(`${s}.vtt`) };
+    };
+    const ck = '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>';
+    let h = SIGLAS.map(s => `<span class="l ${s === orig ? 'orig' : ''}" title="${s === orig ? 'Idioma original' : ''}">${s}</span>`).join('');
+    h += SIGLAS.map(s => { const c = col(s); return `<span class="pip ${c.audio ? 'on' : c.meio ? 'dupla' : ''}" title="Áudio ${s}">${ck}</span>`; }).join('');
+    h += SIGLAS.map(s => `<span class="pip ${col(s).vtt ? 'on' : ''}" title="Legenda ${s}">${ck}</span>`).join('');
+    return `<div class="seis" aria-label="Arquivos prontos">${h}</div>`;
+  }
+
+  function linha(it, n) {
+    const dublando = /Traduzindo|Dublando/.test(it.etapa || '');
+    const fonte = { vimeo: 'Vimeo', youtube: 'YouTube', arquivo: 'Arquivo do PC', link: 'Link' }[it.fonte] || '';
+    const titulo = it.titulo || it.origem;
+    const meta = [];
+    meta.push(`<span>${ico(it.fonte === 'arquivo' ? 'file' : 'link')}${fonte}</span>`);
+    if (it.duracaoVideo) meta.push(`<span class="num">${minutos(it.duracaoVideo)}</span>`);
+    if (it.idioma) {
+      const duvida = it.certeza != null && it.certeza < 0.6;
+      meta.push(`<span class="idioma ${duvida ? 'duvida' : ''}" title="${duvida ? 'Idioma detectado com pouca certeza: confira' : 'Idioma detectado'}">${NOMES[it.idioma] || it.idioma.toUpperCase()}${duvida ? ' ?' : ''}</span>`);
+    }
+    if (it.voz) meta.push(`<span>${it.voz === 'ambas' ? 'Voz feminina e masculina' : it.voz === 'm' ? 'Voz masculina' : 'Voz feminina'}</span>`);
+
+    let etapa = it.etapa || '';
+    let dir = '';
+    if (it.estado === 'processando') dir = Math.round((it.progresso || 0) * 100) + '%';
+    if (it.estado === 'pronto' && it.inicio && it.fim) dir = minutos((it.fim - it.inicio) / 1000);
+    if (it.estado === 'erro') etapa = 'Falhou';
+    if (it.estado === 'aguardando') etapa = config.pausado ? 'Fila pausada' : 'Na fila';
+
+    const b = [];
+    if (it.estado === 'pronto') b.push(`<button class="ico" data-a="abrir" title="Abrir a pasta" aria-label="Abrir a pasta">${ico('open')}</button>`);
+    if (it.estado === 'aguardando') b.push(`<button class="ico" data-a="subir" title="Passar para o começo da fila" aria-label="Passar para o começo da fila">${ico('up')}</button>`);
+    if (['erro', 'cancelado', 'pronto'].includes(it.estado)) b.push(`<button class="ico" data-a="tentar" title="Processar de novo" aria-label="Processar de novo">${ico('retry')}</button>`);
+    if (['processando', 'aguardando'].includes(it.estado)) b.push(`<button class="ico perigo" data-a="cancelar" title="Cancelar" aria-label="Cancelar">${ico('x')}</button>`);
+    else b.push(`<button class="ico perigo" data-a="remover" title="Tirar da fila" aria-label="Tirar da fila">${ico('trash')}</button>`);
+    b.push(`<button class="ico" data-a="detalhes" title="Detalhes" aria-label="Detalhes" aria-expanded="${abertos.has(it.id)}">${ico('more')}</button>`);
+
+    let det = '';
+    if (abertos.has(it.id)) {
+      const r = it.resumo;
+      const resumo = r && r.idiomas ? Object.entries(r.idiomas).map(([k, v]) => `<span>${k.toUpperCase()}: <b>${v.falas}</b> falas, <b>${v.empurradas}</b> com atraso (máx. ${v.atrasoMaxSeg}s)</span>`).join('') : '';
+      det = `<div class="detalhes">${it.erro ? `<div class="erro-txt">${esc(it.erro)}</div>` : ''}${resumo ? `<div class="resumo">${resumo}</div>` : ''}${it.destino ? `<div class="resumo"><span>Pasta: <b>${esc(it.destino)}</b></span></div>` : ''}<pre>${esc((it.log || []).join('\n') || 'Sem registros ainda.')}</pre></div>`;
+    }
+
+    return `<div class="item ${it.estado} ${dublando ? 'dublando' : ''}" data-id="${it.id}">
+      <div class="ordem num">${String(n).padStart(2, '0')}</div>
+      <div class="titulo"><strong title="${esc(it.origem)}">${esc(titulo)}</strong><div class="meta">${meta.join('')}</div></div>
+      <div class="etapa"><div class="txt"><b>${esc(etapa)}</b><span class="num">${dir}</span></div><div class="trilho"><i style="width:${it.estado === 'pronto' ? 100 : Math.round((it.progresso || 0) * 100)}%"></i></div></div>
+      ${pipsDe(it)}
+      <div class="botoes">${b.join('')}</div>
+      ${det}
+    </div>`;
+  }
+
+  function desenhar(d) {
+    config = d.config;
+    monitor(d.sistema, d.gpuDono, d.fila);
+    const c = { aguardando: 0, processando: 0, pronto: 0, erro: 0 };
+    for (const it of d.fila) c[it.estado] = (c[it.estado] || 0) + 1;
+    $('contagem').innerHTML = `<span><b>${c.processando}</b> processando</span><span><b>${c.aguardando}</b> na fila</span><span><b>${c.pronto}</b> prontos</span>${c.erro ? `<span style="color:var(--bad)"><b style="color:inherit">${c.erro}</b> com erro</span>` : ''}`;
+    $('btn-pausar').innerHTML = config.pausado ? `${ico('play')}Continuar a fila` : `${ico('pause')}Pausar a fila`;
+    $('btn-pausar').classList.toggle('pausa', !!config.pausado);
+    for (const b of $('simultaneos').children) b.setAttribute('aria-pressed', String(Number(b.dataset.v) === config.simultaneos));
+    for (const b of $('vozes').children) b.setAttribute('aria-pressed', String(b.dataset.v === config.vozes));
+    if (document.activeElement !== $('saida')) $('saida').value = config.saida;
+
+    const chave = JSON.stringify([d.fila, [...abertos], config.pausado]);
+    if (chave === ultimo) return;
+    ultimo = chave;
+    $('fila').innerHTML = d.fila.length ? d.fila.map((it, i) => linha(it, i + 1)).join('')
+      : `<div class="vazio"><strong>A fila está vazia</strong>Cole um link ou escolha uma pasta do Vimeo para começar.</div>`;
+  }
+
+  async function atualizar() {
+    try { desenhar(await api('/api/estado')); } catch { /* servidor reiniciando */ }
+    setTimeout(atualizar, 1000);
+  }
+
+  // ---------- ações ----------
+  function mostrar(el, texto, ok) { el.hidden = !texto; el.textContent = texto || ''; el.classList.toggle('ok', !!ok); }
+  function resultado(r) {
+    const partes = [];
+    partes.push(r.adicionados === 1 ? '1 vídeo entrou na fila.' : `${r.adicionados} vídeos entraram na fila.`);
+    if (r.repetidos) partes.push(`${r.repetidos} já estavam na fila.`);
+    if (r.avisos && r.avisos.length) partes.push(...r.avisos);
+    return partes.join('\n');
+  }
+
+  $('btn-add').onclick = async () => {
+    const texto = $('links').value.trim();
+    if (!texto) return mostrar($('aviso-add'), 'Cole pelo menos um link.');
+    $('btn-add').disabled = true;
+    mostrar($('aviso-add'), 'Lendo os links…', true);
+    try {
+      const r = await api('/api/adicionar', { texto });
+      mostrar($('aviso-add'), resultado(r), r.adicionados > 0 && !(r.avisos || []).length);
+      if (r.adicionados) $('links').value = '';
+    } catch (e) { mostrar($('aviso-add'), e.message); }
+    $('btn-add').disabled = false;
+  };
+
+  $('fila').onclick = async e => {
+    const btn = e.target.closest('button[data-a]');
+    if (!btn) return;
+    const id = btn.closest('.item').dataset.id;
+    const a = btn.dataset.a;
+    if (a === 'detalhes') { abertos.has(id) ? abertos.delete(id) : abertos.add(id); ultimo = null; return atualizar1(); }
+    if (a === 'cancelar' && !confirm('Cancelar este vídeo?')) return;
+    await api(`/api/item/${id}/${a}`, {}).catch(err => alert(err.message));
+    atualizar1();
+  };
+  const atualizar1 = () => api('/api/estado').then(desenhar).catch(() => {});
+
+  $('simultaneos').onclick = e => { const b = e.target.closest('button'); if (b) api('/api/config', { simultaneos: Number(b.dataset.v) }).then(atualizar1); };
+  $('vozes').onclick = e => { const b = e.target.closest('button'); if (b) api('/api/config', { vozes: b.dataset.v }).then(atualizar1); };
+  $('saida').onchange = () => api('/api/config', { saida: $('saida').value.trim() }).then(atualizar1).catch(err => alert(err.message));
+  $('btn-pasta').onclick = () => api('/api/escolher-pasta', {}).then(atualizar1);
+  $('btn-pausar').onclick = () => api('/api/config', { pausado: !config.pausado }).then(atualizar1);
+  $('btn-limpar').onclick = () => api('/api/limpar', {}).then(() => { ultimo = null; atualizar1(); });
+
+  // ---------- arquivos do PC ----------
+  async function enviar(arquivos) {
+    for (const [i, f] of [...arquivos].entries()) {
+      mostrar($('aviso-add'), `Enviando ${f.name} (${i + 1} de ${arquivos.length})…`, true);
+      await new Promise(resolve => {
+        const x = new XMLHttpRequest();
+        x.open('POST', '/api/enviar');
+        x.setRequestHeader('x-nome', encodeURIComponent(f.name));
+        x.upload.onprogress = ev => { if (ev.lengthComputable) mostrar($('aviso-add'), `Enviando ${f.name}: ${Math.round(ev.loaded / ev.total * 100)}%`, true); };
+        x.onload = x.onerror = resolve;
+        x.send(f);
+      });
+    }
+    mostrar($('aviso-add'), arquivos.length === 1 ? '1 arquivo entrou na fila.' : `${arquivos.length} arquivos entraram na fila.`, true);
+    atualizar1();
+  }
+  $('arquivos').onchange = e => { if (e.target.files.length) enviar(e.target.files); e.target.value = ''; };
+  const zona = $('soltar');
+  zona.ondragover = e => { e.preventDefault(); zona.classList.add('sobre'); };
+  zona.ondragleave = () => zona.classList.remove('sobre');
+  zona.ondrop = e => { e.preventDefault(); zona.classList.remove('sobre'); if (e.dataTransfer.files.length) enviar(e.dataTransfer.files); };
+
+  // ---------- Vimeo ----------
+  let pastas = [];
+  function listarPastas() {
+    const q = $('vimeo-busca').value.trim().toLowerCase();
+    const lista = pastas.filter(p => !q || p.nome.toLowerCase().includes(q));
+    $('vimeo-pastas').innerHTML = lista.map(p => `<option value="${p.tipo}:${p.id}">${esc(p.nome)}${p.total != null ? ` (${p.total})` : ''}${p.tipo === 'album' ? ' · álbum' : ''}</option>`).join('');
+  }
+  async function carregarVimeo() {
+    const st = $('vimeo-st');
+    try {
+      const v = await api('/api/vimeo');
+      if (!v.conectado) {
+        st.className = 'vimeo-st';
+        st.querySelector('span').textContent = v.erro || 'Vimeo não conectado. Salve o token em estudio/dados/vimeo-token.txt.';
+        return;
+      }
+      st.className = 'vimeo-st on';
+      st.querySelector('span').textContent = `Conectado: ${v.conta}`;
+      pastas = v.pastas;
+      $('vimeo-busca').hidden = $('vimeo-pastas').hidden = $('vimeo-acoes').hidden = false;
+      listarPastas();
+    } catch (e) { st.querySelector('span').textContent = e.message; }
+  }
+  $('vimeo-busca').oninput = listarPastas;
+  $('btn-vimeo').onclick = async () => {
+    const v = $('vimeo-pastas').value;
+    if (!v) return mostrar($('aviso-vimeo'), 'Escolha uma pasta na lista.');
+    const [tipo, id] = v.split(':');
+    $('btn-vimeo').disabled = true;
+    mostrar($('aviso-vimeo'), 'Buscando os vídeos da pasta…', true);
+    try { const r = await api('/api/adicionar', { vimeo: { tipo, id } }); mostrar($('aviso-vimeo'), resultado(r), true); }
+    catch (e) { mostrar($('aviso-vimeo'), e.message); }
+    $('btn-vimeo').disabled = false;
+    atualizar1();
+  };
+
+  carregarVimeo();
+  atualizar();
+})();
+</script>
+</body>
+</html>
