@@ -55,6 +55,7 @@ Leia antes de qualquer tarefa. Atualizado em 16/10/2026.
   - O estúdio **liga sozinho com o Windows**. O atalho na pasta Inicializar é criado por `estudio\ligar-com-windows.ps1` e roda `ligar-estudio.vbs` sem janela.
   - O botão "Abrir estúdio" do Hub só abre http://127.0.0.1:3050.
   - Se precisar ligar à mão: dois cliques em `estudio\INICIAR-ESTUDIO.bat`.
+  - **Acesso de outro computador:** pelo Tailscale (conta godigital.phw@gmail.com, rede `taild60352.ts.net`). O PC do estúdio se chama `ph`, e o `tailscale serve --bg 3050` publica a tela em https://ph.taild60352.ts.net, só para aparelhos dessa rede. O servidor continua ouvindo só em 127.0.0.1; não abrir a porta para a internet. Para desligar: `tailscale serve --https=443 off`.
   - O registro do servidor fica em `estudio\dados\servidor.log`.
   - O atalho `brain-estudio://` (`registrar-atalho.ps1`) continua registrado, mas o Chrome não o chamou nos testes, então o Hub não depende dele. O ambiente Python fica em `D:\Projetos\estudio-py` e os modelos em `D:\Projetos\estudio-modelos`, ambos fora do repositório.
 - **Na nuvem o estúdio não roda** (não tem placa de vídeo, Drive G: nem token). Lá dá para editar o código; para testar, peça ao Phelipe que rode no PC.
