@@ -73,7 +73,8 @@ Leia antes de qualquer tarefa. Atualizado em 28/10/2026.
     - A rota é `/videos/{id}/versions/{versão}/audiotracks`. O token do estúdio só lê; para criar, é preciso o login do site (JWT de `vimeo.com/_next/jwt`).
     - Corpo usado: `{language_code, type: 'main', name, upload: {approach: 'gcs', size, mime_type}}`. Depois vem o PUT no link do GCS e o `POST /videos/{id}/upload_attempts/{gcs_uid}/complete`.
     - Tudo respondeu OK, mas a faixa ficou "in_progress" para sempre.
-    - No site (no navegador do app e no Chrome do Phelipe), o painel faz `GET vimeo.com/api/v3/videos/{id}/versions/1182147807/audiotracks` (200), mas o envio vai para `POST vimeo.com/videos/{id}/versions/1182147807/audiotracks`, **sem o `/api/v3`**, e recebe 404. É defeito do site do Vimeo; chamado aberto no suporte.
+    - No site (no navegador do app e no Chrome do Phelipe), o painel faz `GET vimeo.com/api/v3/videos/{id}/versions/1182147807/audiotracks` (200), mas o envio vai para `POST vimeo.com/videos/{id}/versions/1182147807/audiotracks`, **sem o `/api/v3`**, e recebe 404. É defeito do site do Vimeo: o endereço é montado com `new URL("/videos/...", "https://vimeo.com/api/v3")`, que perde o `/api/v3`. Chamado no suporte: #28907962 (28/10/2026).
+    - Corrigindo o endereço na página (trocando `window.URL`), o próprio site cria a faixa e envia o arquivo, mas ela fica "in_progress" do mesmo jeito: o processamento também está quebrado do lado do Vimeo.
     - A versão 1182147807 que o site usa não existe para a API (que diz que a atual é 1240112991).
     - As faixas de teste foram apagadas. O próximo passo é levar ao suporte do Vimeo, ou testar em outra aula.
   - Em 28/10/2026 as 108 aulas do histórico foram refeitas com a voz clonada, 1 por vez, em `G:\Meu Drive\BR.AIN Dublagens - Voz clonada`.
