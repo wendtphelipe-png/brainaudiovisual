@@ -10,7 +10,7 @@
 // O idioma original não é dublado: o .mp3 dele é o próprio áudio do vídeo.
 // A voz (masculina ou feminina) segue a altura da voz de quem fala.
 //
-// Uso direto: node estudio/motor.js <link-ou-arquivo> [--ambas] [--cookies arquivo.txt]
+// Uso direto: node estudio/motor.js <link-ou-arquivo> [--ambas | --clonada] [--cookies arquivo.txt]
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -19,6 +19,8 @@ const vimeo = require('./vimeo');
 
 const CONFIG = {
   python: process.env.ESTUDIO_PY || 'D:/Projetos/estudio-py/Scripts/python.exe',
+  // Ambiente da voz clonada (MOSS-TTS-Nano + separação de falantes), na placa de vídeo
+  vozPy: process.env.ESTUDIO_VOZ_PY || 'D:/Projetos/estudio-voz-py/Scripts/python.exe',
   modelos: process.env.ESTUDIO_MODELOS || 'D:/Projetos/estudio-modelos',
   modelo: process.env.ESTUDIO_MODELO || 'large-v3-turbo',
   ffmpeg: process.env.FFMPEG || 'ffmpeg',
@@ -42,6 +44,7 @@ const MAX_LEGENDA = 2 * MAX_LINHA; // até duas linhas
 const MAX_SEG_LEGENDA = 6.5;       // segundos na tela, no máximo
 const VELOCIDADE_MAX = 40;         // % a mais pedido à voz para caber no tempo
 const ATEMPO_MAX = 1.12;           // aceleração extra no fim, se ainda não couber
+const ATEMPO_MAX_CLONADA = 1.3;    // a voz clonada não tem ajuste de velocidade: só a aceleração no fim
 
 // ---------- utilidades ----------
 
@@ -327,12 +330,52 @@ async function gerarVozes(pedidos, pasta, nome, aoProgresso) {
   if (erros.length) throw new Error(`Falha ao gerar ${erros.length} falas (${erros.slice(0, 3).join('; ')})`);
 }
 
-// Duração de um mp3 do edge-tts (taxa constante de 48 kbit/s)
+// Duração de uma fala: mp3 do edge-tts (taxa constante de 48 kbit/s) ou
+// wav da voz clonada (mono, 16 bits, 24 kHz, cabeçalho de 44 bytes)
 function duracaoVoz(arquivo) {
-  return (fs.statSync(arquivo).size * 8) / 48000;
+  const tam = fs.statSync(arquivo).size;
+  return arquivo.endsWith('.wav') ? (tam - 44) / (TAXA * 2) : (tam * 8) / 48000;
 }
 
-async function dublarIdioma({ frases, textos, generoPorFrase, idioma, duracao, pasta, aoProgresso, rotulo }) {
+// ---------- voz clonada ----------
+
+// Separa as pessoas que falam no vídeo e recorta uma referência de voz de cada uma
+async function separarFalantes(arquivo, frases, pasta, log) {
+  const wav = path.join(pasta, 'fala24k.wav');
+  await rodar(CONFIG.ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', '-i', arquivo, '-vn', '-ac', '1', '-ar', String(TAXA), wav]);
+  const arqFrases = path.join(pasta, 'frases-tempos.json');
+  fs.writeFileSync(arqFrases, JSON.stringify(frases.map(f => ({ s: f.s, e: f.e }))), 'utf8');
+  const saida = path.join(pasta, 'falantes.json');
+  await rodar(CONFIG.vozPy, [path.join(__dirname, 'voz_clonada.py'), 'falantes', wav, arqFrases, path.join(pasta, 'referencias'), saida], {
+    env: { PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', ESTUDIO_MODELOS: CONFIG.modelos },
+  });
+  const r = JSON.parse(fs.readFileSync(saida, 'utf8'));
+  log(`Pessoas falando no vídeo: ${r.falantes.length} (${r.falantes.map(f => `pessoa ${f.id + 1}: ${Math.round(f.segundos / 60)} min`).join(', ')})`);
+  return r;
+}
+
+// Gera as falas com a voz clonada; devolve o conjunto das que falharam
+async function gerarClonadas(pedidos, pasta, nome, aoProgresso, log) {
+  const arq = path.join(pasta, `pedidos-${nome}.json`);
+  fs.writeFileSync(arq, JSON.stringify(pedidos), 'utf8');
+  const falhas = new Set(pedidos.map((_, i) => i));
+  let prontos = 0;
+  try {
+    await rodar(CONFIG.vozPy, [path.join(__dirname, 'voz_clonada.py'), 'gerar', arq], {
+      env: { PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', ESTUDIO_MODELOS: CONFIG.modelos },
+      aoLinha: l => {
+        let m; try { m = JSON.parse(l); } catch { return; }
+        if (m.pronto) log(`Voz clonada ${m.dispositivo === 'cuda' ? 'na placa de vídeo' : 'no processador (lento)'}`);
+        if (m.ok != null) { falhas.delete(m.ok); aoProgresso(++prontos / pedidos.length); }
+      },
+    });
+  } catch (e) {
+    log(`Aviso: a voz clonada parou (${(e.stderr || e.message).trim().split('\n').pop()}). As falas que faltam saem com a voz padrão.`);
+  }
+  return falhas;
+}
+
+async function dublarIdioma({ frases, textos, generoPorFrase, idioma, duracao, pasta, aoProgresso, rotulo, clonada, log = () => {} }) {
   const dir = path.join(pasta, `vozes-${rotulo}`);
   fs.mkdirSync(dir, { recursive: true });
   const unidades = frases.map((f, i) => ({
@@ -341,14 +384,30 @@ async function dublarIdioma({ frases, textos, generoPorFrase, idioma, duracao, p
     voz: VOZES[idioma][generoPorFrase[i]], arquivo: path.join(dir, `${String(i).padStart(5, '0')}.mp3`),
   })).filter(u => u.texto && u.texto.trim());
 
-  // 1ª passada na velocidade normal
-  await gerarVozes(unidades.map(u => ({ texto: u.texto, voz: u.voz, velocidade: '+0%', saida: u.arquivo })), dir, '1', p => aoProgresso(p * 0.6));
-  // 2ª passada: falas que passaram do tempo são refeitas mais rápidas
-  const longas = unidades.filter(u => duracaoVoz(u.arquivo) > u.vaga * 1.03);
-  for (const u of longas) u.velocidade = Math.min(VELOCIDADE_MAX, Math.ceil((duracaoVoz(u.arquivo) / u.vaga - 1) * 100) + 4);
-  if (longas.length) {
-    await gerarVozes(longas.map(u => ({ texto: u.texto, voz: u.voz, velocidade: `+${u.velocidade}%`, saida: u.arquivo })), dir, '2', p => aoProgresso(0.6 + p * 0.2));
+  // Voz clonada: cada fala com a voz de quem falou; a que falhar volta para a voz padrão
+  let padrao = unidades, clonadas = 0;
+  if (clonada) {
+    for (const u of unidades) u.clone = path.join(dir, `${String(u.i).padStart(5, '0')}.wav`);
+    const falhas = await gerarClonadas(unidades.map(u => ({
+      texto: u.texto, referencia: clonada.falantes[clonada.porFrase[u.i]].referencia, saida: u.clone, semente: u.i,
+    })), dir, 'clonada', p => aoProgresso(p * 0.75), log);
+    padrao = unidades.filter((u, k) => falhas.has(k));
+    unidades.forEach((u, k) => { if (!falhas.has(k)) { u.arquivo = u.clone; u.clonada = true; clonadas++; } });
+    if (padrao.length) log(`${padrao.length} de ${unidades.length} falas saíram com a voz padrão`);
   }
+  const ini = clonada ? 0.75 : 0, peso = clonada ? 0.05 : 0.8;
+
+  if (padrao.length) {
+    // 1ª passada na velocidade normal
+    await gerarVozes(padrao.map(u => ({ texto: u.texto, voz: u.voz, velocidade: '+0%', saida: u.arquivo })), dir, '1', p => aoProgresso(ini + p * peso * 0.75));
+    // 2ª passada: falas que passaram do tempo são refeitas mais rápidas
+    const longas = padrao.filter(u => duracaoVoz(u.arquivo) > u.vaga * 1.03);
+    for (const u of longas) u.velocidade = Math.min(VELOCIDADE_MAX, Math.ceil((duracaoVoz(u.arquivo) / u.vaga - 1) * 100) + 4);
+    if (longas.length) {
+      await gerarVozes(longas.map(u => ({ texto: u.texto, voz: u.voz, velocidade: `+${u.velocidade}%`, saida: u.arquivo })), dir, '2', p => aoProgresso(ini + peso * 0.75 + p * peso * 0.25));
+    }
+  }
+  const aceleradas = unidades.filter(u => (u.velocidade || 0) > 0 || (u.clonada && duracaoVoz(u.arquivo) > u.vaga * 1.03)).length;
 
   // Montagem: cada fala começa no tempo original; se ainda não couber,
   // acelera um pouco mais e, no limite, empurra a próxima (recupera na pausa)
@@ -356,7 +415,7 @@ async function dublarIdioma({ frases, textos, generoPorFrase, idioma, duracao, p
   let cursor = 0, empurradas = 0, atrasoMax = 0, feitos = 0;
   const pcm = new Array(unidades.length);
   await emParalelo(unidades, 6, async (u, k) => {
-    const tempo = Math.min(ATEMPO_MAX, Math.max(1, duracaoVoz(u.arquivo) / u.vaga));
+    const tempo = Math.min(u.clonada ? ATEMPO_MAX_CLONADA : ATEMPO_MAX, Math.max(1, duracaoVoz(u.arquivo) / u.vaga));
     const filtro = tempo > 1.01 ? ['-af', `atempo=${tempo.toFixed(3)}`] : [];
     pcm[k] = await rodarBinario(CONFIG.ffmpeg, ['-hide_banner', '-loglevel', 'error', '-i', u.arquivo, ...filtro, '-f', 's16le', '-ac', '1', '-ar', String(TAXA), '-']);
     aoProgresso(0.8 + (++feitos / unidades.length) * 0.15);
@@ -376,7 +435,7 @@ async function dublarIdioma({ frases, textos, generoPorFrase, idioma, duracao, p
     '-ar', '44100', '-ac', '2', '-b:a', '128k', mp3]);
   fs.unlinkSync(bruto);
   aoProgresso(1);
-  return { mp3, falas: unidades.length, aceleradas: longas.length, empurradas, atrasoMax: Math.round(atrasoMax * 10) / 10 };
+  return { mp3, falas: unidades.length, clonadas, aceleradas, empurradas, atrasoMax: Math.round(atrasoMax * 10) / 10 };
 }
 
 // ---------- trabalho completo ----------
@@ -425,10 +484,26 @@ async function processar(job, { aoProgresso = () => {}, log = () => {}, aoTitulo
 
   const gen = generos(frases);
   const variantes = job.vozes === 'ambas' ? ['f', 'm'] : [null];
-  aoIdioma({ idioma: origem, certeza: trans.certeza, voz: job.vozes === 'ambas' ? 'ambas' : gen.predominante });
+  aoIdioma({ idioma: origem, certeza: trans.certeza, voz: ['ambas', 'clonada'].includes(job.vozes) ? job.vozes : gen.predominante });
   log(`Voz: ${gen.predominante === 'm' ? 'masculina' : 'feminina'} predominante (${gen.segundosM}s masc., ${gen.segundosF}s fem.)`);
 
   const relatorio = { titulo, origem, certeza: trans.certeza, duracao: trans.duracao, dispositivo: trans.dispositivo, frases: frases.length, voz: gen, idiomas: {} };
+
+  // Voz clonada: separa quem fala; se não der, segue com a voz padrão
+  let clonada = null;
+  if (job.vozes === 'clonada') {
+    etapa('Separando as vozes', 0.4, 0)(0);
+    try {
+      clonada = await medir('falantes', () => separarFalantes(arquivo, frases, pasta, log));
+      // A voz padrão (usada só se uma fala clonada falhar) segue o gênero que predomina em cada pessoa
+      const somaM = {}, somaF = {};
+      frases.forEach((f, i) => { const p = clonada.porFrase[i]; (gen.porFrase[i] === 'm' ? somaM : somaF)[p] = ((gen.porFrase[i] === 'm' ? somaM : somaF)[p] || 0) + f.e - f.s; });
+      gen.porFrase = frases.map((_, i) => ((somaM[clonada.porFrase[i]] || 0) >= (somaF[clonada.porFrase[i]] || 0) ? 'm' : 'f'));
+      relatorio.falantes = clonada.falantes.map(f => ({ pessoa: f.id + 1, segundos: f.segundos, referenciaSeg: f.refSeg }));
+    } catch (e) {
+      log(`Aviso: não foi possível preparar a voz clonada (${(e.stderr || e.message).trim().split('\n').pop()}). Usando a voz padrão.`);
+    }
+  }
   const passo = 0.6 / alvos.length;
   for (const [k, alvo] of alvos.entries()) {
     const base = 0.4 + k * passo;
@@ -448,15 +523,15 @@ async function processar(job, { aoProgresso = () => {}, log = () => {}, aoTitulo
       const generoPorFrase = variante ? frases.map(() => variante) : gen.porFrase;
       const rotulo = variante ? `${alvo}-${variante}` : alvo;
       const pesoV = (passo * 0.9) / variantes.length;
-      const r = await medir(`vozes-${rotulo}`, () => dublarIdioma({ frases, textos, generoPorFrase, idioma: alvo, duracao: trans.duracao, pasta, rotulo,
+      const r = await medir(`vozes-${rotulo}`, () => dublarIdioma({ frases, textos, generoPorFrase, idioma: alvo, duracao: trans.duracao, pasta, rotulo, clonada, log,
         aoProgresso: etapa(`Dublando (${SIGLA[alvo]})`, base + passo * 0.1 + v * pesoV, pesoV) }));
       const nome = variante ? `${SIGLA[alvo]} - voz ${variante === 'f' ? 'feminina' : 'masculina'}.mp3` : `${SIGLA[alvo]}.mp3`;
       const final = path.join(destino, nome);
       fs.copyFileSync(r.mp3, final);
       arquivos.push(final);
       aoArquivo(nome);
-      relatorio.idiomas[rotulo] = { falas: r.falas, aceleradas: r.aceleradas, empurradas: r.empurradas, atrasoMaxSeg: r.atrasoMax };
-      log(`${SIGLA[alvo]}${variante ? ' ' + variante : ''}: ${r.falas} falas, ${r.aceleradas} aceleradas, ${r.empurradas} com atraso (máx. ${r.atrasoMax}s)`);
+      relatorio.idiomas[rotulo] = { falas: r.falas, clonadas: r.clonadas, aceleradas: r.aceleradas, empurradas: r.empurradas, atrasoMaxSeg: r.atrasoMax };
+      log(`${SIGLA[alvo]}${variante ? ' ' + variante : ''}: ${r.falas} falas${clonada ? ` (${r.clonadas} com a voz clonada)` : ''}, ${r.aceleradas} aceleradas, ${r.empurradas} com atraso (máx. ${r.atrasoMax}s)`);
     }
   }
 
@@ -470,7 +545,7 @@ async function processar(job, { aoProgresso = () => {}, log = () => {}, aoTitulo
   for (const nome of fs.readdirSync(pasta)) {
     const p = path.join(pasta, nome);
     if (nome.startsWith('vozes-')) fs.rmSync(p, { recursive: true, force: true });
-    else if (/^(origem\.|fala16k\.wav|faixa-)/.test(nome)) fs.rmSync(p, { force: true });
+    else if (/^(origem\.|fala16k\.wav|fala24k\.wav|faixa-)/.test(nome)) fs.rmSync(p, { force: true });
   }
   aoProgresso({ etapa: 'Pronto', total: 1 });
   return relatorio;
@@ -481,10 +556,10 @@ module.exports = { processar, CONFIG, montarFrases, montarLegendas, distribuir, 
 if (require.main === module) {
   const args = process.argv.slice(2);
   const origem = args.find(a => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--cookies');
-  if (!origem) { console.log('Uso: node estudio/motor.js <link-ou-arquivo> [--ambas] [--cookies arquivo.txt]'); process.exit(1); }
+  if (!origem) { console.log('Uso: node estudio/motor.js <link-ou-arquivo> [--ambas | --clonada] [--cookies arquivo.txt]'); process.exit(1); }
   const iCookies = args.indexOf('--cookies');
   let ultimo = '';
-  processar({ origem, vozes: args.includes('--ambas') ? 'ambas' : 'auto', cookies: iCookies >= 0 ? args[iCookies + 1] : undefined }, {
+  processar({ origem, vozes: args.includes('--ambas') ? 'ambas' : args.includes('--clonada') ? 'clonada' : 'auto', cookies: iCookies >= 0 ? args[iCookies + 1] : undefined }, {
     log: m => console.log('·', m),
     aoProgresso: p => { const s = `${p.etapa} ${Math.round(p.total * 100)}%`; if (s !== ultimo) { ultimo = s; if (Math.round(p.total * 100) % 5 === 0) console.log('  ', s); } },
   }).then(r => { console.log(JSON.stringify(r, null, 2)); }).catch(e => { console.error('ERRO:', e.message); if (e.stderr) console.error(e.stderr.slice(-1500)); process.exit(1); });

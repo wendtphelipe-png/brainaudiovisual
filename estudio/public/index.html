@@ -79,7 +79,7 @@
 
   /* Ajustes */
   .seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-  .seg button { flex: 1; height: 38px; border: 0; background: var(--panel-2); cursor: pointer; font-weight: 600; color: var(--muted); }
+  .seg button { flex: 1; min-height: 38px; padding: 6px 8px; line-height: 1.2; border: 0; background: var(--panel-2); cursor: pointer; font-weight: 600; color: var(--muted); }
   .seg button + button { border-left: 1px solid var(--line); }
   .seg button[aria-pressed=true] { background: rgba(63, 169, 245, .16); color: var(--ink); box-shadow: inset 0 -2px 0 var(--blue); }
   .campo { margin-bottom: 16px; }
@@ -277,7 +277,7 @@
       <div class="campo">
         <label class="t">Voz da dublagem</label>
         <div class="seg" id="vozes">
-          <button type="button" data-v="auto">Igual à original</button><button type="button" data-v="ambas">Feminina e masculina</button>
+          <button type="button" data-v="clonada" title="Clona a voz de cada pessoa do vídeo e dubla com ela (o professor fala inglês e espanhol com a própria voz). Mais lento.">Voz clonada do professor</button><button type="button" data-v="auto" title="Voz sintética da Microsoft, igual para todos os professores: masculina ou feminina conforme a voz original. Rápido.">Voz padrão</button><button type="button" data-v="ambas" title="Voz sintética da Microsoft em duas versões por idioma, uma masculina e uma feminina, para escolher depois.">Voz padrão: masc. e fem.</button>
         </div>
       </div>
       <div class="campo">
@@ -386,7 +386,7 @@
       const duvida = it.certeza != null && it.certeza < 0.6;
       meta.push(`<span class="idioma ${duvida ? 'duvida' : ''}" title="${duvida ? 'Idioma detectado com pouca certeza: confira' : 'Idioma detectado'}">${NOMES[it.idioma] || it.idioma.toUpperCase()}${duvida ? ' ?' : ''}</span>`);
     }
-    if (it.voz) meta.push(`<span>${it.voz === 'ambas' ? 'Voz feminina e masculina' : it.voz === 'm' ? 'Voz masculina' : 'Voz feminina'}</span>`);
+    if (it.voz) meta.push(`<span>${it.voz === 'ambas' ? 'Voz feminina e masculina' : it.voz === 'clonada' ? 'Voz clonada do professor' : it.voz === 'm' ? 'Voz masculina' : 'Voz feminina'}</span>`);
 
     let etapa = it.etapa || '';
     let dir = '';

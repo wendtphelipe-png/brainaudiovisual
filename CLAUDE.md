@@ -1,6 +1,6 @@
 # Brain Audiovisual: contexto para o Claude
 
-Leia antes de qualquer tarefa. Atualizado em 16/10/2026.
+Leia antes de qualquer tarefa. Atualizado em 28/10/2026.
 
 ## Quem e como falar
 - Quem pede é o **Phelipe**, que não é programador. Responda em **português, com linguagem simples**, explicando o que mudou e o que ele precisa fazer.
@@ -46,7 +46,7 @@ Leia antes de qualquer tarefa. Atualizado em 16/10/2026.
   2. transcreve com o **Whisper** (`transcrever.py`, faster-whisper large-v3-turbo na GTX 1070 Ti, int8), detectando o idioma sozinho;
   3. monta frases e legendas;
   4. traduz com o `../cabine/translate.js`;
-  5. dubla com as vozes do Edge (`vozes.py`, edge-tts), com voz masculina ou feminina conforme a altura da voz original;
+  5. dubla com as vozes do Edge (`vozes.py`, edge-tts), com voz masculina ou feminina conforme a altura da voz original, ou com a voz clonada de quem fala (veja abaixo);
   6. encaixa cada fala no tempo original.
 - **Saída por vídeo:** `PT/EN/ES.mp3` e `PT/EN/ES.vtt`. O idioma original usa o próprio áudio do vídeo. Tudo vai para `G:\Meu Drive\BR.AIN Dublagens\<título>\`.
 - `server.js`: fila com 1 a 3 vídeos ao mesmo tempo (a placa transcreve um por vez), monitor do PC, árvore de pastas do Vimeo, histórico de processados e tela em `public/index.html`. Abre em http://127.0.0.1:3050.
@@ -57,6 +57,13 @@ Leia antes de qualquer tarefa. Atualizado em 16/10/2026.
   - Se precisar ligar à mão: dois cliques em `estudio\INICIAR-ESTUDIO.bat`.
   - O registro do servidor fica em `estudio\dados\servidor.log`.
   - O atalho `brain-estudio://` (`registrar-atalho.ps1`) continua registrado, mas o Chrome não o chamou nos testes, então o Hub não depende dele. O ambiente Python fica em `D:\Projetos\estudio-py` e os modelos em `D:\Projetos\estudio-modelos`, ambos fora do repositório.
+- **Voz clonada** (opção "Voz do próprio professor" na tela, `vozes: 'clonada'`; na linha de comando, `--clonada`):
+  - `voz_clonada.py` roda no ambiente `D:\Projetos\estudio-voz-py` (torch 2.7 cu128, o último que suporta a GTX 1070 Ti/sm_61). Os modelos ficam em `D:\Projetos\estudio-modelos` (`hub/` com o MOSS, `MOSS-TTS-Nano/` com o código, `spkrec-ecapa/`).
+  - `falantes`: mede a voz de cada frase (ECAPA, SpeechBrain), agrupa por pessoa e recorta de 8 a 12 s de referência de cada uma.
+  - `gerar`: dubla cada frase com a voz da pessoa (**MOSS-TTS-Nano**, Apache-2.0, na placa em float16; ~1 GB de placa, ~1 núcleo do processador, ~1,3× o tempo do áudio) e encurta as pausas internas para 0,3 s (sem isso a dublagem atrasava).
+  - A fala que falhar sai com a voz do Edge, sem parar a fila. Se o ambiente faltar, o vídeo inteiro sai com o Edge.
+  - Motores avaliados e descartados em 28/10/2026: VoxCPM2 (não cabe na placa de 8 GB nem na RAM), OmniVoice (licença não comercial), PocketTTS (pesos com acesso restrito no Hugging Face).
+  - Clonar a voz de um professor exige autorização por escrito dele.
 - **Na nuvem o estúdio não roda** (não tem placa de vídeo, Drive G: nem token). Lá dá para editar o código; para testar, peça ao Phelipe que rode no PC.
 - **Reiniciar o estúdio derruba os vídeos em andamento**, que recomeçam do zero. Só reinicie com a fila parada ou com o aviso dele.
 
@@ -72,7 +79,9 @@ Leia antes de qualquer tarefa. Atualizado em 16/10/2026.
 - Estúdio:
   - enviar as legendas `.vtt` automaticamente ao vídeo original no Vimeo (a API aceita texttracks);
   - os áudios por idioma provavelmente continuam manuais, porque não há API oficial do Vimeo para isso;
-  - depois, o mesmo para o YouTube.
+  - depois, o mesmo para o YouTube;
+  - Vimeo com o inglês como áudio padrão: não há opção documentada. A ideia é gerar o vídeo com o inglês como áudio principal e usar "Substituir vídeo", com o português como faixa extra. Testar antes em UMA aula (legendas e faixas continuam?);
+  - não usar a voz clonada na cabine ao vivo (aumenta o atraso). Para o atraso da cabine, o caminho é ajustar `cabine/segmenter.js`.
 - Motores pagos, quando houver verba:
   - reconhecimento de fala com detecção de idioma: Soniox (~US$0,12/h + US$0,06/h por idioma) ou Deepgram Nova-3;
   - voz Azure (~US$0,90/h por idioma).

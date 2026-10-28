@@ -25,7 +25,7 @@ fs.mkdirSync(ENVIOS, { recursive: true });
 
 // ---------- estado ----------
 
-let estado = { config: { simultaneos: 1, vozes: 'auto', saida: CONFIG.saida, pausado: false }, fila: [] };
+let estado = { config: { simultaneos: 1, vozes: 'clonada', saida: CONFIG.saida, pausado: false }, fila: [] };
 try {
   const salvo = JSON.parse(fs.readFileSync(ARQ_FILA, 'utf8'));
   estado = { config: { ...estado.config, ...salvo.config }, fila: salvo.fila || [] };
@@ -145,7 +145,7 @@ function iniciar(it) {
     agendar();
   });
   p.send({ job: { id: it.id, origem: it.origem, titulo: it.tituloFixo || undefined, vozes: estado.config.vozes } });
-  it.voz = estado.config.vozes === 'ambas' ? 'ambas' : null;
+  it.voz = ['ambas', 'clonada'].includes(estado.config.vozes) ? estado.config.vozes : null;
   salvar();
 }
 
@@ -404,7 +404,7 @@ const servidor = http.createServer(async (req, res) => {
     if (req.method === 'POST' && p === '/api/config') {
       const c = await lerCorpo(req);
       if (c.simultaneos != null) estado.config.simultaneos = Math.min(3, Math.max(1, Number(c.simultaneos) || 1));
-      if (c.vozes) estado.config.vozes = c.vozes === 'ambas' ? 'ambas' : 'auto';
+      if (c.vozes) estado.config.vozes = ['ambas', 'auto'].includes(c.vozes) ? c.vozes : 'clonada';
       if (c.pausado != null) estado.config.pausado = !!c.pausado;
       if (c.saida) {
         fs.mkdirSync(c.saida, { recursive: true });
