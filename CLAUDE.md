@@ -72,7 +72,9 @@ Leia antes de qualquer tarefa. Atualizado em 28/10/2026.
   - **Áudios por idioma no Vimeo (teste de 28/10/2026, ainda sem solução):**
     - A rota é `/videos/{id}/versions/{versão}/audiotracks`. O token do estúdio só lê; para criar, é preciso o login do site (JWT de `vimeo.com/_next/jwt`).
     - Corpo usado: `{language_code, type: 'main', name, upload: {approach: 'gcs', size, mime_type}}`. Depois vem o PUT no link do GCS e o `POST /videos/{id}/upload_attempts/{gcs_uid}/complete`.
-    - Tudo respondeu OK, mas a faixa ficou "in_progress" para sempre. É o mesmo travamento que o Phelipe vê no site, onde o painel manda o POST para uma versão errada (1182147807, quando a API diz que a atual é 1240112991) e recebe 404.
+    - Tudo respondeu OK, mas a faixa ficou "in_progress" para sempre.
+    - No site (no navegador do app e no Chrome do Phelipe), o painel faz `GET vimeo.com/api/v3/videos/{id}/versions/1182147807/audiotracks` (200), mas o envio vai para `POST vimeo.com/videos/{id}/versions/1182147807/audiotracks`, **sem o `/api/v3`**, e recebe 404. É defeito do site do Vimeo; chamado aberto no suporte.
+    - A versão 1182147807 que o site usa não existe para a API (que diz que a atual é 1240112991).
     - As faixas de teste foram apagadas. O próximo passo é levar ao suporte do Vimeo, ou testar em outra aula.
   - Em 28/10/2026 as 108 aulas do histórico foram refeitas com a voz clonada, 1 por vez, em `G:\Meu Drive\BR.AIN Dublagens - Voz clonada`.
 - **O disco D: (HD antigo) está com setores defeituosos** (28/10/2026). O estúdio, os ambientes Python e os modelos estão nele. A saída vai para o Drive, então o resultado de cada aula fica seguro.
