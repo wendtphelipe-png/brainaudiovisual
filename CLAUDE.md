@@ -60,8 +60,8 @@ Leia antes de qualquer tarefa. Atualizado em 28/10/2026.
 - **Voz clonada** (opção "Voz do próprio professor" na tela, `vozes: 'clonada'`; na linha de comando, `--clonada`):
   - `voz_clonada.py` roda no ambiente `D:\Projetos\estudio-voz-py` (torch 2.7 cu128, o último que suporta a GTX 1070 Ti/sm_61). Os modelos ficam em `D:\Projetos\estudio-modelos` (`hub/` com o MOSS, `MOSS-TTS-Nano/` com o código, `spkrec-ecapa/`).
   - `falantes`: mede a voz de cada frase (ECAPA, SpeechBrain), agrupa por pessoa e recorta de 8 a 12 s de referência de cada uma.
-  - `gerar`: dubla cada frase com a voz da pessoa (**MOSS-TTS-Nano**, Apache-2.0, na placa em float16; ~1 GB de placa, ~1 núcleo do processador, ~1,3× o tempo do áudio) e encurta as pausas internas para 0,3 s (sem isso a dublagem atrasava).
-  - A fala que falhar sai com a voz do Edge, sem parar a fila. Se o ambiente faltar, o vídeo inteiro sai com o Edge.
+  - `gerar`: dubla com a voz da pessoa (**MOSS-TTS-Nano**, Apache-2.0, na placa em float16), **em lotes de até 8 frases da mesma pessoa** (até 900 caracteres por lote, decodificando uma frase por vez; lote maior estourou a memória da placa). Encurta as pausas internas para 0,3 s (sem isso a dublagem atrasava). Uma aula sai em ~1× a duração do vídeo (12 min → 13–16 min; 27 min → 29 min).
+  - Se o gerador cair (falta de RAM no PC, que tem 16 GB e o Chrome ocupa ~6 GB), o `motor.js` religa até 3 vezes com as falas que faltam. A fala que falhar mesmo assim sai com a voz do Edge, sem parar a fila. Se o ambiente faltar, o vídeo inteiro sai com o Edge.
   - Motores avaliados e descartados em 28/10/2026: VoxCPM2 (não cabe na placa de 8 GB nem na RAM), OmniVoice (licença não comercial), PocketTTS (pesos com acesso restrito no Hugging Face).
   - Clonar a voz de um professor exige autorização por escrito dele.
 - **Na nuvem o estúdio não roda** (não tem placa de vídeo, Drive G: nem token). Lá dá para editar o código; para testar, peça ao Phelipe que rode no PC.

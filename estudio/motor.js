@@ -354,24 +354,32 @@ async function separarFalantes(arquivo, frases, pasta, log) {
   return r;
 }
 
-// Gera as falas com a voz clonada; devolve o conjunto das que falharam
+// Gera as falas com a voz clonada; devolve o conjunto das que falharam.
+// Se o gerador cair no meio, religa e continua com as que faltam (até 3 vezes).
 async function gerarClonadas(pedidos, pasta, nome, aoProgresso, log) {
-  const arq = path.join(pasta, `pedidos-${nome}.json`);
-  fs.writeFileSync(arq, JSON.stringify(pedidos), 'utf8');
-  const falhas = new Set(pedidos.map((_, i) => i));
+  const pendentes = new Set(pedidos.map((_, i) => i));   // ainda sem resposta
+  const falhas = new Set();                               // o gerador desistiu delas
   let prontos = 0;
-  try {
-    await rodar(CONFIG.vozPy, [path.join(__dirname, 'voz_clonada.py'), 'gerar', arq], {
-      env: { PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', ESTUDIO_MODELOS: CONFIG.modelos },
-      aoLinha: l => {
-        let m; try { m = JSON.parse(l); } catch { return; }
-        if (m.pronto) log(`Voz clonada ${m.dispositivo === 'cuda' ? 'na placa de vídeo' : 'no processador (lento)'}`);
-        if (m.ok != null) { falhas.delete(m.ok); aoProgresso(++prontos / pedidos.length); }
-      },
-    });
-  } catch (e) {
-    log(`Aviso: a voz clonada parou (${(e.stderr || e.message).trim().split('\n').pop()}). As falas que faltam saem com a voz padrão.`);
+  for (let tentativa = 1; tentativa <= 3 && pendentes.size; tentativa++) {
+    const lista = [...pendentes];
+    const arq = path.join(pasta, `pedidos-${nome}-${tentativa}.json`);
+    fs.writeFileSync(arq, JSON.stringify(lista.map(i => pedidos[i])), 'utf8');
+    try {
+      await rodar(CONFIG.vozPy, [path.join(__dirname, 'voz_clonada.py'), 'gerar', arq], {
+        env: { PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', ESTUDIO_MODELOS: CONFIG.modelos },
+        aoLinha: l => {
+          let m; try { m = JSON.parse(l); } catch { return; }
+          if (m.pronto && tentativa === 1) log(`Voz clonada ${m.dispositivo === 'cuda' ? 'na placa de vídeo' : 'no processador (lento)'}`);
+          if (m.ok != null) { pendentes.delete(lista[m.ok]); aoProgresso(++prontos / pedidos.length); }
+          if (m.erro != null) { pendentes.delete(lista[m.erro]); falhas.add(lista[m.erro]); }
+        },
+      });
+    } catch (e) {
+      const motivo = (e.stderr || e.message).trim().split('\n').pop();
+      log(`Aviso: a voz clonada parou (${motivo}). ${tentativa < 3 ? `Religando para as ${pendentes.size} falas que faltam…` : 'As falas que faltam saem com a voz padrão.'}`);
+    }
   }
+  for (const i of pendentes) falhas.add(i);
   return falhas;
 }
 

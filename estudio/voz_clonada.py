@@ -190,16 +190,116 @@ def encurtar_pausas(w, taxa):
     return np.concatenate(partes)
 
 
+@torch.no_grad()
+def gerar_lote(svc, textos, referencia, semente):
+    # Gera várias frases da mesma pessoa numa passada só da placa de vídeo:
+    # a voz de referência é codificada uma vez e as frases andam juntas na
+    # geração. Usa as mesmas partes internas do MOSS que o synthesize() usa
+    # quando divide um texto longo em pedaços. Devolve uma lista de wav
+    # (mono, 24 kHz, já com as pausas encurtadas).
+    with svc._lock:
+        modelo = svc._restore_model_execution_state(svc._load_model_locked())
+        _, atn_global, atn_local = svc._resolve_request_attention_implementation(None)
+        tok_audio = svc._load_audio_tokenizer_locked(tts_attn_implementation=atn_global)
+        svc._apply_model_attention_implementation(modelo, global_attn=atn_global, local_attn=atn_local)
+    dev = svc.device
+    nq = modelo._resolve_inference_nq(None)
+    tok_texto = modelo._load_text_tokenizer(text_tokenizer=None, text_tokenizer_path=svc.checkpoint_path)
+    taxa_alvo = modelo._resolve_audio_tokenizer_sample_rate(tok_audio)
+    canais = modelo._resolve_audio_tokenizer_channels(tok_audio)
+    chave = (referencia, taxa_alvo)
+    if getattr(svc, '_ref_cache', (None,))[0] != chave:
+        wav, taxa = modelo._load_reference_audio(referencia, taxa_alvo, canais)
+        cod = modelo._call_audio_encode(audio_tokenizer=tok_audio, waveform=wav.to(dev), sample_rate=taxa)
+        svc._ref_cache = (chave, modelo._mask_unused_audio_channels(modelo._normalize_audio_codes(cod), nq=nq).to(dev))
+    codigos = svc._ref_cache[1]
+
+    ids, mascaras = [], []
+    for t in textos:
+        i, m = modelo.build_inference_input_ids(text=t, text_tokenizer=tok_texto, mode='voice_clone', prompt_text=None,
+                                                prompt_audio_codes=codigos, device=dev)
+        ids.append(i)
+        mascaras.append(m)
+    ids_lote, masc_lote = modelo._left_pad_inference_batch(input_id_batches=ids, attention_mask_batches=mascaras, device=dev)
+    torch.manual_seed(semente)
+    torch.cuda.manual_seed_all(semente)
+    # Mesmos parâmetros de amostragem que o synthesize() usa por padrão
+    gerados = modelo._generate_audio_token_ids_with_fallback(
+        prompt_input_ids=ids_lote, attention_mask=masc_lote, effective_nq=nq, max_new_frames=375, do_sample=True,
+        text_temperature=1.0, text_top_p=1.0, text_top_k=50, audio_temperature=0.8, audio_top_p=0.95, audio_top_k=25,
+        audio_repetition_penalty=1.2, use_kv_cache=True, resolved_device=dev)
+    tokens = [modelo._trim_generated_audio_token_ids(gerados[k], effective_nq=nq) for k in range(len(textos))]
+    saida = []
+    for t in tokens:
+        # Decodifica uma frase por vez: em lote, o decodificador de áudio pedia mais de 4 GB da placa
+        w, taxa = modelo._decode_audio_token_ids_to_waveform(
+            audio_tokenizer=tok_audio, audio_token_ids=t, target_sample_rate=taxa_alvo,
+            effective_nq=nq, resolved_device=dev)
+        w = w.detach().float().cpu()
+        if w.ndim == 2:
+            w = w.mean(dim=0)
+        w = torchaudio.functional.resample(w, int(taxa), TAXA).clamp(-1, 1).numpy()
+        saida.append(encurtar_pausas(w, TAXA))
+    return saida
+
+
 def duracao_esperada(texto):
     return max(0.6, len(texto) / 15.0)   # ~15 caracteres por segundo de fala
+
+
+LOTE = int(os.environ.get('ESTUDIO_VOZ_LOTE', '8'))   # frases por passada na placa (8 rendeu 3,6× no teste)
+MAX_CHARS_TOTAL = 900   # caracteres somados por lote (frases longas juntas estouravam a memória da placa)
+MAX_CHARS_LOTE = 280   # frase maior que isso o MOSS divide em pedaços: vai pelo caminho de uma por vez
+
+
+def fora_do_esperado(dur, texto):
+    # Fala longa ou curta demais costuma ser erro do modelo (repetição, corte)
+    esperado = duracao_esperada(texto)
+    return dur > max(3.0, esperado * 2.6) or dur < esperado * 0.3
 
 
 def gerar(arq_pedidos):
     pedidos = json.load(open(arq_pedidos, encoding='utf-8'))
     svc = carregar_moss()
     emitir({'pronto': True, 'dispositivo': DISPOSITIVO})
-    tmp = os.path.join(svc.output_dir, 'ultima.wav')
+
+    # 1º: em lotes, frases da mesma pessoa e de tamanho parecido juntas
+    sozinhas = []
+    grupos = {}
     for i, p in enumerate(pedidos):
+        if LOTE > 1 and DISPOSITIVO == 'cuda' and len(p['texto']) <= MAX_CHARS_LOTE:
+            grupos.setdefault(p['referencia'], []).append(i)
+        else:
+            sozinhas.append(i)
+    for ref, idx in grupos.items():
+        idx.sort(key=lambda i: len(pedidos[i]['texto']))
+        lotes, atual = [], []
+        for i in idx:   # até LOTE frases e até MAX_CHARS_TOTAL caracteres por lote
+            if atual and (len(atual) >= LOTE or sum(len(pedidos[j]['texto']) for j in atual + [i]) > MAX_CHARS_TOTAL):
+                lotes.append(atual)
+                atual = []
+            atual.append(i)
+        if atual:
+            lotes.append(atual)
+        for parte in lotes:
+            try:
+                ondas = gerar_lote(svc, [pedidos[i]['texto'] for i in parte], ref, int(pedidos[parte[0]].get('semente', parte[0])))
+            except Exception:  # noqa: BLE001 — o lote todo vai para o caminho de uma por vez
+                sozinhas += parte
+                torch.cuda.empty_cache()
+                continue
+            for i, w in zip(parte, ondas):
+                dur = len(w) / TAXA
+                if fora_do_esperado(dur, pedidos[i]['texto']):
+                    sozinhas.append(i)
+                    continue
+                sf.write(pedidos[i]['saida'], w, TAXA, subtype='PCM_16')
+                emitir({'ok': i, 'dur': round(dur, 3)})
+
+    # 2º: uma por vez (frases longas, e as que saíram estranhas no lote, com outra semente)
+    tmp = os.path.join(svc.output_dir, 'ultima.wav')
+    for i in sorted(sozinhas):
+        p = pedidos[i]
         motivo = ''
         esperado = duracao_esperada(p['texto'])
         for tentativa in range(3):
@@ -212,8 +312,7 @@ def gerar(arq_pedidos):
                 w = torchaudio.functional.resample(w, int(r['sample_rate']), TAXA).clamp(-1, 1).numpy()
                 w = encurtar_pausas(w, TAXA)
                 dur = len(w) / TAXA
-                # Fala que saiu longa ou curta demais costuma ser erro do modelo (repetição, corte): refaz
-                if dur > max(3.0, esperado * 2.6) or dur < esperado * 0.3:
+                if fora_do_esperado(dur, p['texto']):
                     motivo = f'duração fora do esperado ({dur:.1f}s para ~{esperado:.1f}s)'
                     continue
                 sf.write(p['saida'], w, TAXA, subtype='PCM_16')
