@@ -188,7 +188,40 @@
   .seletor .aviso { padding: 0 20px; }
   .sel-rodape { display: flex; gap: 8px; padding: 14px 20px; align-items: center; }
 
+  /* abas Fila / Conferência */
+  .abas { display: flex; }
+  .abas button { background: none; border: 0; padding: 4px 2px; margin-right: 14px; font-size: 1.35rem; font-weight: 750; font-variation-settings: "wdth" 116; color: var(--dim); cursor: pointer; border-bottom: 2px solid transparent; }
+  .abas button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--blue); }
+  .abas button:hover { color: var(--ink); }
+  /* conferência: uma linha por aula */
+  .conf-filtros { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .conf-filtros button { height: 30px; padding: 0 12px; border-radius: 15px; border: 0; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); font-size: .8rem; font-weight: 600; cursor: pointer; }
+  .conf-filtros button[aria-pressed="true"] { background: rgba(63, 169, 245, .14); box-shadow: inset 0 0 0 1px var(--blue); color: var(--ink); }
+  .conf-cab, .conf { display: grid; grid-template-columns: 28px minmax(0, 1fr) 130px 130px 90px 40px; gap: 16px; align-items: center; padding: 10px 4px; }
+  .conf-cab { font-size: .72rem; color: var(--dim); font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid var(--line); }
+  .conf { border-bottom: 1px solid var(--line); }
+  .conf .titulo strong { font-weight: 600; font-size: .92rem; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conf .titulo .meta { font-size: .76rem; color: var(--muted); margin-top: 2px; }
+  .conf .titulo .meta.erro { color: var(--bad); }
+  .selo { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--line); }
+  .selo svg { width: 13px; height: 13px; stroke: var(--dim); fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  .selo.ok { background: var(--ok); } .selo.ok svg { stroke: #04150E; }
+  .selo.meio { background: rgba(255, 178, 36, .2); } .selo.meio svg { stroke: var(--amber); }
+  .selo.mal { background: rgba(240, 90, 110, .2); } .selo.mal svg { stroke: var(--bad); }
+  .tres { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px 5px; font-size: .66rem; text-align: center; }
+  .tres.dois { grid-template-columns: repeat(2, 1fr); }
+  .tres .l { color: var(--muted); font-weight: 700; letter-spacing: .04em; }
+  .tres .l.orig { color: var(--blue); }
+  .pip.mal { background: rgba(240, 90, 110, .22); } .pip.mal svg { stroke: var(--bad); }
+  .pip.vai { background: rgba(255, 178, 36, .22); } .pip.vai svg { stroke: var(--amber); }
+  .conf-legenda { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: .78rem; margin: 14px 0 0; }
+  .conf-legenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .conf-legenda .pip { width: 18px; }
+  .conf .acoes-l { display: flex; justify-content: flex-end; }
+
   @media (max-width: 1150px) {
+    .conf-cab, .conf { grid-template-columns: 28px minmax(0, 1fr) 120px 120px 80px; }
+    .conf-cab .c-acoes, .conf .acoes-l { display: none; }
     .item { grid-template-columns: 34px minmax(0, 1fr) 150px auto; }
     .item .seis { display: none; }
   }
@@ -292,14 +325,37 @@
 
   <main class="principal">
     <div class="cab-fila">
-      <h2>Fila</h2>
+      <div class="abas" role="tablist">
+        <button type="button" role="tab" id="aba-fila" aria-selected="true">Fila</button>
+        <button type="button" role="tab" id="aba-conf" aria-selected="false">Conferência</button>
+      </div>
       <div class="contagem num" id="contagem"></div>
-      <div class="acoes">
+      <div class="acoes" id="acoes-fila">
         <button class="btn peq" id="btn-pausar"></button>
         <button class="btn peq" id="btn-limpar">Tirar os prontos</button>
       </div>
+      <div class="acoes" id="acoes-conf" hidden>
+        <button class="btn peq" id="btn-conferir" title="Pergunta ao Vimeo, aula por aula, se as legendas enviadas continuam lá e completas"><svg class="i"><use href="#i-retry"/></svg>Conferir no Vimeo</button>
+        <button class="btn prim peq" id="btn-enviar-pend" title="Envia ao Vimeo as legendas das aulas prontas que ainda não foram enviadas ou que falharam"><svg class="i"><use href="#i-upload"/></svg>Enviar pendentes</button>
+      </div>
     </div>
     <div class="rundown" id="fila"></div>
+    <div id="conf" hidden>
+      <div class="conf-filtros" id="conf-filtros">
+        <button type="button" data-f="todas" aria-pressed="true">Todas</button>
+        <button type="button" data-f="faltando" aria-pressed="false">Falta algo</button>
+        <button type="button" data-f="completas" aria-pressed="false">Completas</button>
+      </div>
+      <div class="aviso" id="aviso-conf" hidden></div>
+      <div class="conf-cab"><span></span><span>Aula</span><span>Arquivos no Drive</span><span>Legendas no Vimeo</span><span>Áudio no Vimeo</span><span class="c-acoes"></span></div>
+      <div id="conf-lista"></div>
+      <div class="conf-legenda">
+        <span><i class="pip on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i>Pronto e conferido</span>
+        <span><i class="pip vai"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i>Enviando</span>
+        <span><i class="pip mal"><svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></i>Falhou ou incompleto</span>
+        <span><i class="pip"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i>Ainda não</span>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -429,7 +485,7 @@
     monitor(d.sistema, d.gpuDono, d.fila);
     const c = { aguardando: 0, processando: 0, pronto: 0, erro: 0 };
     for (const it of d.fila) c[it.estado] = (c[it.estado] || 0) + 1;
-    $('contagem').innerHTML = `<span><b>${c.processando}</b> processando</span><span><b>${c.aguardando}</b> na fila</span><span><b>${c.pronto}</b> prontos</span>${c.erro ? `<span style="color:var(--bad)"><b style="color:inherit">${c.erro}</b> com erro</span>` : ''}`;
+    if (aba === 'fila') $('contagem').innerHTML = `<span><b>${c.processando}</b> processando</span><span><b>${c.aguardando}</b> na fila</span><span><b>${c.pronto}</b> prontos</span>${c.erro ? `<span style="color:var(--bad)"><b style="color:inherit">${c.erro}</b> com erro</span>` : ''}`;
     $('btn-pausar').innerHTML = config.pausado ? `${ico('play')}Continuar a fila` : `${ico('pause')}Pausar a fila`;
     $('btn-pausar').classList.toggle('pausa', !!config.pausado);
     for (const b of $('simultaneos').children) b.setAttribute('aria-pressed', String(Number(b.dataset.v) === config.simultaneos));
@@ -699,8 +755,108 @@
     guardarLargura();
   };
 
+  // ---------- conferência ----------
+  let aba = 'fila', filtro = 'todas', confUltimo = null;
+  const CK = '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>';
+  const XX = '<svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+  const pip = (cls, titulo) => `<span class="pip ${cls}" title="${esc(titulo)}">${cls === 'mal' ? XX : CK}</span>`;
+
+  function situacao(l) {
+    const leg = (l.envio && l.envio.legendas) || {};
+    const geradas = SIGLAS.filter(s => l.arquivos && l.arquivos[s].legenda);
+    const arquivosOk = l.estado === 'pronto' && SIGLAS.every(s => l.arquivos[s].audio && l.arquivos[s].legenda);
+    const legOk = geradas.length > 0 && geradas.every(s => leg[s] && leg[s].ok);
+    return { leg, completa: arquivosOk && (legOk || !l.vimeo) };
+  }
+
+  function linhaConf(l) {
+    const st = situacao(l);
+    let selo, meta;
+    if (l.estado === 'pronto') {
+      selo = st.completa ? `<span class="selo ok" title="Tudo pronto">${CK}</span>` : `<span class="selo meio" title="Processada; falta enviar ou conferir">${CK}</span>`;
+      meta = `Processada em ${new Date(l.quando).toLocaleDateString('pt-BR')}${l.voz === 'clonada' ? ' · voz clonada' : ''}`;
+    } else if (l.estado === 'erro') {
+      selo = `<span class="selo mal" title="Falhou">${XX}</span>`;
+      meta = 'Falhou: ' + (l.erro || '');
+    } else {
+      selo = `<span class="selo" title="${l.estado === 'processando' ? 'Processando' : 'Na fila'}">${CK}</span>`;
+      meta = l.estado === 'processando' ? `Processando: ${l.etapa || ''} (${Math.round((l.progresso || 0) * 100)}%)` : 'Na fila';
+    }
+    if (l.envio && l.envio.erro) meta += ' · Envio ao Vimeo: ' + l.envio.erro;
+
+    const orig = (l.idioma || '').toUpperCase();
+    const arq = SIGLAS.map(s => `<span class="l ${s === orig ? 'orig' : ''}">${s}</span>`).join('')
+      + SIGLAS.map(s => pip(l.arquivos && l.arquivos[s].audio ? 'on' : '', `Áudio ${s}`)).join('')
+      + SIGLAS.map(s => pip(l.arquivos && l.arquivos[s].legenda ? 'on' : '', `Legenda ${s}`)).join('');
+    const vim = SIGLAS.map(s => `<span class="l">${s}</span>`).join('') + SIGLAS.map(s => {
+      const x = st.leg[s];
+      if (!l.vimeo) return pip('', 'Este vídeo não veio do Vimeo');
+      if (l.enviando && !(x && x.ok)) return pip('vai', `Legenda ${s}: enviando`);
+      if (!x) return pip('', `Legenda ${s}: ainda não enviada`);
+      return x.ok ? pip('on', `Legenda ${s}: no Vimeo, ${x.falas} falas conferidas`) : pip('mal', `Legenda ${s}: no Vimeo só ${x.falasVimeo ?? 0} de ${x.falas} falas`);
+    }).join('');
+    const aud = ['EN', 'ES'].map(s => `<span class="l">${s}</span>`).join('') + ['EN', 'ES'].map(s => pip('', `Áudio ${s}: envio ao Vimeo ainda não automatizado`)).join('');
+    const btn = l.estado === 'pronto' && l.vimeo ? `<button class="ico" data-enviar="${esc(l.chave)}" title="Enviar as legendas de novo" aria-label="Enviar as legendas de novo">${ico('upload')}</button>` : '';
+    return `<div class="conf">${selo}<div class="titulo"><strong title="${esc(l.origem)}">${esc(l.titulo)}</strong><div class="meta ${l.estado === 'erro' || (l.envio && l.envio.erro) ? 'erro' : ''}">${esc(meta)}</div></div>
+      <div class="tres">${arq}</div><div class="tres">${vim}</div><div class="tres dois">${aud}</div><div class="acoes-l">${btn}</div></div>`;
+  }
+
+  async function atualizarConf() {
+    if (aba !== 'conf') return;
+    try {
+      const d = await api('/api/conferencia');
+      const linhas = d.linhas.filter(l => filtro === 'todas' || (filtro === 'completas') === situacao(l).completa);
+      const prontas = d.linhas.filter(l => l.estado === 'pronto').length, completas = d.linhas.filter(l => situacao(l).completa).length;
+      $('contagem').innerHTML = `<span><b>${prontas}</b> de ${d.linhas.length} processadas</span><span><b>${completas}</b> completas</span>`;
+      const chave = JSON.stringify([linhas, filtro]);
+      if (chave !== confUltimo) {
+        confUltimo = chave;
+        $('conf-lista').innerHTML = linhas.length ? linhas.map(linhaConf).join('')
+          : `<div class="vazio"><strong>${d.linhas.length ? 'Nada neste filtro' : 'Nenhuma aula nesta pasta ainda'}</strong>As aulas aparecem aqui conforme ficam prontas em ${esc(d.saida)}.</div>`;
+      }
+    } catch { /* servidor reiniciando */ }
+    setTimeout(atualizarConf, 3000);
+  }
+
+  function trocarAba(nova) {
+    const antes = aba;
+    aba = nova;
+    $('aba-fila').setAttribute('aria-selected', String(nova === 'fila'));
+    $('aba-conf').setAttribute('aria-selected', String(nova === 'conf'));
+    $('fila').hidden = $('acoes-fila').hidden = nova !== 'fila';
+    $('conf').hidden = $('acoes-conf').hidden = nova !== 'conf';
+    ultimo = confUltimo = null;
+    try { localStorage.setItem('estudio-aba', nova); } catch {}
+    if (nova === 'conf' && antes !== 'conf') atualizarConf();
+  }
+  $('aba-fila').onclick = () => trocarAba('fila');
+  $('aba-conf').onclick = () => trocarAba('conf');
+  $('conf-filtros').onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    filtro = b.dataset.f;
+    for (const x of $('conf-filtros').children) x.setAttribute('aria-pressed', String(x === b));
+    confUltimo = null;
+  };
+  $('conf-lista').onclick = async e => {
+    const b = e.target.closest('[data-enviar]'); if (!b) return;
+    await api('/api/conferencia/enviar', { chaves: [b.dataset.enviar] }).catch(() => {});
+    confUltimo = null;
+  };
+  $('btn-enviar-pend').onclick = async () => {
+    try { const r = await api('/api/conferencia/enviar', {}); mostrar($('aviso-conf'), r.agendados ? `${r.agendados} aulas entraram na fila de envio ao Vimeo.` : 'Não há legendas pendentes de envio.', true); }
+    catch (e) { mostrar($('aviso-conf'), e.message); }
+  };
+  $('btn-conferir').onclick = async () => {
+    const b = $('btn-conferir'); b.disabled = true;
+    mostrar($('aviso-conf'), 'Conferindo no Vimeo, aula por aula…', true);
+    try { const r = await api('/api/conferencia/verificar', {}); mostrar($('aviso-conf'), `${r.conferidos} aulas conferidas no Vimeo.`, true); }
+    catch (e) { mostrar($('aviso-conf'), e.message); }
+    b.disabled = false; confUltimo = null;
+  };
+
   carregarVimeo();
   atualizar();
+  try { if (localStorage.getItem('estudio-aba') === 'conf') trocarAba('conf'); } catch {}
 })();
 </script>
 </body>

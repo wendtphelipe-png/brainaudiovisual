@@ -20,6 +20,7 @@ const LOGO = path.join(__dirname, '..', 'design', 'logo');
 const ARQ_FILA = path.join(CONFIG.dados, 'fila.json');
 const ARQ_HIST = path.join(CONFIG.dados, 'historico.json');
 const ENVIOS = path.join(CONFIG.dados, 'envios');
+const ARQ_VIMEO_ENV = path.join(CONFIG.dados, 'vimeo-envios.json');
 const EXT_MIDIA = /\.(mp4|mov|mkv|avi|webm|m4v|m4a|mp3|wav|aac|flac|ogg)$/i;
 fs.mkdirSync(ENVIOS, { recursive: true });
 
@@ -123,8 +124,9 @@ function iniciar(it) {
       Object.assign(it, { estado: 'pronto', etapa: 'Pronto', progresso: 1, destino: m.fim.destino, arquivos: m.fim.arquivos, fim: Date.now(),
         resumo: { idiomas: m.fim.idiomas, tempos: m.fim.tempos, duracao: m.fim.duracao } });
       addLog(it, `Pronto em ${Math.round(m.fim.totalSeg / 60)} min`);
-      historico[it.chave] = { titulo: it.titulo, origem: it.origem, destino: m.fim.destino, quando: Date.now() };
+      historico[it.chave] = { titulo: it.titulo, origem: it.origem, destino: m.fim.destino, quando: Date.now(), voz: it.voz || null, idioma: it.idioma || null };
       salvarHistorico();
+      if (it.chave.startsWith('vimeo:')) agendarEnvio(it.chave, it);
     } else if (m.erro) {
       Object.assign(it, { estado: 'erro', erro: m.erro, fim: Date.now() });
       addLog(it, 'Erro: ' + m.erro);
@@ -291,6 +293,95 @@ async function videosVimeo(token, ref) {
   return lista;
 }
 
+// ---------- envio ao Vimeo e conferência ----------
+
+// O que já foi enviado ao vídeo original no Vimeo, por vídeo:
+// { chave: { legendas: { EN: { id, falas, ok, quando } }, erro, quando } }
+let enviosVimeo = {};
+try { enviosVimeo = JSON.parse(fs.readFileSync(ARQ_VIMEO_ENV, 'utf8')); } catch { /* vazio */ }
+function salvarEnvios() {
+  fs.writeFileSync(ARQ_VIMEO_ENV + '.tmp', JSON.stringify(enviosVimeo, null, 1), 'utf8');
+  fs.renameSync(ARQ_VIMEO_ENV + '.tmp', ARQ_VIMEO_ENV);
+}
+
+const SIGLAS = ['PT', 'EN', 'ES'];
+const NOME_LEGENDA = { PT: 'Português', EN: 'English', ES: 'Español' };
+const filaEnvio = [];
+let enviando = null;
+
+function agendarEnvio(chave, it) {
+  if (!filaEnvio.includes(chave) && enviando !== chave) filaEnvio.push(chave);
+  if (it) addLog(it, 'Legendas: na fila de envio ao Vimeo');
+  proximoEnvio();
+}
+
+// Um vídeo por vez, para não esbarrar no limite de chamadas do Vimeo
+async function proximoEnvio() {
+  if (enviando || !filaEnvio.length) return;
+  enviando = filaEnvio.shift();
+  const chave = enviando;
+  const h = historico[chave];
+  const it = estado.fila.find(i => i.chave === chave);
+  const reg = enviosVimeo[chave] = { ...(enviosVimeo[chave] || {}), legendas: { ...((enviosVimeo[chave] || {}).legendas || {}) }, erro: null };
+  try {
+    const token = vimeo.lerToken(CONFIG.dados);
+    if (!token) throw new Error('Vimeo não conectado.');
+    if (!h || !h.destino) throw new Error('Vídeo sem pasta de saída.');
+    const id = chave.slice('vimeo:'.length);
+    for (const s of SIGLAS) {
+      const arquivo = path.join(h.destino, `${s}.vtt`);
+      if (!fs.existsSync(arquivo)) continue;
+      const r = await vimeo.enviarLegenda(token, id, { idioma: s.toLowerCase(), nome: NOME_LEGENDA[s], arquivo, idAntigo: reg.legendas[s] && reg.legendas[s].id });
+      reg.legendas[s] = { ...r, quando: Date.now() };
+      salvarEnvios();
+      if (it) addLog(it, r.ok ? `Legenda ${s} enviada ao Vimeo e conferida (${r.falas} falas)` : `Legenda ${s} enviada, mas a conferência não bateu (${r.falasVimeo} de ${r.falas} falas)`);
+    }
+    reg.quando = Date.now();
+  } catch (e) {
+    reg.erro = e.message;
+    if (it) addLog(it, 'Envio ao Vimeo falhou: ' + e.message);
+  }
+  salvarEnvios();
+  salvar();
+  enviando = null;
+  proximoEnvio();
+}
+
+// Confere no próprio Vimeo se as legendas que o estúdio enviou continuam lá
+async function verificarNoVimeo(chave) {
+  const token = vimeo.lerToken(CONFIG.dados);
+  const reg = enviosVimeo[chave];
+  if (!token || !reg || !reg.legendas) return;
+  const faixas = await vimeo.legendas(token, chave.slice('vimeo:'.length));
+  for (const [s, l] of Object.entries(reg.legendas)) {
+    const f = faixas.find(t => t.id === l.id);
+    Object.assign(l, { ok: !!f && f.ativa && f.falas === l.falas, falasVimeo: f ? f.falas : null, conferido: Date.now() });
+  }
+  salvarEnvios();
+}
+
+const dentroDe = (pasta, base) => path.resolve(pasta || '').toLowerCase().startsWith(path.resolve(base).toLowerCase() + path.sep);
+
+// Uma linha por aula da pasta de saída atual: o que foi gerado e o que já está no Vimeo
+function conferencia() {
+  const linhas = new Map();
+  for (const [chave, h] of Object.entries(historico)) {
+    if (!dentroDe(h.destino, estado.config.saida)) continue;
+    const arquivos = {};
+    for (const s of SIGLAS) arquivos[s] = { audio: fs.existsSync(path.join(h.destino, `${s}.mp3`)), legenda: fs.existsSync(path.join(h.destino, `${s}.vtt`)) };
+    linhas.set(chave, { chave, titulo: h.titulo, origem: h.origem, estado: 'pronto', quando: h.quando, voz: h.voz, idioma: h.idioma, arquivos });
+  }
+  for (const it of estado.fila) {
+    if (linhas.has(it.chave) || !['aguardando', 'processando', 'erro'].includes(it.estado)) continue;
+    linhas.set(it.chave, { chave: it.chave, titulo: it.titulo || it.origem, origem: it.origem, estado: it.estado, progresso: it.progresso, etapa: it.etapa, erro: it.erro });
+  }
+  return [...linhas.values()].map(l => {
+    const e = enviosVimeo[l.chave];
+    return { ...l, vimeo: l.chave.startsWith('vimeo:'), envio: e ? { legendas: e.legendas, erro: e.erro, quando: e.quando } : null,
+      enviando: enviando === l.chave || filaEnvio.includes(l.chave) };
+  }).sort((a, b) => String(a.titulo).localeCompare(String(b.titulo), 'pt', { numeric: true }));
+}
+
 // ---------- HTTP ----------
 
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -369,6 +460,20 @@ const servidor = http.createServer(async (req, res) => {
       return json(res, vs.map(v => ({ ...v, chave: chaveDe(v.origem) })));
     }
     if (p === '/api/historico') return json(res, historico);
+    if (p === '/api/conferencia') return json(res, { saida: estado.config.saida, linhas: conferencia() });
+    if (req.method === 'POST' && p === '/api/conferencia/enviar') {
+      // Sem lista: envia tudo o que está pronto e ainda não foi enviado (ou falhou)
+      const { chaves } = await lerCorpo(req);
+      const alvo = Array.isArray(chaves) ? chaves : conferencia().filter(l => l.vimeo && l.estado === 'pronto' && (!l.envio || l.envio.erro || Object.values(l.envio.legendas || {}).some(x => !x.ok) || !Object.keys(l.envio.legendas || {}).length)).map(l => l.chave);
+      for (const c of alvo) if (historico[c]) agendarEnvio(c, estado.fila.find(i => i.chave === c));
+      return json(res, { agendados: alvo.length });
+    }
+    if (req.method === 'POST' && p === '/api/conferencia/verificar') {
+      const lista = conferencia().filter(l => enviosVimeo[l.chave]);
+      for (const l of lista) { try { await verificarNoVimeo(l.chave); } catch (e) { enviosVimeo[l.chave].erro = e.message; } }
+      salvarEnvios();
+      return json(res, { conferidos: lista.length });
+    }
     if (req.method === 'POST' && p === '/api/historico/limpar') {
       const { chaves = [] } = await lerCorpo(req);
       for (const c of chaves) delete historico[c];

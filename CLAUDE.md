@@ -64,6 +64,13 @@ Leia antes de qualquer tarefa. Atualizado em 28/10/2026.
   - Se o gerador cair (falta de RAM no PC, que tem 16 GB e o Chrome ocupa ~6 GB), o `motor.js` religa até 3 vezes com as falas que faltam. A fala que falhar mesmo assim sai com a voz do Edge, sem parar a fila. Se o ambiente faltar, o vídeo inteiro sai com o Edge.
   - Motores avaliados e descartados em 28/10/2026: VoxCPM2 (não cabe na placa de 8 GB nem na RAM), OmniVoice (licença não comercial), PocketTTS (pesos com acesso restrito no Hugging Face).
   - Clonar a voz de um professor exige autorização por escrito dele.
+- **Envio ao Vimeo e conferência** (desde 28/10/2026):
+  - Quando um vídeo do Vimeo fica pronto, o `server.js` envia as legendas `PT/EN/ES.vtt` ao vídeo original, uma por vez (API texttracks, `vimeo.enviarLegenda`). Cada legenda fica ativa; depois o estúdio baixa de volta e confere o número de falas.
+  - Registro em `estudio/dados/vimeo-envios.json` (o id da faixa que o estúdio criou; ao reenviar, só essa faixa é apagada e trocada).
+  - Aba **Conferência** da tela: uma linha por aula da pasta de saída atual, com arquivos no Drive, legendas no Vimeo e áudio no Vimeo. Botões "Enviar pendentes" e "Conferir no Vimeo".
+  - **Áudios por idioma no Vimeo: a API pública não tem rota** (`/audiotracks` dá 404). Só pelo site (painel "Idiomas" do vídeo); falta automatizar pelo navegador, com o login do Phelipe.
+  - Em 28/10/2026 as 108 aulas do histórico foram refeitas com a voz clonada, 1 por vez, em `G:\Meu Drive\BR.AIN Dublagens - Voz clonada`.
+- **O disco D: (HD antigo) está com setores defeituosos** (28/10/2026). O estúdio, os ambientes Python e os modelos estão nele. A saída vai para o Drive, então o resultado de cada aula fica seguro.
 - **Na nuvem o estúdio não roda** (não tem placa de vídeo, Drive G: nem token). Lá dá para editar o código; para testar, peça ao Phelipe que rode no PC.
 - **Reiniciar o estúdio derruba os vídeos em andamento**, que recomeçam do zero. Só reinicie com a fila parada ou com o aviso dele.
 
@@ -77,8 +84,7 @@ Leia antes de qualquer tarefa. Atualizado em 28/10/2026.
 
 ## Pendências e ideias combinadas
 - Estúdio:
-  - enviar as legendas `.vtt` automaticamente ao vídeo original no Vimeo (a API aceita texttracks);
-  - os áudios por idioma provavelmente continuam manuais, porque não há API oficial do Vimeo para isso;
+  - automatizar o envio dos áudios EN/ES ao Vimeo pelo site (sem API pública);
   - depois, o mesmo para o YouTube;
   - Vimeo com o inglês como áudio padrão: não há opção documentada. A ideia é gerar o vídeo com o inglês como áudio principal e usar "Substituir vídeo", com o português como faixa extra. Testar antes em UMA aula (legendas e faixas continuam?);
   - não usar a voz clonada na cabine ao vivo (aumenta o atraso). Para o atraso da cabine, o caminho é ajustar `cabine/segmenter.js`.
