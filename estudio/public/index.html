@@ -765,7 +765,7 @@
     const leg = (l.envio && l.envio.legendas) || {};
     const geradas = SIGLAS.filter(s => l.arquivos && l.arquivos[s].legenda);
     const arquivosOk = l.estado === 'pronto' && SIGLAS.every(s => l.arquivos[s].audio && l.arquivos[s].legenda);
-    const legOk = geradas.length > 0 && geradas.every(s => leg[s] && leg[s].ok);
+    const legOk = geradas.length > 0 && geradas.every(s => leg[s] && leg[s].ok) && !l.envio.automaticaAtiva;
     return { leg, completa: arquivosOk && (legOk || !l.vimeo) };
   }
 
@@ -783,6 +783,7 @@
       meta = l.estado === 'processando' ? `Processando: ${l.etapa || ''} (${Math.round((l.progresso || 0) * 100)}%)` : 'Na fila';
     }
     if (l.envio && l.envio.erro) meta += ' · Envio ao Vimeo: ' + l.envio.erro;
+    if (l.envio && l.envio.automaticaAtiva) meta += ' · A legenda automática (IA) do Vimeo voltou a ficar ativa';
 
     const orig = (l.idioma || '').toUpperCase();
     const arq = SIGLAS.map(s => `<span class="l ${s === orig ? 'orig' : ''}">${s}</span>`).join('')

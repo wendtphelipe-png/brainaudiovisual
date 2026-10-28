@@ -336,6 +336,12 @@ async function proximoEnvio() {
       salvarEnvios();
       if (it) addLog(it, r.ok ? `Legenda ${s} enviada ao Vimeo e conferida (${r.falas} falas)` : `Legenda ${s} enviada, mas a conferência não bateu (${r.falasVimeo} de ${r.falas} falas)`);
     }
+    // A legenda automática (IA) do Vimeo sai do ar quando a do estúdio entra
+    if (Object.values(reg.legendas).some(l => l.ok)) {
+      const n = await vimeo.desligarAutomaticas(token, id);
+      reg.automaticaAtiva = false;
+      if (it && n) addLog(it, `Legenda automática (IA) do Vimeo desligada`);
+    }
     reg.quando = Date.now();
   } catch (e) {
     reg.erro = e.message;
@@ -353,6 +359,7 @@ async function verificarNoVimeo(chave) {
   const reg = enviosVimeo[chave];
   if (!token || !reg || !reg.legendas) return;
   const faixas = await vimeo.legendas(token, chave.slice('vimeo:'.length));
+  reg.automaticaAtiva = faixas.some(t => t.ativa && /-x-autogen$/i.test(t.idioma || ''));
   for (const [s, l] of Object.entries(reg.legendas)) {
     const f = faixas.find(t => t.id === l.id);
     Object.assign(l, { ok: !!f && f.ativa && f.falas === l.falas, falasVimeo: f ? f.falas : null, conferido: Date.now() });
@@ -377,7 +384,7 @@ function conferencia() {
   }
   return [...linhas.values()].map(l => {
     const e = enviosVimeo[l.chave];
-    return { ...l, vimeo: l.chave.startsWith('vimeo:'), envio: e ? { legendas: e.legendas, erro: e.erro, quando: e.quando } : null,
+    return { ...l, vimeo: l.chave.startsWith('vimeo:'), envio: e ? { legendas: e.legendas, erro: e.erro, quando: e.quando, automaticaAtiva: !!e.automaticaAtiva } : null,
       enviando: enviando === l.chave || filaEnvio.includes(l.chave) };
   }).sort((a, b) => String(a.titulo).localeCompare(String(b.titulo), 'pt', { numeric: true }));
 }

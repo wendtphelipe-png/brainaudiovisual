@@ -68,7 +68,12 @@ Leia antes de qualquer tarefa. Atualizado em 28/10/2026.
   - Quando um vídeo do Vimeo fica pronto, o `server.js` envia as legendas `PT/EN/ES.vtt` ao vídeo original, uma por vez (API texttracks, `vimeo.enviarLegenda`). Cada legenda fica ativa; depois o estúdio baixa de volta e confere o número de falas.
   - Registro em `estudio/dados/vimeo-envios.json` (o id da faixa que o estúdio criou; ao reenviar, só essa faixa é apagada e trocada).
   - Aba **Conferência** da tela: uma linha por aula da pasta de saída atual, com arquivos no Drive, legendas no Vimeo e áudio no Vimeo. Botões "Enviar pendentes" e "Conferir no Vimeo".
-  - **Áudios por idioma no Vimeo: a API pública não tem rota** (`/audiotracks` dá 404). Só pelo site (painel "Idiomas" do vídeo); falta automatizar pelo navegador, com o login do Phelipe.
+  - Depois de enviar, o estúdio desliga (não apaga) a legenda automática (IA) do Vimeo no idioma original (`*-x-autogen`).
+  - **Áudios por idioma no Vimeo (teste de 28/10/2026, ainda sem solução):**
+    - A rota é `/videos/{id}/versions/{versão}/audiotracks`. O token do estúdio só lê; para criar, é preciso o login do site (JWT de `vimeo.com/_next/jwt`).
+    - Corpo usado: `{language_code, type: 'main', name, upload: {approach: 'gcs', size, mime_type}}`. Depois vem o PUT no link do GCS e o `POST /videos/{id}/upload_attempts/{gcs_uid}/complete`.
+    - Tudo respondeu OK, mas a faixa ficou "in_progress" para sempre. É o mesmo travamento que o Phelipe vê no site, onde o painel manda o POST para uma versão errada (1182147807, quando a API diz que a atual é 1240112991) e recebe 404.
+    - As faixas de teste foram apagadas. O próximo passo é levar ao suporte do Vimeo, ou testar em outra aula.
   - Em 28/10/2026 as 108 aulas do histórico foram refeitas com a voz clonada, 1 por vez, em `G:\Meu Drive\BR.AIN Dublagens - Voz clonada`.
 - **O disco D: (HD antigo) está com setores defeituosos** (28/10/2026). O estúdio, os ambientes Python e os modelos estão nele. A saída vai para o Drive, então o resultado de cada aula fica seguro.
 - **Na nuvem o estúdio não roda** (não tem placa de vídeo, Drive G: nem token). Lá dá para editar o código; para testar, peça ao Phelipe que rode no PC.

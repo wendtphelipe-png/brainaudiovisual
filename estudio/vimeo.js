@@ -144,4 +144,18 @@ async function enviarLegenda(token, id, { idioma, nome, arquivo, idAntigo }) {
   return { id: String(faixa.id), falas: local, falasVimeo: noVimeo ? noVimeo.falas : null, ok };
 }
 
-module.exports = { lerToken, idDoLink, info, baixar, conta, listarPastas, pastaDoLink, videosDe, legendas, enviarLegenda, contarFalas };
+// Desliga as legendas automáticas (IA) que o Vimeo cria sozinho no idioma
+// original (ex.: "pt-x-autogen"), para valer só a legenda do estúdio.
+// Não apaga: só tira de "ativa". Devolve quantas desligou.
+async function desligarAutomaticas(token, id) {
+  const r = await chamar(token, `/videos/${id}/texttracks?per_page=100`);
+  let n = 0;
+  for (const t of r.data || []) {
+    if (!t.active || !/-x-autogen$/i.test(t.language || '')) continue;
+    await chamar(token, `/videos/${id}/texttracks/${t.id}`, 'PATCH', { active: false });
+    n++;
+  }
+  return n;
+}
+
+module.exports = { lerToken, idDoLink, info, baixar, conta, listarPastas, pastaDoLink, videosDe, legendas, enviarLegenda, desligarAutomaticas, contarFalas };
