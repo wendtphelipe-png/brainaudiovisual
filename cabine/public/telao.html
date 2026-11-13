@@ -17,7 +17,14 @@
      e o conjunto sobe suavemente de baixo para cima, como uma legenda de
      teleprompter. A frase sendo dublada fica em destaque.
      Ajustes pelo endereço: ?altura=216 (altura da linha em px; padrão 216,
-     cinco linhas numa tela 1920x1080) e ?limpo=1 (sem o nome do idioma). */
+     cinco linhas numa tela 1920x1080) e ?limpo=1 (sem o nome do idioma).
+
+     Modo "em blocos" (?modo=blocos, ou o seletor que aparece ao mexer o
+     mouse, ou a tecla B): em vez do texto corrido, cada linha mostra uma
+     legenda por vez, como no cinema: frases inteiras de no máximo 2 linhas,
+     que ficam na tela o tempo de leitura antes de dar lugar à próxima.
+     Ajustes: ?leitura=15 (caracteres por segundo; padrão 15) e
+     ?caracteres=110 (tamanho máximo de cada legenda). */
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   :root { --row-h: 216px; }
@@ -38,11 +45,35 @@
   .seg { transition: color .5s; }
   .seg.current { color: #FFFFFF; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(255, 178, 36, .85); text-decoration-thickness: .08em; text-underline-offset: .18em; }
   .msg { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; color: #8592A8; font-size: 22px; padding: 30px; }
+
+  /* Modo em blocos: uma legenda centralizada por linha de idioma */
+  .caps { position: absolute; inset: calc(var(--row-h) * .2) 8vw calc(var(--row-h) * .08); display: flex; align-items: center; justify-content: center; }
+  body.clean .caps { top: calc(var(--row-h) * .08); }
+  .cap, .cap-measure { width: 100%; text-align: center; font-size: calc(var(--row-h) * .19); line-height: 1.25; font-weight: 600; color: #FFFFFF; text-wrap: balance; }
+  .cap-measure { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; }
+  .cap.in { animation: capIn .22s ease-out; }
+  .cap.out { opacity: 0; transition: opacity .6s; }
+  @keyframes capIn { from { opacity: 0; transform: translateY(.12em); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .cap.in { animation: none; } }
+
+  /* Seletor do modo: só aparece quando o mouse mexe, para não sair na captura */
+  .ctl { position: fixed; right: 18px; bottom: 18px; z-index: 10; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 10px;
+    background: rgba(13, 20, 33, .94); border: 1px solid #22304A; font-size: 14px; color: #8592A8; opacity: 0; transition: opacity .25s; }
+  body.ctl-on .ctl, .ctl:hover, .ctl:focus-within { opacity: 1; }
+  .ctl span { padding: 0 6px 0 8px; }
+  .ctl button { font: inherit; font-weight: 600; color: #C9D6E6; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 7px 12px; cursor: pointer; }
+  .ctl button:hover { background: #16213A; }
+  .ctl button[aria-pressed="true"] { color: #FFFFFF; background: #16213A; border-color: #3FA9F5; }
 </style>
 </head>
 <body>
   <main class="rows" id="rows"></main>
   <div class="msg" id="msg">Conectando…</div>
+  <div class="ctl" id="ctl" role="group" aria-label="Modo da legenda">
+    <span>Legenda</span>
+    <button type="button" data-modo="continuo" aria-pressed="true">Contínua</button>
+    <button type="button" data-modo="blocos" aria-pressed="false">Em blocos</button>
+  </div>
 <script>
 (function () {
   // Nome de cada idioma escrito nele mesmo (é o que a plateia lê)
@@ -60,20 +91,45 @@
   let items = {};      // idioma -> Map(seq -> item)
   let outputs = [];
 
-  // Cada linha guarda a fila de palavras ainda não mostradas
-  let rows = {};       // idioma -> { text, queue: [{ span, words, i }], have: Set, last }
+  // Modo da legenda: endereço (?modo=) tem prioridade; depois a última
+  // escolha feita nesta máquina; o padrão é o texto corrido de sempre.
+  const MODES = ['continuo', 'blocos'];
+  let mode = 'continuo';
+  try { if (MODES.includes(localStorage.getItem('telao-modo'))) mode = localStorage.getItem('telao-modo'); } catch (e) {}
+  if (MODES.includes(params.get('modo'))) mode = params.get('modo');
+
+  // Cada linha guarda a fila de palavras ainda não mostradas (modo contínuo)
+  // ou as legendas montadas e a que está na tela (modo em blocos).
+  let rows = {};
 
   function build() {
     $('rows').innerHTML = config.targets.map(l => `
       <section class="row" data-lang="${l}" ${l.startsWith('ar') ? 'dir="rtl"' : ''}>
         <div class="tag"><b></b>${NAMES[l] || l}</div>
-        <div class="viewport"><div class="text" id="text-${l}"></div></div>
+        ${mode === 'blocos'
+          ? `<div class="caps"><div class="cap" id="cap-${l}"></div><div class="cap-measure" id="meas-${l}" aria-hidden="true"></div></div>`
+          : `<div class="viewport"><div class="text" id="text-${l}"></div></div>`}
       </section>`).join('');
     rows = {};
     for (const l of config.targets) {
-      rows[l] = { text: $('text-' + l), queue: [], have: new Set(), last: 0 };
-      render(l, true); // o que já existia aparece de uma vez
+      if (mode === 'blocos') {
+        rows[l] = { blocos: true, cap: $('cap-' + l), meas: $('meas-' + l), lang: l, buf: [], lastSeq: 0, lastInput: 0, queue: [], showing: null };
+      } else {
+        rows[l] = { text: $('text-' + l), queue: [], have: new Set(), last: 0 };
+      }
+      render(l, true); // o que já existia aparece de uma vez (no modo em blocos, começa do próximo)
     }
+    for (const b of document.querySelectorAll('#ctl button')) b.setAttribute('aria-pressed', String(b.dataset.modo === mode));
+  }
+
+  function setMode(m) {
+    if (!MODES.includes(m) || m === mode) return;
+    mode = m;
+    try { localStorage.setItem('telao-modo', m); } catch (e) {}
+    const url = new URL(location.href);
+    url.searchParams.set('modo', m);
+    history.replaceState(null, '', url);
+    build();
   }
 
   // O que mostrar: com uma saída de voz ligada, só o que já foi (ou está
@@ -95,6 +151,7 @@
   function render(lang, instant = false) {
     const row = rows[lang];
     if (!row) return;
+    if (row.blocos) return feedBlocks(row, instant);
     const { shown, current } = visible(lang);
     for (const it of shown) {
       if (row.have.has(it.seq)) continue;
@@ -125,7 +182,7 @@
     const now = performance.now();
     for (const lang of Object.keys(rows)) {
       const row = rows[lang];
-      if (!row.queue.length) continue;
+      if (row.blocos || !row.queue.length) continue;
       const pending = row.queue.reduce((s, q) => s + q.words.length - q.i, 0);
       const interval = pending > 40 ? 60 : pending > 20 ? 130 : 300;
       if (now - row.last < interval) continue;
@@ -138,6 +195,142 @@
       if (grow > 0) slideUp(row.text, grow);
     }
   }, 40);
+
+  // ---------------------------------------------------------------------
+  // Modo em blocos
+  //
+  // O texto traduzido chega em pedaços que não respeitam o fim das frases.
+  // Aqui ele vai para um buffer e sai em LEGENDAS:
+  //  - cada legenda cabe em no máximo 2 linhas (medido na própria tela) e
+  //    em LEGENDA_MAX caracteres;
+  //  - o corte prefere fim de frase, depois vírgula, depois antes de uma
+  //    conjunção ("and", "pero", "que"...), e só em último caso no meio;
+  //  - frase incompleta espera um pouco (ESPERA_MS) pelo resto antes de sair;
+  //  - cada legenda fica na tela o tempo de leitura (LEITURA caracteres por
+  //    segundo). Se as legendas se acumularem, o ritmo acelera para o atraso
+  //    não crescer; nada é descartado.
+  // ---------------------------------------------------------------------
+  const LEITURA = Math.min(30, Math.max(8, Number(params.get('leitura')) || 15));
+  const LEGENDA_MAX = Math.min(200, Math.max(40, Number(params.get('caracteres')) || 110));
+  const ESPERA_MS = 1600;        // frase sem ponto final: quanto esperar pelo resto
+  const MIN_MS = 1600;           // nenhuma legenda some antes disso
+  const MAX_MS = 7000;           // nenhuma legenda trava a fila além disso
+  const SOME_MS = 8000;          // sem fala nova, a última legenda some depois disso
+  const END_RE = /[.?!…]["'”’»)\]]*$/;
+  const CLAUSE_RE = /[,;:]["'”’»)\]]*$/;
+  const CONNECT = new Set([
+    'e', 'mas', 'que', 'porque', 'pois', 'então', 'quando', 'onde', 'porém', 'ou', 'se', 'como', 'enquanto', 'depois', 'antes', 'para',
+    'and', 'but', 'so', 'because', 'when', 'which', 'that', 'while', 'where', 'or', 'if', 'after', 'before', 'since', 'although', 'to',
+    'y', 'pero', 'porque', 'cuando', 'donde', 'pues', 'entonces', 'mientras', 'aunque', 'o', 'si', 'después', 'antes', 'para',
+    'et', 'mais', 'donc', 'parce', 'quand', 'où', 'ou', 'si', 'pendant', 'ed', 'ma', 'perché', 'quando', 'dove', 'und', 'aber', 'weil', 'wenn', 'dass', 'oder']);
+  const bare = w => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+
+  // Pega as frases novas (na ordem) e joga as palavras no buffer
+  function feedBlocks(row, instant) {
+    const { shown } = visible(row.lang);
+    if (instant) { // ao abrir ou trocar de modo, começa da próxima frase
+      row.lastSeq = shown.length ? shown[shown.length - 1].seq : 0;
+      return;
+    }
+    for (const it of shown) {
+      if (it.seq <= row.lastSeq) continue;
+      row.lastSeq = it.seq;
+      const words = it.text.split(/\s+/).filter(Boolean);
+      if (!words.length) continue;
+      // O fim de cada pedaço traduzido é um bom ponto de corte (o
+      // reconhecimento de voz quase nunca põe ponto final)
+      row.buf.push(...words.map((w, i) => ({ w, end: i === words.length - 1 })));
+      row.lastInput = performance.now();
+    }
+  }
+
+  // A legenda cabe em 2 linhas? Mede num elemento invisível igual ao real.
+  const join = list => list.map(x => x.w).join(' ');
+
+  function fits(row, words) {
+    const text = join(words);
+    if (words.length > 1 && text.length > LEGENDA_MAX) return false;
+    // Janela minimizada ou ainda sem tamanho: não dá para medir; vale só o
+    // limite de caracteres (senão sairiam legendas de uma palavra)
+    if (row.meas.parentNode.clientWidth < 300) return true;
+    row.meas.textContent = text;
+    const lh = parseFloat(getComputedStyle(row.meas).lineHeight) || 40;
+    return row.meas.offsetHeight <= lh * 2 + 2;
+  }
+
+  function fitCount(row) {
+    let n = 1;
+    while (n < row.buf.length && fits(row, row.buf.slice(0, n + 1))) n++;
+    return n;
+  }
+
+  // Onde cortar quando o buffer não cabe numa legenda só (n = quantas cabem)
+  function bestCut(words, n) {
+    for (let i = n - 1; i >= 2; i--) if (END_RE.test(words[i].w)) return i + 1;
+    for (let i = n - 1; i >= Math.floor(n * 0.45); i--) if (CLAUSE_RE.test(words[i].w)) return i + 1;
+    for (let i = n - 1; i >= Math.floor(n * 0.4); i--) if (words[i].end) return i + 1;
+    for (let i = n - 1; i >= Math.max(1, Math.floor(n * 0.5)); i--) if (CONNECT.has(bare(words[i].w))) return i;
+    return n;
+  }
+
+  function compose(row, now) {
+    while (row.buf.length) {
+      const n = fitCount(row);
+      if (row.buf.length > n) { row.queue.push(join(row.buf.splice(0, bestCut(row.buf, n)))); continue; }
+      // Tudo cabe: sai se a frase terminou; senão espera o resto um pouco
+      let k = -1;
+      for (let i = row.buf.length - 1; i >= 0; i--) if (END_RE.test(row.buf[i].w)) { k = i; break; }
+      if (k === row.buf.length - 1 || now - row.lastInput >= ESPERA_MS) { row.queue.push(join(row.buf.splice(0))); break; }
+      if (k >= 2) { row.queue.push(join(row.buf.splice(0, k + 1))); continue; }
+      break;
+    }
+  }
+
+  // Tempo de leitura; acelera se houver legendas esperando
+  function readMs(text, waiting) {
+    const cps = waiting >= 5 ? LEITURA * 2 : waiting >= 3 ? LEITURA * 1.6 : waiting >= 1 ? LEITURA * 1.15 : LEITURA;
+    const min = waiting >= 5 ? 1200 : MIN_MS;
+    return Math.min(MAX_MS, Math.max(min, text.length / cps * 1000));
+  }
+
+  function showCaption(row, text, now) {
+    row.showing = text === null ? null : { text, since: now };
+    row.cap.classList.remove('in', 'out');
+    if (text === null) { row.cap.classList.add('out'); return; }
+    row.cap.textContent = text;
+    void row.cap.offsetWidth; // reinicia a animação de entrada
+    row.cap.classList.add('in');
+  }
+
+  setInterval(() => {
+    const now = performance.now();
+    for (const lang of Object.keys(rows)) {
+      const row = rows[lang];
+      if (!row.blocos) continue;
+      compose(row, now);
+      if (!row.showing) {
+        if (row.queue.length) showCaption(row, row.queue.shift(), now);
+        continue;
+      }
+      const elapsed = now - row.showing.since;
+      const need = readMs(row.showing.text, row.queue.length);
+      if (row.queue.length && elapsed >= need) showCaption(row, row.queue.shift(), now);
+      else if (!row.queue.length && !row.buf.length && elapsed >= need + SOME_MS) showCaption(row, null, now);
+    }
+  }, 100);
+
+  // Seletor do modo: aparece ao mexer o mouse e some sozinho
+  let ctlTimer = 0;
+  const showCtl = () => {
+    document.body.classList.add('ctl-on');
+    clearTimeout(ctlTimer);
+    ctlTimer = setTimeout(() => document.body.classList.remove('ctl-on'), 2500);
+  };
+  document.addEventListener('mousemove', showCtl);
+  $('ctl').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setMode(b.dataset.modo); showCtl(); } });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'b' || e.key === 'B') { setMode(mode === 'blocos' ? 'continuo' : 'blocos'); showCtl(); }
+  });
 
   let ws, retry = 0;
   function connect() {
